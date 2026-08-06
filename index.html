@@ -960,8 +960,9 @@
     save();
 
     let exportInProgress = false;
-    async function exportProgress() {
+    async function exportProgress(event) {
       if (exportInProgress) return;
+      event?.currentTarget?.blur?.();
       exportInProgress = true;
       try {
         save();
@@ -2207,7 +2208,10 @@
       utterance.rate = 0.85;
       speechSynthesis.speak(utterance);
     }
-    $('nextBtn').onclick = pick;
+    $('nextBtn').onclick = event => {
+      event.currentTarget.blur();
+      pick();
+    };
     $('speakBtn').onclick = speakCurrentWord;
     $('currentBtn').onclick = () => {
       if (activeLibrary !== store.current) { save(); loadLibrary(store.current); pick(); }
@@ -2243,6 +2247,7 @@
       save(); pick();
     };
     document.addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229 || e.repeat) return;
       if (!$('intensiveSelectionModal').hidden) {
         if (e.key === 'Escape') closeIntensiveSelection();
         return;
@@ -2261,7 +2266,7 @@
           else chooseRare(index);
         }
       }
-      if (key === 'n') pick();
+      if (key === 'n') { e.preventDefault(); pick(); }
       if (key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); speakCurrentWord(); }
       if (key === 'u') undoLast();
     });

@@ -6,7 +6,7 @@ import {
 } from "./core/config";
 import { EventStore } from "./core/events";
 import { mergeSnapshots } from "./core/merge";
-import type { LegacyBundle, V4Snapshot } from "./core/types";
+import type { V4Snapshot } from "./core/types";
 import { initContentManagerUi, type ContentManagerUi } from "./content/ui";
 import type { ContentSnapshotV1 } from "./content/types";
 import { initReviewUi } from "./review/ui";
@@ -19,6 +19,7 @@ import {
   saveTextFile,
   speakEnglish,
 } from "./platform/runtime";
+import { comparableLegacyBundle } from "./platform/legacy-bundle";
 import { retryContentOutbox, syncContentStartup, type ContentSyncResult } from "./sync/content-sync";
 import {
   ContentGitHubTransport,
@@ -389,6 +390,7 @@ function markReadOnly(reason: string): void {
 byId<HTMLButtonElement>("exportV4Btn").onclick = async (event) => {
   if (!contentManager) return;
   const button = event.currentTarget as HTMLButtonElement;
+  button.blur();
   button.disabled = true;
   try {
     const content = contentManager.getSnapshot();
@@ -512,16 +514,11 @@ if (lastSync) {
 }
 
 let reloadRequested = false;
-function comparableBundle(bundle: LegacyBundle): string {
-  const normalized = structuredClone(bundle);
-  normalized.rootStudyStore.items.sort((left, right) => left.id.localeCompare(right.id));
-  return JSON.stringify(normalized);
-}
 
 if (store.readOnly) {
   const snapshot = store.getSnapshot();
-  const projected = comparableBundle(store.project());
-  const live = comparableBundle(legacyRuntime.getBundle());
+  const projected = comparableLegacyBundle(store.project());
+  const live = comparableLegacyBundle(legacyRuntime.getBundle());
   const marker = `english-review:readonly-view:${snapshot.updatedAt}`;
   if (projected !== live && sessionStorage.getItem(marker) !== "applied") {
     sessionStorage.setItem(marker, "applied");
@@ -531,8 +528,8 @@ if (store.readOnly) {
     markReadOnly(incompatibility(snapshot) ?? "快照要求更高版本");
   }
 } else {
-  const projected = comparableBundle(store.project());
-  const live = comparableBundle(legacyRuntime.getBundle());
+  const projected = comparableLegacyBundle(store.project());
+  const live = comparableLegacyBundle(legacyRuntime.getBundle());
   if (projected !== live) {
     reloadRequested = true;
     legacyRuntime.applyBundle(store.project());
