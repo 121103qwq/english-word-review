@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, process::Command};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use std::{collections::HashMap, process::Command, time::Duration};
 
 const KEYRING_SERVICE: &str = "com.englishrebuilt.wordreview";
 
@@ -10,6 +11,9 @@ struct HttpRequest {
     method: String,
     headers: Option<HashMap<String, String>>,
     body: Option<String>,
+    body_base64: Option<String>,
+    response_type: Option<String>,
+    timeout_ms: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -22,7 +26,8 @@ struct HttpResponse {
 #[tauri::command]
 async fn native_http_request(request: HttpRequest) -> Result<HttpResponse, String> {
     let client = reqwest::Client::builder()
-        .user_agent("EnglishWordReview/8.0.0")
+        .user_agent("EnglishWordReview/8.1.0")
+        .timeout(Duration::from_millis(request.timeout_ms.unwrap_or(12_000)))
         .build()
         .map_err(|error| error.to_string())?;
     let method = reqwest::Method::from_bytes(request.method.as_bytes()).map_err(|error| error.to_string())?;
@@ -32,7 +37,9 @@ async fn native_http_request(request: HttpRequest) -> Result<HttpResponse, Strin
             builder = builder.header(name, value);
         }
     }
-    if let Some(body) = request.body {
+    if let Some(body) = request.body_base64 {
+        builder = builder.body(BASE64.decode(body).map_err(|error| error.to_string())?);
+    } else if let Some(body) = request.body {
         builder = builder.body(body);
     }
     let response = builder.send().await.map_err(|error| error.to_string())?;
@@ -42,7 +49,12 @@ async fn native_http_request(request: HttpRequest) -> Result<HttpResponse, Strin
         .iter()
         .map(|(name, value)| (name.as_str().to_ascii_lowercase(), value.to_str().unwrap_or_default().to_owned()))
         .collect();
-    let body = response.text().await.map_err(|error| error.to_string())?;
+    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    let body = if request.response_type.as_deref() == Some("base64") {
+        BASE64.encode(bytes)
+    } else {
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
     Ok(HttpResponse { status, headers, body })
 }
 

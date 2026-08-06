@@ -1,11 +1,14 @@
-import { Capacitor, CapacitorHttp, registerPlugin } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface HttpRequest {
   url: string;
-  method: "GET" | "PUT";
+  method: "GET" | "PUT" | "DELETE" | "HEAD" | "MKCOL" | "PROPFIND";
   headers?: Record<string, string>;
   body?: string;
+  bodyBase64?: string;
+  responseType?: "text" | "base64";
+  timeoutMs?: number;
 }
 
 export interface HttpResponse {
@@ -19,6 +22,7 @@ interface NativeBridgePlugin {
   loadSecret(options: { key: string }): Promise<{ value: string | null }>;
   deleteSecret(options: { key: string }): Promise<void>;
   speak(options: { text: string; locale: string; rate: number }): Promise<void>;
+  httpRequest(options: { request: HttpRequest }): Promise<HttpResponse>;
 }
 
 const NativeBridge = registerPlugin<NativeBridgePlugin>("EnglishReviewNative");
@@ -31,34 +35,43 @@ function isCapacitorNative(): boolean {
   return Capacitor.isNativePlatform();
 }
 
+export function isNativeRuntime(): boolean {
+  return isTauri() || isCapacitorNative();
+}
+
 export async function httpRequest(request: HttpRequest): Promise<HttpResponse> {
   if (isTauri()) {
     return invoke<HttpResponse>("native_http_request", { request });
   }
   if (isCapacitorNative()) {
-    const response = await CapacitorHttp.request({
-      url: request.url,
-      method: request.method,
-      headers: request.headers,
-      data: request.body,
-      responseType: "text",
-    });
+    return NativeBridge.httpRequest({ request });
+  }
+  const body = request.bodyBase64
+    ? Uint8Array.from(atob(request.bodyBase64), (character) => character.charCodeAt(0))
+    : request.body;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), request.timeoutMs ?? 12_000);
+  try {
+    const response = await fetch(request.url, { method: request.method, headers: request.headers, body, signal: controller.signal });
+    let responseBody: string;
+    if (request.responseType === "base64") {
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+      }
+      responseBody = btoa(binary);
+    } else {
+      responseBody = await response.text();
+    }
     return {
       status: response.status,
-      headers: Object.fromEntries(Object.entries(response.headers ?? {}).map(([key, value]) => [key.toLowerCase(), String(value)])),
-      body: typeof response.data === "string" ? response.data : JSON.stringify(response.data),
+      headers: Object.fromEntries([...response.headers.entries()].map(([key, value]) => [key.toLowerCase(), value])),
+      body: responseBody,
     };
+  } finally {
+    window.clearTimeout(timeout);
   }
-  const response = await fetch(request.url, {
-    method: request.method,
-    headers: request.headers,
-    body: request.body,
-  });
-  return {
-    status: response.status,
-    headers: Object.fromEntries([...response.headers.entries()].map(([key, value]) => [key.toLowerCase(), value])),
-    body: await response.text(),
-  };
 }
 
 export async function saveSecret(key: string, value: string): Promise<void> {

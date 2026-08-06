@@ -1,6 +1,32 @@
-# 英语单词速记 8.0.0
+# 英语单词速记 8.1.0
 
-同一套 Vite + TypeScript 核心输出三端版本：单文件离线 HTML、Tauri 2 Windows 应用、Capacitor 8 Android 应用。8.0.0 冻结学习算法为 `weighted-random-v1`，只重构工程、存储、同步和平台适配。
+同一套 Vite + TypeScript 核心输出单文件离线 HTML、Tauri 2 Windows 应用和 Capacitor 8 Android 应用。8.1.0 新增离线英中词典、手动词库、词根/词缀、多 MP3 与内容镜像备份；学习算法仍冻结为 `weighted-random-v1`，题型统计和 v4 学习事件没有更改。
+
+## 离线词典与手动词库
+
+- 离线词典由固定提交的 ECDICT 和 Engra 构建，包含中文释义、音标、词形、词频及可靠词根关系。
+- 词典按双字符分块、gzip 压缩并内嵌到单文件 HTML；查词、距离 1 纠错和词根推测不访问网络。
+- 新词库日期必填，同一天可创建多个 UUID 词库；支持 `,，.。`、换行批量分隔和 Enter 逐行输入。
+- 只有完整匹配失败后才给出最多 5 个距离恰好为 1 的建议；未知词可填写中文后作为用户词条提交。
+- 单词可按当前词库或全部词库修改中文、词根、音标/读音，并可绑定多个内容寻址 MP3。没有自定义 MP3 时回退到浏览器或系统 TTS。
+
+普通构建不会联网。只有明确更新词典源时才运行：
+
+```powershell
+npm run dictionary:refresh
+```
+
+固定源版本和生成哈希位于 `src/dictionary/generated/metadata.json`，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 数据与同步
+
+- `english-word-review-v4` 继续保存学习检查点和事件；旧 v2/v3 与辅助 v1 键保持不变。
+- 独立 `ContentSnapshotV1`、本地 30 份备份、outbox 和 MP3 保存在 IndexedDB；完整导出包含学习快照、内容快照和音频清单，v7.4.5 兼容导出保持不变。
+- GitHub 默认使用私有数据仓库 `121103qwq/english-word-review-data`；还可配置任意数量的 HTTPS WebDAV 镜像。公开代码仓库不保存个人词库、进度、MP3 或密钥。
+- 启动与每次内容修改前比较所有镜像的混合逻辑时钟，严格采用最新完整内容快照；学习进度仍按 v4 事件并集合并。
+- 每次修改先备份旧内容，再顺序写入当前快照；本地及每个可达镜像只保留最新 30 份。仅当当前快照、保留备份和待上传队列都不引用时才清理 MP3。
+- 离线编辑进入 outbox，并在 15 秒、1 分钟、5 分钟及下次启动/修改时重试。GitHub 网络超时只显示“暂不可用，已保存本地并排队”。
+- HTML 使用 PBKDF2-SHA256 + AES-256-GCM 加密凭据并要求每次重新打开输入主密码；Windows 使用凭据管理器，Android 使用 Keystore。
 
 ## 开发与验证
 
@@ -8,10 +34,10 @@
 npm install
 npm run check
 npm test
-npm run build
+npm run package:html
 ```
 
-`npm run build` 生成可直接离线打开的 `dist/index.html`，所有脚本与样式均已内联。
+单文件 HTML 输出到 `release/html`。
 
 Windows：
 
@@ -19,23 +45,14 @@ Windows：
 npm run tauri:build
 ```
 
-安装包位于 `release/windows-installer`，便携版位于 `release/windows-portable`。凭据写入 Windows 凭据管理器。安装器构建使用项目目录 `.tauri-tools/nsis-3.11` 中的官方 NSIS 3.11。
+安装版和便携版分别输出到 `release/windows-installer` 与 `release/windows-portable`。
 
-Android（需要 JDK 21 和 Android SDK 36）：
+Android（JDK 21、Android SDK 36，最低 Android 8 / API 26）：
 
 ```powershell
 npm run package:android
 ```
 
-侧载 APK 位于 `release/android`。最低系统版本为 Android 8（API 26），凭据由 Android Keystore 加密；构建固定使用项目目录 `.gradle-dist/gradle-8.14.3` 中的 Gradle，避免 Wrapper 重复联网下载。
+侧载 APK 输出到 `release/android`。
 
-## 数据与同步
-
-- `english-word-review-v4` 是完整 v4 快照；旧 v2/v3 和辅助 v1 键继续保留。
-- 首次迁移会将所有旧键原文备份到 `english-word-review-pre-v4-backup`。
-- “导出完整 v4”保留检查点、事件、版本和同步信息；“导出 v7.4.5 兼容版”只投影旧版字段。
-- GitHub 使用私有仓库 Contents API 和文件 SHA；WebDAV 使用 HTTPS 与 ETag。
-- 两个镜像都可读取时，同步后的事件会压缩为带设备序号向量的检查点；读取失败时保留事件，避免丢失尚未观察到的离线分支。
-- HTML 凭据只存在 `sessionStorage`；浏览器若因 CORS 拒绝 WebDAV，GitHub 镜像仍会独立返回结果。
-
-详细冻结参数和升级规则见 [docs/algorithm-compatibility.md](docs/algorithm-compatibility.md)。
+算法冻结参数、版本升级规则与文献依据见 [docs/algorithm-compatibility.md](docs/algorithm-compatibility.md)。

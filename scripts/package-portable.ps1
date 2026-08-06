@@ -4,7 +4,7 @@ param(
 
 $source = Join-Path $PSScriptRoot "..\src-tauri\target\$Profile\english-word-review.exe"
 $destinationDirectory = Join-Path $PSScriptRoot "..\release\windows-portable"
-$destination = Join-Path $destinationDirectory "english-word-review-8.0.0-portable.exe"
+$destination = Join-Path $destinationDirectory "english-word-review-8.1.0-portable.exe"
 
 if (-not (Test-Path -LiteralPath $source)) {
   throw "Tauri executable not found: $source"

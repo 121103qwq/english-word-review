@@ -5,13 +5,13 @@ SetCompressor /SOLID lzma
 !include "MUI2.nsh"
 
 !define PRODUCT_NAME "English Word Review"
-!define PRODUCT_VERSION "8.0.0"
+!define PRODUCT_VERSION "8.1.0"
 !define PRODUCT_PUBLISHER "English Rebuilt"
 !define PRODUCT_EXE "english-word-review.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\EnglishWordReview"
 
 Name "${PRODUCT_NAME}"
-OutFile "..\release\windows-installer\english-word-review-8.0.0-setup.exe"
+OutFile "..\release\windows-installer\english-word-review-8.1.0-setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\EnglishWordReview"
 InstallDirRegKey HKCU "Software\EnglishRebuilt\EnglishWordReview" "InstallDir"
 Icon "..\src-tauri\icons\icon.ico"
@@ -28,7 +28,7 @@ ShowUninstDetails show
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
 
-VIProductVersion "8.0.0.0"
+VIProductVersion "8.1.0.0"
 VIAddVersionKey /LANG=1033 "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey /LANG=1033 "FileVersion" "${PRODUCT_VERSION}"

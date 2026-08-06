@@ -150,15 +150,52 @@
     .sync-fields { display: grid; gap: 8px; }
     .sync-fields label { display: grid; gap: 3px; color: #596a83; font-size: 12px; }
     .sync-fields input { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid #ccd5e2; border-radius: 8px; background: #fff; color: #203654; font: inherit; }
+    .sync-fields label > span { display: flex; align-items: center; gap: 6px; }
+    .sync-fields label > span input { width: auto; min-height: 0; padding: 0; }
+    .webdav-config { display: grid; gap: 8px; padding: 10px; margin-bottom: 9px; border: 1px solid #dfe5ee; border-radius: 10px; background: #fff; }
+    .webdav-config-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .webdav-config-head label { display: flex; align-items: center; gap: 6px; color: #52647f; font-size: 12px; }
+    .webdav-config-head input { width: auto; min-height: 0; }
+    .webdav-config-head button, #addWebdavBtn { padding: 7px 10px; background: #eef2f8; color: #3b4c67; font-size: 12px; }
     .sync-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
     .sync-actions button { background: #2768d6; color: #fff; }
     .sync-status { flex: 1 1 260px; min-height: 22px; color: #52647f; font-size: 13px; white-space: pre-line; }
     .sync-status.good { color: #176a40; } .sync-status.bad { color: #ac3434; }
+    .library-manager { margin-top: 14px; padding: 18px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
+    .library-manager[hidden], .library-input-mode[hidden] { display: none !important; }
+    .library-manager-head, .library-editor-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .library-manager h2, .library-manager h3 { margin: 0; }
+    .library-form-grid { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(190px, 1fr); gap: 10px; margin-top: 14px; }
+    .library-form-grid label, .library-editor-grid label { display: grid; gap: 4px; color: #596a83; font-size: 12px; }
+    .library-form-grid input, .library-form-grid select, .library-editor-grid input, .library-editor-grid textarea, .library-paste, .table-word-input { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid #ccd5e2; border-radius: 8px; background: #fff; color: #203654; font: inherit; box-sizing: border-box; }
+    .library-paste { min-height: 105px; resize: vertical; margin-top: 10px; }
+    .library-mode-tabs, .library-actions, .editor-scope { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .library-mode-tabs button.active { background: #2768d6; color: #fff; }
+    .word-check-table { width: 100%; margin-top: 12px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+    .word-check-table th, .word-check-table td { padding: 8px; border-bottom: 1px solid #e7ebf2; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    .word-check-table input { width: 100%; min-height: 36px; padding: 6px 7px; box-sizing: border-box; }
+    .word-status-ok { color: #176a40; } .word-status-error { color: #ac3434; } .word-status-inferred { color: #a66317; }
+    .suggestion-chip { min-height: 32px; padding: 5px 8px; margin: 2px; font-size: 12px; background: #edf3ff; color: #2457a5; }
+    .managed-library-list { display: grid; gap: 9px; margin-top: 12px; }
+    .managed-library { border: 1px solid #e1e7f0; border-radius: 12px; overflow: hidden; }
+    .managed-library summary { cursor: pointer; padding: 11px 12px; background: #f8fafd; font-weight: 700; }
+    .managed-library-body { padding: 10px 12px; }
+    .managed-word-row { display: grid; grid-template-columns: minmax(90px,.6fr) minmax(160px,1.5fr) auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid #eef1f6; }
+    .managed-word-row:last-child { border-bottom: 0; }
+    .managed-word-row button { min-height: 34px; padding: 6px 9px; }
+    .library-editor { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 16px; background: #14213b80; }
+    .library-editor[hidden] { display: none; }
+    .library-editor-card { width: min(680px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 18px; border-radius: 16px; background: #fff; box-shadow: 0 20px 60px #07132955; }
+    .library-editor-grid { display: grid; gap: 10px; margin-top: 12px; }
+    .audio-list { display: grid; gap: 7px; margin-top: 7px; }
+    .audio-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 7px; background: #f6f8fc; border-radius: 8px; }
+    .audio-row span { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
+    .unlock-panel { margin-top: 9px; padding: 10px; border: 1px dashed #bdc9d9; border-radius: 10px; }
     .version-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 5px 9px; border-radius: 9px; background: #f1f4f9; color: #687891; font-size: 12px; }
     .readonly-banner { margin-bottom: 14px; padding: 12px 15px; border-radius: 12px; background: #fff1cf; color: #7a5000; font-weight: 700; }
     body.read-only main button:not(#exportV4Btn):not(#syncManageBtn), body.read-only main input { pointer-events: none; opacity: .45; }
     @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .root-sidebar { position: static; margin: 0 0 30px; } }
-    @media (max-width: 600px) { button { min-height: 44px; } .selection-list, .sync-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } }
+    @media (max-width: 600px) { button { min-width: 44px; min-height: 44px; } .suggestion-chip, .managed-word-row button { min-height: 44px; } .selection-list, .sync-grid, .library-form-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } .word-check-table { display: block; overflow-x: auto; } .managed-word-row { grid-template-columns: 1fr auto; } .managed-word-row .managed-word-meaning { grid-column: 1 / -1; } }
     @media (max-width: 480px) { main { padding: 18px 0; } .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } }
   </style>
 </head>
@@ -205,9 +242,10 @@
       <button id="currentBtn">当前词库</button>
       <button id="wrongModeBtn">仅复习错词</button>
       <button id="exportBtn">导出 v7.4.5 兼容版</button>
-      <button id="exportV4Btn">导出完整 v4</button>
+      <button id="exportV4Btn">导出完整 8.1</button>
       <button id="importBtn">导入旧版</button>
-      <button id="importV4Btn">导入完整 v4</button>
+      <button id="importV4Btn">导入完整快照</button>
+      <button id="libraryManageBtn">管理手动词库</button>
       <button id="syncManageBtn">同步设置</button>
       <button id="resetBtn">重新开始</button>
       <span class="mode" id="modeText">全部词库</span>
@@ -215,34 +253,71 @@
     <input id="importFile" type="file" accept="application/json" hidden>
     <input id="importV4File" type="file" accept="application/json" hidden>
     <section class="sync-panel" id="syncPanel" hidden aria-labelledby="syncTitle">
-      <h2 id="syncTitle">双镜像同步</h2>
-      <p class="sync-note">本机、GitHub 私有仓库和 WebDAV 按事件合并。HTML 凭据只保留到当前浏览器会话结束。</p>
+      <h2 id="syncTitle">学习进度与内容镜像同步</h2>
+      <p class="sync-note">学习进度按事件合并；词库内容严格采用最新完整快照。本机、GitHub 和全部启用的 WebDAV 均为对等镜像。</p>
       <div class="sync-grid">
         <div class="sync-group">
           <h3>GitHub Contents API</h3>
           <div class="sync-fields">
-            <label>仓库所有者<input id="githubOwner" autocomplete="off"></label>
-            <label>私有仓库名<input id="githubRepo" autocomplete="off"></label>
+            <label><span><input id="githubEnabled" type="checkbox" checked> 启用 GitHub 镜像</span></label>
+            <label>仓库所有者<input id="githubOwner" value="121103qwq" autocomplete="off"></label>
+            <label>私有数据仓库名<input id="githubRepo" value="english-word-review-data" autocomplete="off"></label>
             <label>分支<input id="githubBranch" value="main" autocomplete="off"></label>
-            <label>快照路径<input id="githubPath" value="english-review/snapshot-v4.json" autocomplete="off"></label>
+            <label>学习快照路径<input id="githubPath" value="progress/snapshot-v4.json" autocomplete="off"></label>
             <label>细粒度令牌<input id="githubToken" type="password" autocomplete="off" placeholder="只需 Contents 读写权限"></label>
           </div>
         </div>
         <div class="sync-group">
-          <h3>WebDAV（HTTPS）</h3>
-          <div class="sync-fields">
-            <label>文件 URL<input id="webdavUrl" type="url" autocomplete="off" placeholder="https://…/snapshot-v4.json"></label>
-            <label>用户名<input id="webdavUsername" autocomplete="username"></label>
-            <label>密码<input id="webdavPassword" type="password" autocomplete="current-password"></label>
-          </div>
+          <h3>WebDAV 镜像（HTTPS，可添加多个）</h3>
+          <div id="webdavConfigs"></div>
+          <button id="addWebdavBtn" type="button">添加 WebDAV 镜像</button>
+        </div>
+      </div>
+      <div class="sync-group" id="browserVaultGroup">
+        <h3>HTML 凭据加密</h3>
+        <p class="sync-note">令牌和密码使用主密码经 PBKDF2-SHA256 + AES-256-GCM 加密；重新打开 HTML 后需输入主密码解锁。</p>
+        <div class="sync-fields">
+          <label>主密码<input id="syncMasterPassword" type="password" autocomplete="current-password"></label>
+        </div>
+        <div class="sync-actions">
+          <button id="unlockCredentialsBtn" type="button">解锁并自动同步</button>
+          <button id="clearCredentialsBtn" type="button">忘记主密码：清除凭据密文</button>
         </div>
       </div>
       <div class="sync-actions">
         <button id="saveSyncBtn" type="button">保存同步设置</button>
         <button id="syncNowBtn" type="button">立即同步</button>
-        <span class="version-chip" id="versionChip">8.0.0 · weighted-random-v1</span>
+        <span class="version-chip" id="versionChip">8.1.0 · weighted-random-v1</span>
         <span class="sync-status" id="syncStatus" role="status"></span>
       </div>
+    </section>
+    <section class="library-manager" id="libraryManager" hidden aria-labelledby="libraryManagerTitle">
+      <div class="library-manager-head">
+        <div><h2 id="libraryManagerTitle">手动词库</h2><span class="sync-note">释义、检查和词根分析均在本机完成。</span></div>
+        <button id="closeLibraryManagerBtn" type="button">收起</button>
+      </div>
+      <div class="library-form-grid">
+        <label>添加到<select id="libraryTarget"><option value="new">新建词库</option></select></label>
+        <label>日期（必填）<input id="libraryDate" type="date" required></label>
+        <label>词库名称（可选）<input id="libraryName" maxlength="80" placeholder="例如：8 月阅读生词"></label>
+      </div>
+      <div class="library-mode-tabs">
+        <button id="pasteInputModeBtn" type="button" class="active">批量粘贴</button>
+        <button id="tableInputModeBtn" type="button">逐行表格</button>
+      </div>
+      <div class="library-input-mode" id="pasteInputMode">
+        <textarea class="library-paste" id="libraryPasteInput" spellcheck="false" placeholder="apple,built，kick.counter。每行也可以填写一个单词"></textarea>
+      </div>
+      <div class="library-input-mode" id="tableInputMode" hidden>
+        <table class="word-check-table"><thead><tr><th>英文单词</th><th>操作</th></tr></thead><tbody id="wordEntryRows"></tbody></table>
+      </div>
+      <div class="library-actions">
+        <button id="checkAndAddWordsBtn" type="button">检查并添加</button>
+        <span class="sync-status" id="libraryStatus" role="status"></span>
+      </div>
+      <div id="wordCheckResults"></div>
+      <h3 style="margin-top:20px">词库列表</h3>
+      <div class="managed-library-list" id="managedLibraryList"></div>
     </section>
     <section class="mistakes" id="mistakes">
       <h2 id="mistakesTitle">当前错词</h2>
@@ -250,8 +325,8 @@
       <div class="review-meaning" id="reviewMeaning"></div>
     </section>
     <section class="archives">
-      <h2>昨日复习（近 7 天）</h2>
-      <div class="archive-list" id="archiveList">暂无昨日词库。</div>
+      <h2>其他词库</h2>
+      <div class="archive-list" id="archiveList">暂无其他词库。</div>
     </section>
 
     <section class="intensive root-study-section" id="rootStudySection" hidden tabindex="-1">
@@ -339,6 +414,31 @@
       <div class="root-empty">当前单词暂无已收录的词根。</div>
     </div>
   </aside>
+  </div>
+
+  <div class="library-editor" id="libraryEditor" hidden>
+    <div class="library-editor-card" role="dialog" aria-modal="true" aria-labelledby="libraryEditorTitle">
+      <div class="library-editor-head">
+        <h2 id="libraryEditorTitle">修改单词</h2>
+        <button id="closeLibraryEditorBtn" type="button">关闭</button>
+      </div>
+      <div class="library-editor-grid">
+        <label>英文单词<input id="editorWord" readonly></label>
+        <label>中文释义<textarea id="editorMeaning" rows="3"></textarea></label>
+        <label>词根与中文义（每行：词根 = 中文义）<textarea id="editorRoots" rows="4" placeholder="spect = 看"></textarea></label>
+        <label>音标或读音文字<input id="editorPronunciation"></label>
+        <label>上传 MP3（单文件最多 20 MiB）<input id="editorAudioFiles" type="file" accept="audio/mpeg,.mp3" multiple></label>
+      </div>
+      <div class="audio-list" id="editorAudioList"></div>
+      <div class="editor-scope" role="radiogroup" aria-label="修改范围">
+        <label><input type="radio" name="editorScope" value="library" checked> 仅当前词库</label>
+        <label><input type="radio" name="editorScope" value="global"> 所有词库</label>
+      </div>
+      <div class="library-actions">
+        <button id="saveWordEditBtn" type="button">保存并同步</button>
+        <span class="sync-status" id="wordEditorStatus" role="status"></span>
+      </div>
+    </div>
   </div>
 
   <div class="selection-modal" id="intensiveSelectionModal" hidden>
@@ -571,6 +671,7 @@
       return total ? calculateMastery(w[k.right], w[k.wrong]) : 0;
     };
     const normalizeWord = w => ({
+      ...w,
       en: w.en,
       zh: w.zh,
       right: Number(w.right) || 0,
@@ -611,13 +712,9 @@
       date: today,
       words: source.map(w => ({...w}))
     });
-    const pruneArchives = archives => {
-      const now = dayNumber(today);
-      return (archives || []).map(normalizeLibrary).filter(a => {
-        const age = now - dayNumber(a.date);
-        return age >= 0 && age <= 7;
-      });
-    };
+    const pruneArchives = archives => [...new Map(
+      (archives || []).map(normalizeLibrary).map(library => [library.id, library])
+    ).values()];
 
     let store;
     try { store = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { store = null; }
@@ -631,7 +728,9 @@
     } else {
       store.current = normalizeLibrary(store.current);
       store.archives = pruneArchives(store.archives);
-      if (store.current.id !== libraryId) {
+      // Legacy daily libraries use a pipe-joined word-list id. UUID libraries are
+      // managed by the 8.1 content store and must remain active across reloads.
+      if (store.current.id !== libraryId && store.current.id.includes('|')) {
         store.archives = store.archives.filter(a => a.id !== store.current.id);
         store.archives.unshift(store.current);
         store.archives = pruneArchives(store.archives);
@@ -697,11 +796,31 @@
     function buildRootStudyItems(savedItems = []) {
       const saved = new Map(savedItems.map(item => [item.id, item]));
       const grouped = new Map();
-      Object.entries(ROOT_DATA).forEach(([word, info]) => {
-        const [root, meaning] = info;
+      const add = (word, root, meaning) => {
+        if (!root || !meaning) return;
         const id = `${root}\u0000${meaning}`;
         if (!grouped.has(id)) grouped.set(id, {id, root, meaning, words: []});
-        grouped.get(id).words.push(word);
+        if (!grouped.get(id).words.includes(word)) grouped.get(id).words.push(word);
+      };
+      Object.entries(ROOT_DATA).forEach(([word, info]) => {
+        const [root, meaning] = info;
+        add(word, root, meaning);
+      });
+      [store.current, ...store.archives].forEach(library => library.words.forEach(word => {
+        (Array.isArray(word.roots) ? word.roots : []).forEach(root =>
+          add(word.en, root.root || root.form, root.meaning || root.meaningZh || root.zh));
+      }));
+      // 已保存的词根统计可能来自当前未加载的旧词库或同步设备。
+      // 保留这些项目，避免重建列表时丢失统计并触发 v4/旧界面之间的重复重载。
+      savedItems.forEach(item => {
+        if (!grouped.has(item.id) && item.id && item.root && item.meaning) {
+          grouped.set(item.id, {
+            id: item.id,
+            root: item.root,
+            meaning: item.meaning,
+            words: Array.isArray(item.words) ? [...item.words] : []
+          });
+        }
       });
       return [...grouped.values()].map(item => {
         const old = saved.get(item.id) || {};
@@ -712,7 +831,7 @@
           writeRight: Number(old.writeRight) || 0,
           writeWrong: Number(old.writeWrong) || 0
         };
-      });
+      }).sort((a, b) => a.id.localeCompare(b.id));
     }
 
     let rootStudyStore;
@@ -955,7 +1074,11 @@
       uncertainState = 'input';
       const rootHint = ROOT_HINT_DATA[current.en.toLowerCase()];
       const rootInfo = ROOT_DATA[current.en.toLowerCase()];
-      $('meaning').textContent = rootHint || (rootInfo
+      const customRoots = Array.isArray(current.roots) ? current.roots.filter(item =>
+        (item.root || item.form) && (item.meaning || item.meaningZh || item.zh)) : [];
+      const customHint = customRoots.map(item =>
+        `${item.root || item.form}（${item.meaning || item.meaningZh || item.zh}${item.source === 'inferred' ? '，推测' : ''}）`).join(' + ');
+      $('meaning').textContent = customHint || rootHint || (rootInfo
         ? `${rootInfo[0]}（${rootInfo[1]}）→根据这个词根关系回想完整意思`
         : '这个词暂未收录构词拆解，请结合拼写结构回想它的意思。');
       $('hint').textContent = '构词提示不会直接显示释义，请输入你想到的中文意思';
@@ -1694,10 +1817,10 @@
       }
 
       intensiveStore.words = selectedWords;
-      intensiveStore.reviewedLibraryId = libraryId;
+      intensiveStore.reviewedLibraryId = activeLibrary.id;
       window.__v8Bridge?.intensiveSelection(
         selectedWords.map(({en, zh}) => ({en, zh})),
-        libraryId
+        activeLibrary.id
       );
       saveIntensive();
       closeIntensiveSelection();
@@ -1709,7 +1832,7 @@
     function openIntensiveSection() {
       hideUndoToast();
       $('intensiveSection').hidden = false;
-      if (!intensiveStore.words.length || intensiveStore.reviewedLibraryId !== libraryId) {
+      if (!intensiveStore.words.length || intensiveStore.reviewedLibraryId !== activeLibrary.id) {
         openIntensiveSelection();
         return;
       }
@@ -1731,37 +1854,40 @@
         return;
       }
 
-      const rootInfo = ROOT_DATA[current.en.toLowerCase()];
-      if (!rootInfo) {
+      const customRoots = Array.isArray(current.roots) ? current.roots : [];
+      const legacyRoot = ROOT_DATA[current.en.toLowerCase()];
+      const rootInfos = customRoots.length
+        ? customRoots.map(info => ({
+            root: String(info.form || info.root || ''),
+            meaning: String(info.meaningZh || info.zh || info.meaning || ''),
+            inferred: !!info.inferred || info.source === 'inferred'
+          })).filter(info => info.root)
+        : legacyRoot ? [{root: legacyRoot[0], meaning: legacyRoot[1], inferred: false}] : [];
+      if (!rootInfos.length) {
         const empty = document.createElement('div');
         empty.className = 'root-empty';
-        empty.textContent = `${current.en} 暂无已收录的词根。`;
+        empty.textContent = `${current.en} 暂无可靠词根资料。`;
         rootList.append(empty);
         return;
       }
-
-      const [root, meaning] = rootInfo;
-      const card = document.createElement('div');
-      card.className = 'root-item';
-
-      const head = document.createElement('div');
-      head.className = 'root-head';
-
-      const form = document.createElement('span');
-      form.className = 'root-form';
-      form.textContent = root;
-
-      const word = document.createElement('span');
-      word.className = 'root-count';
-      word.textContent = current.en;
-
-      const explanation = document.createElement('div');
-      explanation.className = 'root-meaning';
-      explanation.textContent = meaning;
-
-      head.append(form, word);
-      card.append(head, explanation);
-      rootList.append(card);
+      rootInfos.forEach(info => {
+        const card = document.createElement('div');
+        card.className = 'root-item';
+        const head = document.createElement('div');
+        head.className = 'root-head';
+        const form = document.createElement('span');
+        form.className = 'root-form';
+        form.textContent = info.root;
+        const word = document.createElement('span');
+        word.className = 'root-count';
+        word.textContent = info.inferred ? '推测' : current.en;
+        const explanation = document.createElement('div');
+        explanation.className = 'root-meaning';
+        explanation.textContent = info.meaning || '中文释义待补充';
+        head.append(form, word);
+        card.append(head, explanation);
+        rootList.append(card);
+      });
     }
 
     function enableRootSidebarDrag() {

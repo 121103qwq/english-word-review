@@ -15,7 +15,17 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -142,5 +152,71 @@ public class EnglishReviewNativePlugin extends Plugin {
             if (result == TextToSpeech.ERROR) call.reject("Android text-to-speech failed");
             else call.resolve();
         });
+    }
+
+    @PluginMethod
+    public void httpRequest(PluginCall call) {
+        JSObject request = call.getObject("request");
+        if (request == null) {
+            call.reject("Missing request");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                String url = request.getString("url");
+                String method = request.getString("method", "GET");
+                int timeout = request.getInteger("timeoutMs", 12000);
+                if (url == null) throw new IllegalArgumentException("Missing URL");
+                OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(timeout, TimeUnit.MILLISECONDS)
+                    .readTimeout(timeout, TimeUnit.MILLISECONDS)
+                    .writeTimeout(timeout, TimeUnit.MILLISECONDS)
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .build();
+                Request.Builder builder = new Request.Builder().url(url);
+                JSObject headers = request.getJSObject("headers");
+                if (headers != null) {
+                    Iterator<String> keys = headers.keys();
+                    while (keys.hasNext()) {
+                        String key = keys.next();
+                        builder.header(key, String.valueOf(headers.get(key)));
+                    }
+                }
+                String bodyBase64 = request.getString("bodyBase64");
+                String bodyText = request.getString("body");
+                byte[] body = null;
+                if (bodyBase64 != null || bodyText != null) {
+                    body = bodyBase64 != null
+                        ? Base64.decode(bodyBase64, Base64.DEFAULT)
+                        : bodyText.getBytes(StandardCharsets.UTF_8);
+                }
+                RequestBody requestBody = null;
+                if (body != null) {
+                    String contentType = headers == null ? null : headers.getString("Content-Type");
+                    requestBody = RequestBody.create(body, contentType == null ? null : MediaType.parse(contentType));
+                }
+                builder.method(method, requestBody);
+                try (Response response = client.newCall(builder.build()).execute()) {
+                    byte[] responseBytes = response.body() == null ? new byte[0] : response.body().bytes();
+                    JSObject responseHeaders = new JSObject();
+                    for (Map.Entry<String, List<String>> entry : response.headers().toMultimap().entrySet()) {
+                        responseHeaders.put(entry.getKey().toLowerCase(Locale.ROOT), String.join(", ", entry.getValue()));
+                    }
+                    JSObject result = new JSObject();
+                    result.put("status", response.code());
+                    result.put("headers", responseHeaders);
+                    result.put(
+                        "body",
+                        "base64".equals(request.getString("responseType"))
+                            ? Base64.encodeToString(responseBytes, Base64.NO_WRAP)
+                            : new String(responseBytes, StandardCharsets.UTF_8)
+                    );
+                    call.resolve(result);
+                }
+            } catch (Exception error) {
+                call.reject("Native HTTP request failed", error);
+            }
+        }).start();
     }
 }

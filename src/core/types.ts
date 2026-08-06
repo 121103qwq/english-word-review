@@ -165,6 +165,7 @@ export interface V8Bridge {
   reset(scope: string): void;
   setting<K extends keyof LegacySettings>(key: K, value: LegacySettings[K]): void;
   intensiveSelection(words: Array<Pick<LegacyWord, "en" | "zh">>, reviewedLibraryId: string): void;
+  replaceLibraries(libraries: LegacyLibrary[], activeLibraryId: string): void;
 }
 
 declare global {

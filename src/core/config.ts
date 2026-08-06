@@ -1,7 +1,7 @@
-export const APP_VERSION = "8.0.0";
+export const APP_VERSION = "8.1.0";
 export const SCHEMA_VERSION = 4 as const;
 export const ALGORITHM_VERSION = "weighted-random-v1" as const;
-export const CONTENT_VERSION = "2026-08-06.1";
+export const CONTENT_VERSION = "2026-08-06.2";
 export const MIN_READER_VERSION = "8.0.0";
 
 export const ALGORITHM_CONFIG = Object.freeze({

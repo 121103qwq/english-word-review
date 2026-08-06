@@ -13,4 +13,4 @@ New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 & $compiler /V2 $script
 if ($LASTEXITCODE -ne 0) { throw "NSIS installer build failed with exit code $LASTEXITCODE" }
 
-Write-Output (Join-Path $outputDirectory "english-word-review-8.0.0-setup.exe")
+Write-Output (Join-Path $outputDirectory "english-word-review-8.1.0-setup.exe")
