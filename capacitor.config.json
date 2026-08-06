@@ -1,0 +1,8 @@
+{
+  "appId": "com.englishrebuilt.wordreview",
+  "appName": "英语单词速记",
+  "webDir": "dist",
+  "android": {
+    "minWebViewVersion": 83
+  }
+}

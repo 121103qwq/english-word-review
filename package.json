@@ -1,0 +1,37 @@
+{
+  "name": "english-word-review",
+  "version": "8.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "package:html": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-html.ps1",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "tauri": "tauri",
+    "tauri:compile": "npm run build && tauri build --no-bundle",
+    "tauri:build": "npm run tauri:compile && npm run tauri:portable && npm run package:windows-installer",
+    "tauri:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1",
+    "package:windows-installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-installer.ps1",
+    "android:add": "cap add android",
+    "android:sync": "npm run build && cap sync android",
+    "android:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1",
+    "package:android": "npm run android:build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-android.ps1"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.0",
+    "@capacitor/core": "8.5.0",
+    "@tauri-apps/api": "^2.11.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.0",
+    "@tauri-apps/cli": "2.11.4",
+    "@types/node": "^24.0.0",
+    "typescript": "7.0.2",
+    "vite": "6.4.3",
+    "vite-plugin-singlefile": "2.3.3",
+    "vitest": "4.1.10"
+  }
+}

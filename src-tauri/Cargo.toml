@@ -1,0 +1,20 @@
+[package]
+name = "english-word-review"
+version = "8.0.0"
+description = "Offline English vocabulary review"
+authors = ["English Rebuilt"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "english_word_review_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+keyring = "3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }

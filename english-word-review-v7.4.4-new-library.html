@@ -1,0 +1,2071 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>英语单词速记</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #f5f7fb; color: #17233a; font: 16px/1.5 "Microsoft YaHei", system-ui, sans-serif; }
+    .app-shell { width: min(1040px, calc(100% - 32px)); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 720px) 290px; gap: 20px; align-items: start; }
+    main { width: 100%; padding: 30px 0; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: .04em; }
+    .subtitle { margin: 4px 0 22px; color: #6b7890; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .stat, .card, .toolbar, .mistakes { background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
+    .stat { padding: 12px; text-align: center; color: #647187; font-size: 13px; }
+    .stat b { display: block; color: #1b2c49; font-size: 22px; }
+    .clear { display: none; margin: 0 0 14px; padding: 12px 16px; border-radius: 12px; background: #e4f7eb; color: #176a40; text-align: center; font-weight: 700; }
+    .clear.show { display: block; }
+    .card { min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px; text-align: center; }
+    .word { font-size: clamp(35px, 8vw, 58px); font-weight: 750; letter-spacing: .02em; color: #174ea6; word-break: break-word; }
+    .meaning { min-height: 48px; margin-top: 22px; font-size: 22px; color: #273a59; }
+    .hint { margin-top: 8px; color: #98a3b4; font-size: 14px; }
+    button { border: 0; border-radius: 10px; padding: 11px 17px; cursor: pointer; font: inherit; font-weight: 700; transition: transform .12s, opacity .12s; }
+    button:hover { transform: translateY(-1px); } button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .show { margin-top: 17px; color: #fff; background: #2768d6; }
+    .answers { display: flex; justify-content: center; gap: 12px; margin-top: 17px; }
+    .forward-actions { display: flex; justify-content: center; gap: 10px; margin-top: 17px; flex-wrap: wrap; }
+    .forward-actions[hidden], .recall-box[hidden] { display: none !important; }
+    .forward-actions .show { margin-top: 0; }
+    .unsure { background: #fff1cf; color: #8a5a00; }
+    .recall-box { width: min(520px, 100%); display: flex; flex-direction: column; align-items: center; margin-top: 17px; }
+    .recall-input { width: 100%; padding: 12px 14px; border: 1px solid #ccd5e2; border-radius: 10px; outline: none; background: #fff; color: #203654; font: inherit; }
+    .recall-input:focus { border-color: #6e9de8; box-shadow: 0 0 0 3px #2768d619; }
+    .recall-submit { margin-top: 10px; background: #2768d6; color: #fff; }
+    .recall-feedback { min-height: 23px; margin-top: 10px; color: #3e5777; font-size: 14px; white-space: pre-line; }
+    .recall-feedback.good { padding: 8px 11px; border-radius: 9px; background: #e4f7eb; color: #176a40; font-weight: 700; }
+    .recall-feedback.bad { padding: 8px 11px; border-radius: 9px; background: #ffe4e3; color: #ac3434; font-weight: 700; }
+    .choices { width: min(560px, 100%); display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 22px; }
+    .choices[hidden] { display: none !important; }
+    .choice { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f3f6fb; color: #243a5c; text-align: left; }
+    .choice-key { flex: 0 0 auto; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; background: #e2edff; color: #1753ad; font-size: 13px; }
+    .choice.correct { background: #dcf5e7; color: #176a40; }
+    .choice.wrong { background: #ffe4e3; color: #ac3434; }
+    .choice.correct .choice-key { background: #bee9d0; color: #176a40; }
+    .choice.wrong .choice-key { background: #ffc9c6; color: #ac3434; }
+    .know { background: #dcf5e7; color: #176a40; } .dont { background: #ffe4e3; color: #ac3434; }
+    .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; margin-top: 14px; }
+    .toolbar button { background: #eef2f8; color: #3b4c67; padding: 8px 12px; font-size: 14px; }
+    .toolbar button.active { background: #e2edff; color: #1753ad; }
+    .mode { margin-left: auto; color: #718099; font-size: 13px; }
+    .mistakes { margin-top: 14px; padding: 15px 17px; }
+    .mistakes h2 { margin: 0 0 8px; font-size: 15px; }
+    #mistakeList { display: flex; gap: 7px; flex-wrap: wrap; }
+    .mistake-word { padding: 5px 8px; border: 1px solid #f0c9c7; border-radius: 7px; background: #fff6f5; color: #a63c38; font-size: 13px; font-weight: 600; }
+    .mistake-word:disabled { border-color: #e1e5eb; background: #f4f6f8; color: #9aa4b3; }
+    .review-meaning { min-height: 20px; margin-top: 10px; color: #396083; font-size: 14px; }
+    .library-info { margin: -16px 0 18px; color: #718099; font-size: 13px; }
+    .archives { margin-top: 14px; padding: 15px 17px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
+    .archives h2 { margin: 0 0 8px; font-size: 15px; }
+    .root-sidebar { position: sticky; top: 20px; margin-top: 30px; max-height: calc(100vh - 40px); overflow: auto; padding: 15px 17px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; z-index: 20; }
+    .root-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .root-sidebar h2 { flex: 1; margin: 0; font-size: 16px; cursor: grab; user-select: none; touch-action: none; }
+    .root-toggle { flex: 0 0 auto; padding: 6px 10px; background: #eef2f8; color: #3b4c67; font-size: 12px; }
+    .root-sidebar.detached { position: fixed; margin: 0; }
+    .root-sidebar.dragging h2 { cursor: grabbing; }
+    .root-note { margin: 4px 0 12px; color: #8390a5; font-size: 12px; }
+    .root-list { display: grid; gap: 9px; }
+    .root-sidebar.roots-hidden .root-note, .root-sidebar.roots-hidden .root-list { display: none; }
+    .root-empty { color: #8b97a9; font-size: 13px; }
+    .root-item { padding: 10px 11px; border-radius: 10px; background: #f6f8fc; }
+    .root-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .root-form { color: #174ea6; font-size: 17px; font-weight: 800; }
+    .root-count { color: #a63c38; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .root-meaning { margin-top: 2px; color: #334966; font-size: 13px; }
+    .root-words { margin-top: 5px; color: #75839a; font-size: 12px; word-break: break-word; }
+
+    .intensive { margin-top: 14px; padding: 17px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
+    .intensive[hidden] { display: none !important; }
+    .intensive-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .intensive-head h2 { margin: 0; font-size: 17px; }
+    .intensive-head p { margin: 3px 0 0; color: #7b899e; font-size: 13px; }
+    .intensive-head button, .intensive-toolbar button { padding: 8px 11px; background: #eef2f8; color: #3b4c67; font-size: 13px; }
+    .intensive-tabs, .intensive-toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .intensive-tabs { margin-bottom: 12px; }
+    .intensive-tabs button { padding: 9px 12px; background: #eef2f8; color: #3b4c67; font-size: 14px; }
+    .intensive-tabs button.active { background: #e2edff; color: #1753ad; }
+    .match-options { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -3px 0 12px; }
+    .match-options[hidden] { display: none !important; }
+    .match-options span { color: #7b899e; font-size: 13px; }
+    .match-options button { padding: 7px 10px; background: #eef2f8; color: #3b4c67; font-size: 13px; }
+    .match-options button.active { background: #e2edff; color: #1753ad; }
+    .intensive-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+    .intensive-stat { padding: 9px; border-radius: 11px; background: #f6f8fc; color: #748197; text-align: center; font-size: 12px; }
+    .intensive-stat b { display: block; color: #203654; font-size: 18px; }
+    .intensive-clear { display: none; margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: #e4f7eb; color: #176a40; text-align: center; font-weight: 700; font-size: 13px; }
+    .intensive-clear.show { display: block; }
+    .intensive-card { min-height: 255px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px; border: 1px solid #edf0f5; border-radius: 14px; background: #fbfcfe; text-align: center; }
+    .intensive-label { color: #8793a7; font-size: 13px; }
+    .intensive-prompt { margin-top: 6px; color: #174ea6; font-size: clamp(29px, 6vw, 44px); font-weight: 750; word-break: break-word; }
+    .intensive-input { width: min(480px, 100%); margin-top: 18px; padding: 12px 14px; border: 1px solid #ccd5e2; border-radius: 10px; outline: none; background: #fff; color: #203654; font: inherit; }
+    .intensive-input:focus { border-color: #6e9de8; box-shadow: 0 0 0 3px #2768d619; }
+    .intensive-submit { margin-top: 12px; background: #2768d6; color: #fff; }
+    .intensive-feedback { min-height: 25px; margin-top: 11px; color: #3e5777; font-size: 14px; white-space: pre-line; }
+    .intensive-feedback.good { padding: 9px 12px; border-radius: 9px; background: #e4f7eb; color: #176a40; font-weight: 700; }
+    .intensive-feedback.bad { padding: 9px 12px; border-radius: 9px; background: #ffe4e3; color: #ac3434; font-weight: 700; }
+    .intensive-card.result-good { border-color: #9dd8b7; box-shadow: inset 0 0 0 2px #dcf5e7; }
+    .intensive-card.result-bad { border-color: #e7aaa7; box-shadow: inset 0 0 0 2px #ffe4e3; }
+    .intensive-judge { display: flex; gap: 10px; margin-top: 12px; }
+    .intensive-judge[hidden] { display: none !important; }
+    .intensive-toolbar { justify-content: space-between; align-items: center; margin-top: 12px; }
+    .intensive-count { color: #75839a; font-size: 13px; }
+    .selection-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 18px; background: #17233a73; }
+    .selection-modal[hidden] { display: none !important; }
+    .selection-dialog { width: min(680px, 100%); max-height: min(760px, calc(100vh - 36px)); display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: #fff; box-shadow: 0 22px 70px #17233a38; }
+    .selection-head { padding: 18px 20px 12px; border-bottom: 1px solid #edf0f5; }
+    .selection-head h2 { margin: 0; font-size: 19px; }
+    .selection-head p { margin: 5px 0 0; color: #738197; font-size: 13px; }
+    .selection-actions-top { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid #edf0f5; }
+    .selection-actions-top button { padding: 7px 10px; background: #eef2f8; color: #3b4c67; font-size: 13px; }
+    .selection-list { overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 14px 20px; }
+    .selection-group-title { grid-column: 1 / -1; margin: 4px 0 0; color: #52647f; font-size: 13px; font-weight: 800; }
+    .selection-item { display: flex; align-items: flex-start; gap: 9px; padding: 10px; border: 1px solid #e7ebf2; border-radius: 10px; background: #fafbfd; cursor: pointer; }
+    .selection-item input { margin-top: 3px; }
+    .selection-word { display: block; color: #1e3555; font-weight: 700; }
+    .selection-meaning { display: block; margin-top: 2px; color: #7a879a; font-size: 12px; }
+    .selection-foot { display: flex; justify-content: flex-end; gap: 9px; padding: 12px 20px 18px; border-top: 1px solid #edf0f5; }
+    .selection-cancel { background: #eef2f8; color: #3b4c67; }
+    .selection-save { background: #2768d6; color: #fff; }
+
+    .root-study-related { min-height: 20px; margin-top: 10px; color: #75839a; font-size: 13px; }
+    .root-study-section .choices { margin-top: 16px; }
+    .root-study-section .intensive-prompt { font-size: clamp(30px, 6vw, 46px); }
+    .root-study-section[hidden] { display: none !important; }
+
+    .archive-list { display: grid; gap: 8px; }
+    .archive-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 9px; background: #f6f8fc; color: #40516b; font-size: 13px; }
+    .archive-item button { padding: 6px 9px; background: #e2edff; color: #1753ad; font-size: 13px; }
+    kbd { padding: 1px 5px; border: 1px solid #cdd5e1; border-bottom-width: 2px; border-radius: 4px; background: #fafbfd; color: #4b5b75; font: 12px monospace; }
+    .undo-toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 9px 9px 9px 16px; background: #1f2d4a; color: #fff; border-radius: 30px; box-shadow: 0 10px 30px #17233a40; z-index: 60; font-size: 14px; }
+    .undo-toast[hidden] { display: none !important; }
+    .undo-toast button { background: #fff; color: #1f2d4a; padding: 6px 14px; border-radius: 20px; font-size: 13px; }
+    @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .root-sidebar { position: static; margin: 0 0 30px; } }
+    @media (max-width: 600px) { .selection-list { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } }
+    @media (max-width: 480px) { .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card { min-height: 285px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: center; } .mode { width: 100%; margin-left: 0; text-align: center; } }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+  <main>
+    <h1>英语单词速记</h1>
+    <p class="subtitle" id="subtitle">看英文，说中文。答错的词会被更频繁地抽到。</p>
+    <div class="library-info" id="libraryInfo"></div>
+    <section class="stats" aria-label="学习统计">
+      <div class="stat">已作答<b id="answered">0</b></div>
+      <div class="stat">正确率<b id="accuracy">--</b></div>
+      <div class="stat">总体熟练度<b id="mastery">0%</b></div>
+      <div class="stat">已掌握<b id="learned">0/0</b></div>
+    </section>
+    <div class="clear" id="clearMessage">🎉 本轮通关！每个词都已答对 2 次，且正确率达到 90%。</div>
+    <section class="card">
+      <div class="word" id="word"></div>
+      <div class="meaning" id="meaning">先在脑中说出中文</div>
+      <div class="hint" id="hint">按空格显示释义</div>
+      <div class="forward-actions" id="forwardActions">
+        <button class="show" id="showBtn">显示中文（空格）</button>
+        <button class="unsure" id="unsureBtn">记不清（W）</button>
+      </div>
+      <div class="recall-box" id="recallBox" hidden>
+        <input class="recall-input" id="recallInput" type="text" autocomplete="off" spellcheck="false" placeholder="根据构词提示输入中文意思">
+        <button class="recall-submit" id="recallSubmitBtn">判断正误（Enter）</button>
+        <div class="recall-feedback" id="recallFeedback"></div>
+      </div>
+      <div class="answers" id="answers" hidden>
+        <button class="know" id="knowBtn">认识（A）</button>
+        <button class="dont" id="dontBtn">不认识（D）</button>
+      </div>
+      <div class="choices" id="choices" hidden></div>
+    </section>
+    <nav class="toolbar" aria-label="学习操作">
+      <button id="forwardModeBtn" class="active">看英文说中文</button>
+      <button id="reverseModeBtn">看中文选英文</button>
+      <button id="rareModeBtn">熟词生义</button>
+      <button id="intensiveOpenBtn">错词强化</button>
+      <button id="rootStudyOpenBtn">词根背诵</button>
+      <button id="nextBtn">换一个（N）</button>
+      <button id="currentBtn">当前词库</button>
+      <button id="wrongModeBtn">仅复习错词</button>
+      <button id="exportBtn">导出进度</button>
+      <button id="importBtn">导入进度</button>
+      <button id="resetBtn">重新开始（R）</button>
+      <span class="mode" id="modeText">全部词库</span>
+    </nav>
+    <input id="importFile" type="file" accept="application/json" hidden>
+    <section class="mistakes" id="mistakes">
+      <h2 id="mistakesTitle">当前错词</h2>
+      <div id="mistakeList">还没有错词，继续保持。</div>
+      <div class="review-meaning" id="reviewMeaning"></div>
+    </section>
+    <section class="archives">
+      <h2>昨日复习（近 7 天）</h2>
+      <div class="archive-list" id="archiveList">暂无昨日词库。</div>
+    </section>
+
+    <section class="intensive root-study-section" id="rootStudySection" hidden tabindex="-1">
+      <div class="intensive-head">
+        <div>
+          <h2>词根背诵（独立统计）</h2>
+          <p>相同词根自动合并，学习记录不计入单词三种模式或错词强化。</p>
+        </div>
+      </div>
+      <div class="intensive-tabs">
+        <button id="rootMeaningChoiceModeBtn" class="active">看词根选含义</button>
+        <button id="meaningRootWriteModeBtn">看含义写词根</button>
+      </div>
+      <div class="intensive-stats">
+        <div class="intensive-stat">已作答<b id="rootStudyAnswered">0</b></div>
+        <div class="intensive-stat">正确率<b id="rootStudyAccuracy">--</b></div>
+        <div class="intensive-stat">熟练度<b id="rootStudyMastery">0%</b></div>
+        <div class="intensive-stat">已掌握<b id="rootStudyLearned">0/0</b></div>
+      </div>
+      <div class="intensive-clear" id="rootStudyClear">🎉 当前词根题型已通关！</div>
+      <div class="intensive-card" id="rootStudyCard">
+        <div class="intensive-label" id="rootStudyLabel">词根</div>
+        <div class="intensive-prompt" id="rootStudyPrompt">点击“词根背诵”开始</div>
+        <div class="choices" id="rootStudyChoices" hidden></div>
+        <input class="intensive-input" id="rootStudyInput" type="text" autocomplete="off" spellcheck="false" placeholder="输入词根" hidden>
+        <button class="intensive-submit" id="rootStudySubmitBtn" hidden>提交（Enter）</button>
+        <div class="intensive-feedback" id="rootStudyFeedback"></div>
+        <div class="root-study-related" id="rootStudyRelated"></div>
+      </div>
+      <div class="intensive-toolbar">
+        <span class="intensive-count" id="rootStudyCount">词根库：0 个</span>
+        <button id="resetRootStudyBtn">重新开始当前题型</button>
+      </div>
+    </section>
+
+    <section class="intensive" id="intensiveSection" hidden>
+      <div class="intensive-head">
+        <div>
+          <h2>错词强化（独立词库）</h2>
+          <p>从每日词库中自行勾选。强化记录不计入每日词库统计。</p>
+        </div>
+        <button id="manageIntensiveBtn">管理强化词</button>
+      </div>
+      <div class="intensive-tabs">
+        <button id="spellModeBtn" class="active">中文意思 → 拼写英文</button>
+        <button id="meaningWriteModeBtn">完整英文 → 写中文意思</button>
+      </div>
+      <div class="match-options" id="meaningMatchOptions" hidden>
+        <span>中文答案匹配：</span>
+        <button id="exactMeaningMatchBtn">精确义项匹配</button>
+        <button id="containsMeaningMatchBtn" class="active">包含查找匹配</button>
+      </div>
+      <div class="intensive-stats">
+        <div class="intensive-stat">已作答<b id="intensiveAnswered">0</b></div>
+        <div class="intensive-stat">正确率<b id="intensiveAccuracy">--</b></div>
+        <div class="intensive-stat">熟练度<b id="intensiveMastery">0%</b></div>
+        <div class="intensive-stat">已掌握<b id="intensiveLearned">0/0</b></div>
+      </div>
+      <div class="intensive-clear" id="intensiveClear">🎉 当前强化题型已通关！</div>
+      <div class="intensive-card" id="intensiveCard">
+        <div class="intensive-label" id="intensiveLabel">中文意思</div>
+        <div class="intensive-prompt" id="intensivePrompt">请先选择强化单词</div>
+        <input class="intensive-input" id="intensiveInput" type="text" autocomplete="off" spellcheck="false" placeholder="输入完整英文单词">
+        <button class="intensive-submit" id="intensiveSubmitBtn">提交（Enter）</button>
+        <div class="intensive-feedback" id="intensiveFeedback"></div>
+        <div class="intensive-judge" id="intensiveJudge" hidden>
+          <button class="know" id="intensiveKnowBtn">写对了（A）</button>
+          <button class="dont" id="intensiveWrongBtn">写错了（D）</button>
+        </div>
+      </div>
+      <div class="intensive-toolbar">
+        <span class="intensive-count" id="intensiveCount">强化词库：0 个词</span>
+        <button id="resetIntensiveBtn">重新开始当前题型</button>
+      </div>
+    </section>
+
+  </main>
+  <aside class="root-sidebar" aria-label="当前单词词根">
+    <div class="root-title-row">
+      <h2>当前单词词根</h2>
+      <button class="root-toggle" id="rootToggleBtn" type="button" aria-pressed="true">隐藏</button>
+    </div>
+    <p class="root-note">随当前题目同步更新；只显示词根提示，不显示单词释义；按住标题可拖动。</p>
+    <div class="root-list" id="rootList">
+      <div class="root-empty">当前单词暂无已收录的词根。</div>
+    </div>
+  </aside>
+  </div>
+
+  <div class="selection-modal" id="intensiveSelectionModal" hidden>
+    <div class="selection-dialog" role="dialog" aria-modal="true" aria-labelledby="selectionTitle">
+      <div class="selection-head">
+        <h2 id="selectionTitle">选择本期错词强化单词</h2>
+        <p id="selectionDescription">勾选当前每日词库中的单词。以后词库更新，第一次进入强化板块时会再次显示本期选择页。</p>
+      </div>
+      <div class="selection-actions-top">
+        <button id="selectAllIntensiveBtn">本期全选</button>
+        <button id="clearCurrentIntensiveBtn">清空本期</button>
+        <span class="intensive-count" id="retainedIntensiveInfo"></span>
+      </div>
+      <div class="selection-list" id="intensiveSelectionList"></div>
+      <div class="selection-foot">
+        <button class="selection-cancel" id="cancelIntensiveSelectionBtn">取消</button>
+        <button class="selection-save" id="saveIntensiveSelectionBtn">保存选择</button>
+      </div>
+    </div>
+  </div>
+  <div class="undo-toast" id="undoToast" hidden><span>已记录作答</span><button id="undoBtn" type="button">撤销（U）</button></div>
+  <script>
+    const words = [
+      ["childhood", "童年；儿童时期"],
+      ["ceremony", "仪式；典礼；礼节"],
+      ["routine", "常规；惯例；例行公事；日常的；常规的"],
+      ["endless", "无尽的；没完没了的；无数的"],
+      ["scenery", "风景；景色；舞台布景"],
+      ["silvery", "银色的；银白色的；银铃般的"],
+      ["kindness", "善良；仁慈；好意；友好的行为"],
+      ["happiness", "幸福；快乐"],
+      ["darkness", "黑暗；漆黑；阴暗；邪恶"],
+      ["weakness", "弱点；缺点；虚弱；软弱"],
+      ["racial", "种族的；人种的"],
+      ["official", "官方的；正式的；公务的；官员；公务员"],
+      ["facial", "面部的；脸部的；面部护理"],
+      ["initial", "最初的；开始的；首字母；姓名首字母；用首字母签署"],
+      ["failure", "失败；失败的人或事；故障；未能做到"],
+      ["measure", "测量；衡量；措施；程度；尺寸；量度"],
+      ["creature", "生物；动物；人；受支配的人"],
+      ["guilty", "内疚的；有罪的；犯罪的"],
+      ["steady", "稳定的；平稳的；稳步的；使稳定"],
+      ["tasty", "美味的；可口的"],
+      ["worthy", "值得的；有价值的；值得尊敬的"],
+      ["muddy", "泥泞的；浑浊的；使沾上泥；使混乱"],
+      ["harmony", "和谐；协调；和声"],
+      ["energy", "能量；精力；活力"],
+      ["novel", "小说；新颖的；新奇的"],
+      ["previous", "以前的；先前的；上一个的"],
+      ["graduate", "毕业；毕业生；大学毕业生；授予学位"],
+      ["graduation", "毕业；毕业典礼"],
+      ["gradual", "逐渐的；渐进的"],
+      ["duty", "责任；义务；职责；值班；税"],
+      ["advocate", "提倡；拥护；主张；拥护者；辩护律师"],
+      ["microwave", "微波炉；微波；用微波炉加热"],
+      ["gentle", "温和的；轻柔的；文雅的；缓慢的"],
+      ["engine", "发动机；引擎；机车；搜索引擎"],
+      ["comfort", "安慰；舒适；慰藉；使安慰；使舒适"],
+      ["effort", "努力；尝试；力气；成果"],
+      ["professor", "教授；教师"]
+    ].map(([en, zh]) => ({en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0, reverseMastery: 0, rareRight: 0, rareWrong: 0, rareMastery: 0}));
+
+    const yesterdayWords = [
+      ['theory','理论；学说；原理；看法；推测'],
+      ['adapt','适应；改编；改造；使适合'],
+      ['preparation','准备；预备；准备工作；制剂'],
+      ['adequate','足够的；合格的；适当的；胜任的'],
+      ['adjust','调整；适应；调节；校准'],
+      ['justice','正义；公正；司法；法律制裁'],
+      ['quit','停止；辞职；离开；摆脱'],
+      ['exact','精确的；确切的；严格的；索取；强求'],
+      ['react','反应；作出反应；起化学反应；反抗'],
+      ['ruin','毁坏；毁灭；破产；废墟；使破产'],
+      ['purchase','购买；采购；购买物；抓牢；支撑点'],
+      ['theme','主题；题材；主题思想；主旋律'],
+      ['arrange','安排；整理；布置；商定；改编'],
+      ['splendid','极好的；壮丽的；辉煌的；灿烂的'],
+      ['exhibition','展览；展览会；展示；表现'],
+      ['excite','使兴奋；激发；引起；刺激'],
+      ['explore','探索；勘探；探究；考察'],
+      ['exchange','交换；交流；兑换；交易所；交谈'],
+      ['expand','扩大；扩展；膨胀；详述'],
+      ['aside','在一边；到旁边；撇开；留出；旁白'],
+      ['alongside','在……旁边；与……一起；与……相比'],
+      ['aloud','大声地；出声地'],
+      ['precious','珍贵的；宝贵的；珍爱的；极少的'],
+      ['appreciate','欣赏；感激；理解；意识到；升值'],
+      ['acquire','获得；取得；学到；养成；收购'],
+      ['requirement','要求；必要条件；需求；规定'],
+      ['request','请求；要求；请求的事物；点播'],
+      ['apart','分开地；相隔；除外；成碎片；与众不同'],
+      ['apartment','公寓；套间；房间'],
+      ['department','部门；系；科；领域；职责范围'],
+      ['particular','特别的；特定的；挑剔的；详细的；细节'],
+      ['partly','部分地；在一定程度上'],
+      ['partner','伙伴；搭档；合伙人；配偶；成为搭档'],
+      ['apply','申请；应用；适用；涂；敷；专心致志'],
+      ['employ','雇用；使用；花费；使忙于'],
+      ['complex','复杂的；复合的；综合体；情结'],
+      ['applicant','申请人；应征者'],
+      ['application','申请；申请表；应用；涂抹；施用；勤奋'],
+      ['potential','潜在的；可能的；潜力；潜能；电势'],
+      ['possibility','可能性；可能的事；机会'],
+      ['possess','拥有；具有；支配；控制'],
+      ['possession','拥有；所有物；财产；占有；控球'],
+      ['poison','毒药；毒物；毒害；败坏；有害影响'],
+      ['poisonous','有毒的；恶毒的；有害的']
+    ].map(([en, zh]) => ({en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0, reverseMastery: 0, rareRight: 0, rareWrong: 0, rareMastery: 0}));
+    const ROOT_DATA = {
+      "childhood": ["child / -hood", "儿童；时期、状态"],
+      "ceremony": ["ceremon", "仪式；礼节"],
+      "routine": ["rout / route", "道路；固定路线"],
+      "endless": ["end / -less", "终点；没有……的"],
+      "scenery": ["scene", "景象；舞台"],
+      "silvery": ["silver / -y", "银；具有……特征的"],
+      "kindness": ["kind / -ness", "善良；性质、状态"],
+      "happiness": ["happy / -ness", "快乐；性质、状态"],
+      "darkness": ["dark / -ness", "黑暗；性质、状态"],
+      "weakness": ["weak / -ness", "虚弱；性质、状态"],
+      "racial": ["race / -ial", "种族；与……有关的"],
+      "official": ["offic / -ial", "职责、服务；与……有关的"],
+      "facial": ["face / -ial", "脸；与……有关的"],
+      "initial": ["init / -ial", "开始；与……有关的"],
+      "failure": ["fail / -ure", "未成功；行为或结果"],
+      "measure": ["meas / mens", "测量；衡量"],
+      "creature": ["cre / creat", "创造；产生"],
+      "guilty": ["guilt / -y", "罪责；具有……的"],
+      "steady": ["stead", "位置；站立"],
+      "tasty": ["taste / -y", "味道；具有……的"],
+      "worthy": ["worth / -y", "价值；具有……的"],
+      "muddy": ["mud / -y", "泥；具有……的"],
+      "harmony": ["harmon", "协调；配合"],
+      "energy": ["erg", "工作；活动"],
+      "novel": ["nov", "新的"],
+      "previous": ["pre- / vi", "在前；道路"],
+      "graduate": ["grad", "步；级"],
+      "graduation": ["grad", "步；级"],
+      "gradual": ["grad", "步；级"],
+      "duty": ["due / dut", "应付的；应做的"],
+      "advocate": ["ad- / voc", "朝向；呼喊、声音"],
+      "microwave": ["micro- / wave", "微小；波"],
+      "gentle": ["gent", "出身；氏族"],
+      "engine": ["gen", "产生；创造"],
+      "comfort": ["com- / fort", "共同、加强；强壮"],
+      "effort": ["ex- / fort", "向外；强壮"],
+      "professor": ["pro- / fess", "向前、公开；说"]
+    };
+    const ROOT_HINT_DATA = {
+      "childhood": "child（儿童）+ -hood（时期、状态）→一个人处于儿童阶段的那段时期",
+      "ceremony": "ceremon（礼仪、仪式）+ -y（名词后缀）→按固定礼节举行的一套正式活动",
+      "routine": "route（道路、路线）→每天沿着同一条“路线”重复进行的安排",
+      "endless": "end（终点）+ -less（没有……的）→看不到终点，似乎一直延续下去",
+      "scenery": "scene（眼前景象、舞台）+ -ery（集合）→许多眼前景象组合成的整体画面",
+      "silvery": "silver（银）+ -y（具有……特征的）→带有银的颜色或清亮质感",
+      "kindness": "kind（善良的）+ -ness（性质、状态）→表现出善良这一品质的状态或行为",
+      "happiness": "happy（快乐的）+ -ness（性质、状态）→处于快乐、满足的状态",
+      "darkness": "dark（黑暗的）+ -ness（性质、状态）→光线消失后形成的状态",
+      "weakness": "weak（虚弱的）+ -ness（性质、状态）→力量不足或不够坚固的地方",
+      "racial": "race（种族、人种）+ -ial（与……有关的）→与人种或种族群体有关",
+      "official": "office（职务、公职）+ -ial（与……有关的）→与正式职务或机构有关",
+      "facial": "face（脸）+ -ial（与……有关的）→与脸部有关",
+      "initial": "init（开始）+ -ial（与……有关的）→处在一件事情最开始的位置",
+      "failure": "fail（未成功）+ -ure（行为或结果）→一次未达到目标所形成的结果",
+      "measure": "meas / mens（测量、衡量）→把长度、数量或程度拿来比较并确定",
+      "creature": "cre / creat（创造、产生）+ -ure（结果）→被创造或产生出来的生命体",
+      "guilty": "guilt（罪责、内疚）+ -y（具有……的）→心中带着罪责感，或被认定负有罪责",
+      "steady": "stead（位置、站立）+ -y（具有……特征的）→牢牢处在原位，不轻易摇动或改变",
+      "tasty": "taste（味道）+ -y（具有……的）→具有让人喜欢的味道",
+      "worthy": "worth（价值）+ -y（具有……的）→具有足够价值，配得上某种评价或行动",
+      "muddy": "mud（泥）+ -y（充满……的）→表面有泥，或像泥水一样不清楚",
+      "harmony": "harmon（协调、配合）+ -y（状态）→不同部分彼此配合、没有冲突的状态",
+      "energy": "erg（工作、活动）+ -y（状态或能力）→让物体做功或让人持续活动的能力",
+      "novel": "nov（新的）+ -el（名词或形容词后缀）→原本强调新奇，后来也指一种长篇故事作品",
+      "previous": "pre-（在前）+ vi（道路）+ -ous（具有……的）→在当前事物前面的、先走过那条路的",
+      "graduate": "grad（步、级）+ -uate（使成为）→一步步完成各级学习后达到毕业阶段",
+      "graduation": "grad（步、级）+ -ation（过程、结果）→完成一个学习阶段并跨入下一阶段的过程",
+      "gradual": "grad（步、级）+ -ual（具有……特征的）→像一步接一步那样慢慢发生",
+      "duty": "due（应付、应做）→某件本来就应由自己承担和完成的事情",
+      "advocate": "ad-（朝向）+ voc（呼喊、声音）+ -ate（动词或人）→站出来为某种主张发声",
+      "microwave": "micro-（微小）+ wave（波）→波长很短的一类波，也指利用它加热食物的设备",
+      "gentle": "gent（出身、氏族）→早期指有良好出身和教养，后来引申为动作和态度不粗暴",
+      "engine": "gen（产生、创造）→能够产生动力并带动其他部分工作的装置",
+      "comfort": "com-（共同、加强）+ fort（强壮）→给人力量，让紧张或痛苦的状态缓和下来",
+      "effort": "ex-（向外）+ fort（强壮、力量）→把身体或意志中的力量向外用出来",
+      "professor": "pro-（向前、公开）+ fess（说）+ -or（人）→公开讲授并表达专业知识的人"
+    };
+    const YESTERDAY_ARCHIVE_DATE = '2026-07-21';
+    const yesterdayLibraryId = yesterdayWords.map(w => w.en).join('|');
+
+    const STORAGE_KEY = 'english-word-review-v3';
+    const INTENSIVE_KEY = 'english-word-intensive-v1';
+    const MEANING_MATCH_KEY = 'english-word-meaning-match-v1';
+    const ROOT_VISIBILITY_KEY = 'english-word-root-visible-v1';
+    const ROOT_STUDY_KEY = 'english-word-root-study-v1';
+    const libraryId = words.map(w => w.en).join('|');
+    const localDate = () => {
+      const d = new Date(), pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
+    const today = localDate();
+    const dayNumber = date => {
+      const [y,m,d] = String(date).split('-').map(Number);
+      return y && m && d ? Date.UTC(y, m - 1, d) / 86400000 : NaN;
+    };
+    const keysFor = mode => mode === 'reverse'
+      ? {right: 'reverseRight', wrong: 'reverseWrong', mastery: 'reverseMastery'}
+      : mode === 'rare'
+        ? {right: 'rareRight', wrong: 'rareWrong', mastery: 'rareMastery'}
+        : {right: 'right', wrong: 'wrong', mastery: 'mastery'};
+    const wordMastery = (w, mode = 'forward') => {
+      const k = keysFor(mode), total = w[k.right] + w[k.wrong];
+      return total ? Math.round(w[k.right] / total * 100) : 0;
+    };
+    const normalizeWord = w => ({
+      en: w.en,
+      zh: w.zh,
+      right: Number(w.right) || 0,
+      wrong: Number(w.wrong) || 0,
+      mastery: 0,
+      reverseRight: Number(w.reverseRight) || 0,
+      reverseWrong: Number(w.reverseWrong) || 0,
+      reverseMastery: 0,
+      reverseReviewWeight: Number.isFinite(Number(w.reverseReviewWeight))
+        ? Math.max(0, Number(w.reverseReviewWeight))
+        : (Number(w.reverseWrong) || 0) * 12,
+      rareRight: Number(w.rareRight) || 0,
+      rareWrong: Number(w.rareWrong) || 0,
+      rareMastery: 0
+    });
+    const normalizeLibrary = library => {
+      const normalized = {
+        id: library?.id || (library?.words || []).map(w => w.en).join('|'),
+        date: /^\d{4}-\d{2}-\d{2}$/.test(library?.date || '') ? library.date : today,
+        words: (library?.words || []).map(normalizeWord)
+      };
+      normalized.words.forEach(w => {
+        w.mastery = wordMastery(w, 'forward');
+        w.reverseMastery = wordMastery(w, 'reverse');
+        w.rareMastery = wordMastery(w, 'rare');
+      });
+      return normalized;
+    };
+
+    function refreshLibraryMeanings(library, source) {
+      if (!library?.words) return;
+      const map = new Map(source.map(w => [w.en, w.zh]));
+      library.words.forEach(w => { if (map.has(w.en)) w.zh = map.get(w.en); });
+    }
+
+    const createLibrary = (source = words) => normalizeLibrary({
+      id: libraryId,
+      date: today,
+      words: source.map(w => ({...w}))
+    });
+    const pruneArchives = archives => {
+      const now = dayNumber(today);
+      return (archives || []).map(normalizeLibrary).filter(a => {
+        const age = now - dayNumber(a.date);
+        return age >= 0 && age <= 7;
+      });
+    };
+
+    let store;
+    try { store = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { store = null; }
+    if (!store) {
+      let oldProgress = {};
+      try { oldProgress = JSON.parse(localStorage.getItem('english-word-review-v2') || '{}'); } catch {}
+      store = {
+        current: createLibrary(words.map(w => ({...w, right: oldProgress[w.en]?.right || 0, wrong: oldProgress[w.en]?.wrong || 0}))),
+        archives: []
+      };
+    } else {
+      store.current = normalizeLibrary(store.current);
+      store.archives = pruneArchives(store.archives);
+      if (store.current.id !== libraryId) {
+        store.archives = store.archives.filter(a => a.id !== store.current.id);
+        store.archives.unshift(store.current);
+        store.archives = pruneArchives(store.archives);
+        store.current = createLibrary();
+      }
+    }
+
+    const existingYesterday = store.archives.find(a => a.id === yesterdayLibraryId);
+    if (existingYesterday) {
+      existingYesterday.date = YESTERDAY_ARCHIVE_DATE;
+    } else {
+      let oldProgress = {};
+      try { oldProgress = JSON.parse(localStorage.getItem('english-word-review-v2') || '{}'); } catch {}
+      store.archives.unshift(normalizeLibrary({
+        id: yesterdayLibraryId,
+        date: YESTERDAY_ARCHIVE_DATE,
+        words: yesterdayWords.map(w => ({
+          ...w,
+          right: oldProgress[w.en]?.right || 0,
+          wrong: oldProgress[w.en]?.wrong || 0
+        }))
+      }));
+    }
+    store.archives = pruneArchives(store.archives);
+
+    refreshLibraryMeanings(store.current, words);
+    store.archives.forEach(a => {
+      if (a.id === yesterdayLibraryId) refreshLibraryMeanings(a, yesterdayWords);
+      if (a.id === libraryId) refreshLibraryMeanings(a, words);
+    });
+
+
+    const normalizeIntensiveWord = w => ({
+      en: String(w.en || '').trim(),
+      zh: String(w.zh || '').trim(),
+      spellRight: Number(w.spellRight) || 0,
+      spellWrong: Number(w.spellWrong) || 0,
+      meaningRight: Number(w.meaningRight) || 0,
+      meaningWrong: Number(w.meaningWrong) || 0
+    });
+    let intensiveStore;
+    try { intensiveStore = JSON.parse(localStorage.getItem(INTENSIVE_KEY) || 'null'); } catch { intensiveStore = null; }
+    intensiveStore = {
+      reviewedLibraryId: intensiveStore?.reviewedLibraryId || '',
+      words: [...new Map((intensiveStore?.words || []).map(w => {
+        const normalized = normalizeIntensiveWord(w);
+        return [normalized.en.toLowerCase(), normalized];
+      })).values()].filter(w => w.en)
+    };
+    function syncIntensiveMeanings() {
+      const currentMap = new Map(store.current.words.map(w => [w.en.toLowerCase(), w.zh]));
+      intensiveStore.words.forEach(w => {
+        if (currentMap.has(w.en.toLowerCase())) w.zh = currentMap.get(w.en.toLowerCase());
+      });
+    }
+    function saveIntensive() {
+      localStorage.setItem(INTENSIVE_KEY, JSON.stringify(intensiveStore));
+    }
+    syncIntensiveMeanings();
+    saveIntensive();
+
+
+    function buildRootStudyItems(savedItems = []) {
+      const saved = new Map(savedItems.map(item => [item.id, item]));
+      const grouped = new Map();
+      Object.entries(ROOT_DATA).forEach(([word, info]) => {
+        const [root, meaning] = info;
+        const id = `${root}\u0000${meaning}`;
+        if (!grouped.has(id)) grouped.set(id, {id, root, meaning, words: []});
+        grouped.get(id).words.push(word);
+      });
+      return [...grouped.values()].map(item => {
+        const old = saved.get(item.id) || {};
+        return {
+          ...item,
+          choiceRight: Number(old.choiceRight) || 0,
+          choiceWrong: Number(old.choiceWrong) || 0,
+          writeRight: Number(old.writeRight) || 0,
+          writeWrong: Number(old.writeWrong) || 0
+        };
+      });
+    }
+
+    let rootStudyStore;
+    try { rootStudyStore = JSON.parse(localStorage.getItem(ROOT_STUDY_KEY) || 'null'); } catch { rootStudyStore = null; }
+    rootStudyStore = {items: buildRootStudyItems(rootStudyStore?.items || [])};
+    function saveRootStudy() {
+      localStorage.setItem(ROOT_STUDY_KEY, JSON.stringify(rootStudyStore));
+    }
+    saveRootStudy();
+
+    let activeLibrary = store.current;
+    let current, currentMeaning = '', revealed = false, wrongOnly = false, studyMode = 'forward', choiceLocked = false;
+    let uncertainState = 'idle';
+    let recentWords = [];
+    let intensiveRecent = [];
+    let undoable = null;
+    let undoTimer = null;
+    let autoAdvanceTimer = null;
+    const recencySize = list => Math.max(0, Math.min(6, list.length - 1));
+    function pushRecent(buffer, word, size) {
+      if (size <= 0) return;
+      const oldIndex = buffer.indexOf(word);
+      if (oldIndex >= 0) buffer.splice(oldIndex, 1);
+      buffer.push(word);
+      while (buffer.length > size) buffer.shift();
+    }
+    const $ = id => document.getElementById(id);
+    let rootVisible = localStorage.getItem(ROOT_VISIBILITY_KEY) !== 'false';
+
+    function applyRootVisibility() {
+      const sidebar = document.querySelector('.root-sidebar');
+      const button = $('rootToggleBtn');
+      if (!sidebar || !button) return;
+      sidebar.classList.toggle('roots-hidden', !rootVisible);
+      button.textContent = rootVisible ? '隐藏' : '显示';
+      button.setAttribute('aria-pressed', String(rootVisible));
+      button.setAttribute('aria-label', rootVisible ? '隐藏当前单词词根' : '显示当前单词词根');
+    }
+
+    function setRootVisibility(visible) {
+      rootVisible = !!visible;
+      localStorage.setItem(ROOT_VISIBILITY_KEY, String(rootVisible));
+      applyRootVisibility();
+    }
+
+    function syncLibrary(library, sourceWords = library.words) {
+      library.words = sourceWords.map(w => ({
+        ...w,
+        mastery: wordMastery(w, 'forward'),
+        reverseMastery: wordMastery(w, 'reverse'),
+        rareMastery: wordMastery(w, 'rare')
+      }));
+    }
+    function loadLibrary(library) {
+      activeLibrary = library;
+      words.splice(0, words.length, ...library.words.map(w => ({...w})));
+      wrongOnly = false;
+      recentWords = [];
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+      hideUndoToast();
+    }
+    function save() {
+      syncLibrary(activeLibrary, words);
+      store.archives = pruneArchives(store.archives);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    }
+
+    loadLibrary(activeLibrary);
+    save();
+
+    function exportProgress() {
+      save();
+      saveIntensive();
+      saveRootStudy();
+      const settings = {meaningMatchMode, rootVisible};
+      const url = URL.createObjectURL(new Blob([JSON.stringify({store, intensiveStore, rootStudyStore, settings}, null, 2)], {type: 'application/json'}));
+      const link = document.createElement('a');
+      link.href = url; link.download = '英语单词背诵进度.json'; link.click();
+      URL.revokeObjectURL(url);
+    }
+    function importProgress(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (data.store?.current) {
+            store = {current: normalizeLibrary(data.store.current), archives: pruneArchives(data.store.archives)};
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+            if (data.intensiveStore) localStorage.setItem(INTENSIVE_KEY, JSON.stringify(data.intensiveStore));
+            if (data.rootStudyStore) localStorage.setItem(ROOT_STUDY_KEY, JSON.stringify(data.rootStudyStore));
+            if (data.settings?.meaningMatchMode) {
+              localStorage.setItem(MEANING_MATCH_KEY, data.settings.meaningMatchMode === 'exact' ? 'exact' : 'contains');
+            }
+            if (typeof data.settings?.rootVisible === 'boolean') {
+              localStorage.setItem(ROOT_VISIBILITY_KEY, String(data.settings.rootVisible));
+            }
+            location.reload();
+            return;
+          }
+          const old = data.words || {};
+          words.forEach(w => {
+            if (old[w.en]) {
+              w.right = Number(old[w.en].right) || 0;
+              w.wrong = Number(old[w.en].wrong) || 0;
+              w.reverseRight = Number(old[w.en].reverseRight) || 0;
+              w.reverseWrong = Number(old[w.en].reverseWrong) || 0;
+              w.reverseReviewWeight = Number.isFinite(Number(old[w.en].reverseReviewWeight))
+                ? Math.max(0, Number(old[w.en].reverseReviewWeight))
+                : w.reverseWrong * 12;
+              w.rareRight = Number(old[w.en].rareRight) || 0;
+              w.rareWrong = Number(old[w.en].rareWrong) || 0;
+            }
+          });
+          save(); pick(); alert('进度已导入。');
+        } catch { alert('这不是有效的进度文件。'); }
+      };
+      reader.readAsText(file);
+    }
+
+    function candidates() {
+      const k = keysFor(studyMode);
+      const list = wrongOnly ? words.filter(w => w[k.wrong]) : words;
+      return list.length ? list : words;
+    }
+    function weightOf(w, k, mode) {
+      if (mode === 'reverse') {
+        const base = 1 + Math.max(0, 2 - w[k.right]);
+        const reviewBonus = Math.round(Math.max(0, Number(w.reverseReviewWeight) || 0));
+        return Math.max(1, base + reviewBonus);
+      }
+      const wrongBonus = Math.min(30, w[k.wrong] * (w[k.wrong] + 4));
+      const rightRelief = Math.min(wrongBonus, w[k.right] * 3);
+      return 1 + wrongBonus - rightRelief + Math.max(0, 2 - w[k.right]);
+    }
+    function weightedPick(list, k, mode, recent, avoid) {
+      const choices = list.map(w => {
+        let weight = weightOf(w, k, mode);
+        if (recent?.has(w)) weight = 1;
+        if (list.length > 1 && w === avoid) weight = 0;
+        return {w, weight};
+      }).filter(item => item.weight > 0);
+      const total = choices.reduce((sum, item) => sum + item.weight, 0);
+      let roll = Math.random() * total;
+      for (const item of choices) {
+        roll -= item.weight;
+        if (roll < 0) return item.w;
+      }
+      return choices.at(-1)?.w || list[0];
+    }
+    function editDistance(a, b) {
+      const row = Array.from({length: b.length + 1}, (_, i) => i);
+      for (let i = 1; i <= a.length; i++) {
+        let prev = row[0]; row[0] = i;
+        for (let j = 1; j <= b.length; j++) {
+          const old = row[j];
+          row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+          prev = old;
+        }
+      }
+      return row[b.length];
+    }
+    function commonPrefix(a, b) {
+      let i = 0;
+      while (i < a.length && i < b.length && a[i] === b[i]) i++;
+      return i / Math.max(a.length, b.length, 1);
+    }
+    function zhSimilarity(a, b) {
+      const tokens = s => s.split(/[；，、/（）\s]+/).filter(x => x.length > 1);
+      const ta = tokens(a), tb = new Set(tokens(b));
+      const exact = ta.filter(x => tb.has(x)).length;
+      const ca = new Set(a.replace(/[；，、/（）\s]/g, ''));
+      const cb = new Set(b.replace(/[；，、/（）\s]/g, ''));
+      const common = [...ca].filter(c => cb.has(c)).length;
+      const union = new Set([...ca, ...cb]).size || 1;
+      return exact * 2 + common / union;
+    }
+    function meaningParts(zh) {
+      return String(zh).split('；').map(x => x.trim()).filter(Boolean);
+    }
+    function pickOneMeaning(zh) {
+      const list = meaningParts(zh);
+      return list[Math.floor(Math.random() * list.length)] || zh;
+    }
+    function commonMeaningParts(zh) {
+      const list = meaningParts(zh);
+      return list.slice(0, Math.min(3, list.length));
+    }
+    function pickCommonMeaning(zh) {
+      const list = commonMeaningParts(zh);
+      return list.join('；') || zh;
+    }
+    function pickRareWeightedMeaning(zh) {
+      const list = meaningParts(zh);
+      if (!list.length) return zh;
+      const weighted = list.flatMap((meaning, i) => {
+        const position = list.length === 1 ? 0 : i / (list.length - 1);
+        const weight = 1 + Math.round(position * 4);
+        return Array(weight).fill(meaning);
+      });
+      return weighted[Math.floor(Math.random() * weighted.length)];
+    }
+    function makeMeaningChoices(target, correctMeaning) {
+      const own = new Set(meaningParts(target.zh));
+      const pool = words
+        .filter(w => w !== target)
+        .flatMap(w => meaningParts(w.zh))
+        .filter(m => !own.has(m) && m !== correctMeaning);
+      const unique = [...new Set(pool)]
+        .map(m => ({m, score: zhSimilarity(correctMeaning, m) + Math.random() * .5}))
+        .sort((a,b) => b.score - a.score);
+      const near = unique.slice(0, 12);
+      const distractors = [];
+      while (near.length && distractors.length < 3) {
+        const i = Math.floor(Math.random() * near.length);
+        distractors.push(near.splice(i, 1)[0].m);
+      }
+      for (const x of unique) {
+        if (distractors.length >= 3) break;
+        if (!distractors.includes(x.m)) distractors.push(x.m);
+      }
+      const result = [correctMeaning, ...distractors.slice(0, 3)];
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    function distractorScore(target, other) {
+      const maxLen = Math.max(target.en.length, other.en.length, 1);
+      const spelling = 1 - editDistance(target.en, other.en) / maxLen;
+      return spelling * 4 + commonPrefix(target.en, other.en) * 1.5 + zhSimilarity(target.zh, other.zh) * 2 + Math.random() * .25;
+    }
+    function makeChoices(target) {
+      const top = words
+        .filter(w => w !== target)
+        .map(w => ({w, score: distractorScore(target, w)}))
+        .sort((a,b) => b.score - a.score)
+        .slice(0, 10);
+      const chosen = [];
+      for (const candidate of top) {
+        if (chosen.length >= 3) break;
+        const tooSimilar = chosen.some(other => {
+          const maxLen = Math.max(other.en.length, candidate.w.en.length, 1);
+          return other.en.length > 2 && candidate.w.en.length > 2 && editDistance(other.en, candidate.w.en) / maxLen < .34;
+        });
+        if (!tooSimilar) chosen.push(candidate.w);
+      }
+      for (const candidate of top) {
+        if (chosen.length >= 3) break;
+        if (!chosen.includes(candidate.w)) chosen.push(candidate.w);
+      }
+      const result = [target, ...chosen.slice(0, 3)];
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    function pick(forceWord) {
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+      const list = candidates();
+      const k = keysFor(studyMode);
+      const next = forceWord && list.includes(forceWord)
+        ? forceWord
+        : weightedPick(list, k, studyMode, new Set(recentWords), current);
+      pushRecent(recentWords, next, recencySize(list));
+      current = next;
+      revealed = false;
+      choiceLocked = false;
+      uncertainState = 'idle';
+      $('reviewMeaning').textContent = '';
+      $('recallBox').hidden = true;
+      $('recallInput').value = '';
+      $('recallInput').readOnly = false;
+      $('recallFeedback').textContent = '';
+      $('recallFeedback').className = 'recall-feedback';
+      $('recallSubmitBtn').textContent = '判断正误（Enter）';
+
+      if (studyMode === 'forward') {
+        $('word').textContent = current.en;
+        $('word').lang = 'en';
+        $('meaning').textContent = '先在脑中说出中文';
+        $('hint').textContent = '按空格显示释义';
+        $('showBtn').hidden = false;
+        $('forwardActions').hidden = false;
+        $('answers').hidden = true;
+        $('choices').hidden = true;
+        $('choices').replaceChildren();
+      } else if (studyMode === 'reverse') {
+        // 先按学习权重抽中 current 单词，再展示该词前 2～3 个核心常用义。
+        currentMeaning = pickCommonMeaning(current.zh);
+        $('word').textContent = currentMeaning;
+        $('word').lang = 'zh-CN';
+        $('meaning').textContent = '选择对应的英文单词';
+        $('hint').textContent = '电脑端按 A / S / D / F 选择';
+        $('showBtn').hidden = true;
+        $('forwardActions').hidden = true;
+        $('answers').hidden = true;
+        renderChoices();
+      } else {
+        currentMeaning = pickRareWeightedMeaning(current.zh);
+        $('word').textContent = current.en;
+        $('word').lang = 'en';
+        $('meaning').textContent = '选择这个单词对应的中文义项';
+        $('hint').textContent = '生僻义项抽取权重更高 · 电脑端按 A / S / D / F 选择';
+        $('showBtn').hidden = true;
+        $('forwardActions').hidden = true;
+        $('answers').hidden = true;
+        renderRareChoices();
+      }
+      render();
+    }
+    function reveal() {
+      if (studyMode !== 'forward' || revealed || uncertainState !== 'idle') return;
+      revealed = true;
+      $('meaning').textContent = current.zh;
+      $('hint').textContent = '判断刚才是否答对';
+      $('showBtn').hidden = true;
+      $('forwardActions').hidden = true;
+      $('answers').hidden = false;
+    }
+    function beginUncertain() {
+      if (studyMode !== 'forward' || revealed || uncertainState !== 'idle') return;
+      uncertainState = 'input';
+      const rootHint = ROOT_HINT_DATA[current.en.toLowerCase()];
+      const rootInfo = ROOT_DATA[current.en.toLowerCase()];
+      $('meaning').textContent = rootHint || (rootInfo
+        ? `${rootInfo[0]}（${rootInfo[1]}）→根据这个词根关系回想完整意思`
+        : '这个词暂未收录构词拆解，请结合拼写结构回想它的意思。');
+      $('hint').textContent = '构词提示不会直接显示释义，请输入你想到的中文意思';
+      $('forwardActions').hidden = true;
+      $('answers').hidden = true;
+      $('recallBox').hidden = false;
+      $('recallInput').value = '';
+      $('recallInput').readOnly = false;
+      $('recallFeedback').textContent = '';
+      $('recallFeedback').className = 'recall-feedback';
+      $('recallSubmitBtn').textContent = '判断正误（Enter）';
+      setTimeout(() => $('recallInput').focus(), 0);
+    }
+    function submitUncertain() {
+      if (studyMode !== 'forward' || uncertainState === 'idle' || !current) return;
+      if (uncertainState === 'answered') {
+        pick();
+        return;
+      }
+      const typed = $('recallInput').value.trim();
+      if (!typed) {
+        $('recallFeedback').className = 'recall-feedback bad';
+        $('recallFeedback').textContent = '请先输入一个中文意思。';
+        $('recallInput').focus();
+        return;
+      }
+      const correct = containsMeaningPartsMatch(typed, current.zh);
+      markUndo(current, false);
+      current[correct ? 'right' : 'wrong']++;
+      current.mastery = wordMastery(current, 'forward');
+      uncertainState = 'answered';
+      $('recallInput').readOnly = true;
+      $('recallFeedback').className = `recall-feedback ${correct ? 'good' : 'bad'}`;
+      $('recallFeedback').textContent = correct
+        ? `✅ 正确（借助构词提示）
+你的答案：${typed}`
+        : `❌ 错误
+你的答案：${typed}
+参考释义：${current.zh}`;
+      $('recallSubmitBtn').textContent = '下一题（Enter）';
+      $('hint').textContent = correct ? '回答正确，按 Enter 进入下一题' : '已显示参考释义，按 Enter 进入下一题';
+      save();
+      render();
+      setTimeout(() => $('recallInput').focus(), 0);
+    }
+    const SCORE_FIELDS = ['right','wrong','mastery','reverseRight','reverseWrong','reverseMastery','reverseReviewWeight','rareRight','rareWrong','rareMastery','spellRight','spellWrong','meaningRight','meaningWrong'];
+    function snapshotWord(w) {
+      const snapshot = {};
+      SCORE_FIELDS.forEach(field => { if (field in w) snapshot[field] = w[field]; });
+      return snapshot;
+    }
+    function hideUndoToast() {
+      $('undoToast').hidden = true;
+      clearTimeout(undoTimer);
+      undoable = null;
+    }
+    function markUndo(w, intensive) {
+      undoable = {w, snapshot: snapshotWord(w), intensive};
+      $('undoToast').hidden = false;
+      clearTimeout(undoTimer);
+      undoTimer = setTimeout(hideUndoToast, 5000);
+    }
+    function undoLast() {
+      if (!undoable) return;
+      const {w, snapshot, intensive} = undoable;
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+      hideUndoToast();
+      Object.assign(w, snapshot);
+      if (intensive) {
+        saveIntensive();
+        pickIntensiveWord(w);
+      } else {
+        w.mastery = wordMastery(w, 'forward');
+        w.reverseMastery = wordMastery(w, 'reverse');
+        w.rareMastery = wordMastery(w, 'rare');
+        save();
+        pick(w);
+      }
+    }
+    function scheduleNext() {
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = setTimeout(() => {
+        autoAdvanceTimer = null;
+        pick();
+      }, 650);
+    }
+    function answer(right) {
+      if (studyMode !== 'forward' || !revealed) return;
+      markUndo(current, false);
+      current[right ? 'right' : 'wrong']++;
+      current.mastery = wordMastery(current, 'forward');
+      save(); pick();
+    }
+    function renderChoices() {
+      const labels = ['A','S','D','F'];
+      const list = makeChoices(current);
+      const box = $('choices');
+      box.replaceChildren();
+      box.hidden = false;
+      list.forEach((w, i) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'choice';
+        button.dataset.correct = String(w === current);
+        button.innerHTML = `<span class="choice-key">${labels[i]}</span><span>${w.en}</span>`;
+        button.onclick = () => chooseReverse(i);
+        box.append(button);
+      });
+    }
+    function chooseReverse(index) {
+      if (studyMode !== 'reverse' || choiceLocked) return;
+      const buttons = [...$('choices').children];
+      const selected = buttons[index];
+      if (!selected) return;
+      choiceLocked = true;
+      const correct = selected.dataset.correct === 'true';
+      markUndo(current, false);
+      current[correct ? 'reverseRight' : 'reverseWrong']++;
+      if (correct) {
+        current.reverseReviewWeight = Math.max(
+          0,
+          (Number(current.reverseReviewWeight) || 0) * .12
+        );
+      } else {
+        current.reverseReviewWeight = Math.min(
+          80,
+          (Number(current.reverseReviewWeight) || 0) + 16
+        );
+      }
+      current.reverseMastery = wordMastery(current, 'reverse');
+      buttons.forEach(b => {
+        b.disabled = true;
+        if (b.dataset.correct === 'true') b.classList.add('correct');
+      });
+      if (!correct) selected.classList.add('wrong');
+      $('hint').textContent = correct ? '正确' : `错误，正确答案：${current.en}`;
+      save();
+      render();
+      scheduleNext();
+    }
+    function renderRareChoices() {
+      const labels = ['A','S','D','F'];
+      const list = makeMeaningChoices(current, currentMeaning);
+      const box = $('choices');
+      box.replaceChildren();
+      box.hidden = false;
+      list.forEach((meaning, i) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'choice';
+        button.dataset.correct = String(meaning === currentMeaning);
+        button.innerHTML = `<span class="choice-key">${labels[i]}</span><span>${meaning}</span>`;
+        button.onclick = () => chooseRare(i);
+        box.append(button);
+      });
+    }
+    function chooseRare(index) {
+      if (studyMode !== 'rare' || choiceLocked) return;
+      const buttons = [...$('choices').children];
+      const selected = buttons[index];
+      if (!selected) return;
+      choiceLocked = true;
+      const correct = selected.dataset.correct === 'true';
+      markUndo(current, false);
+      current[correct ? 'rareRight' : 'rareWrong']++;
+      current.rareMastery = wordMastery(current, 'rare');
+      buttons.forEach(b => {
+        b.disabled = true;
+        if (b.dataset.correct === 'true') b.classList.add('correct');
+      });
+      if (!correct) selected.classList.add('wrong');
+      $('hint').textContent = correct ? '正确' : `错误，正确答案：${currentMeaning}`;
+      save();
+      render();
+      scheduleNext();
+    }
+    function setStudyMode(mode) {
+      if (studyMode === mode) return;
+      $('choices').hidden = true;
+      $('choices').replaceChildren();
+      studyMode = mode;
+      wrongOnly = false;
+      recentWords = [];
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+      hideUndoToast();
+      $('forwardModeBtn').classList.toggle('active', mode === 'forward');
+      $('reverseModeBtn').classList.toggle('active', mode === 'reverse');
+      $('rareModeBtn').classList.toggle('active', mode === 'rare');
+      $('subtitle').textContent = mode === 'forward'
+        ? '看英文，说中文。答错的词会被更频繁地抽到。'
+        : mode === 'reverse'
+          ? '看中文，选英文。先抽单词，再同时展示该词前 2～3 个核心常用义；答对错题后出现概率会大幅降低。'
+          : '熟词生义：看英文选中文。生僻义项会以更高权重出现。';
+      pick();
+    }
+    function learnedCount(list, mode) {
+      const k = keysFor(mode);
+      return list.filter(w => w[k.right] >= 2).length;
+    }
+
+
+
+    let rootStudyMode = 'choice';
+    let rootStudyCurrent = null;
+    let rootStudyLocked = false;
+    let rootStudyRecent = [];
+    let rootStudyAdvanceTimer = null;
+
+    const rootStudyKeys = mode => mode === 'write'
+      ? {right: 'writeRight', wrong: 'writeWrong'}
+      : {right: 'choiceRight', wrong: 'choiceWrong'};
+
+    function rootStudyMastery(item, mode = rootStudyMode) {
+      const k = rootStudyKeys(mode);
+      const total = item[k.right] + item[k.wrong];
+      return total ? Math.round(item[k.right] / total * 100) : 0;
+    }
+
+    function renderRootStudyStats() {
+      const list = rootStudyStore.items;
+      const k = rootStudyKeys(rootStudyMode);
+      const total = list.reduce((n, item) => n + item[k.right] + item[k.wrong], 0);
+      const correct = list.reduce((n, item) => n + item[k.right], 0);
+      const mastery = list.length
+        ? Math.round(list.reduce((n, item) => n + rootStudyMastery(item), 0) / list.length)
+        : 0;
+      const learned = list.filter(item => item[k.right] >= 2).length;
+      $('rootStudyAnswered').textContent = total;
+      $('rootStudyAccuracy').textContent = total ? Math.round(correct / total * 100) + '%' : '--';
+      $('rootStudyMastery').textContent = mastery + '%';
+      $('rootStudyLearned').textContent = `${learned}/${list.length}`;
+      $('rootStudyCount').textContent = `词根库：${list.length} 个`;
+      $('rootStudyClear').classList.toggle(
+        'show',
+        !!list.length && learned === list.length && total > 0 && correct / total >= .9
+      );
+    }
+
+    function rootStudyWeight(item) {
+      const k = rootStudyKeys(rootStudyMode);
+      const wrongBonus = Math.min(30, item[k.wrong] * (item[k.wrong] + 4));
+      const rightRelief = Math.min(wrongBonus, item[k.right] * 3);
+      return 1 + wrongBonus - rightRelief + Math.max(0, 2 - item[k.right]);
+    }
+
+    function pickRootStudyItem() {
+      clearTimeout(rootStudyAdvanceTimer);
+      rootStudyAdvanceTimer = null;
+      const list = rootStudyStore.items;
+      if (!list.length) {
+        rootStudyCurrent = null;
+        $('rootStudyPrompt').textContent = '当前词库暂无词根资料';
+        $('rootStudyChoices').hidden = true;
+        $('rootStudyInput').hidden = true;
+        $('rootStudySubmitBtn').hidden = true;
+        renderRootStudyStats();
+        return;
+      }
+
+      const recent = new Set(rootStudyRecent);
+      const weighted = list.flatMap(item => Array(recent.has(item) ? 1 : rootStudyWeight(item)).fill(item));
+      let next = weighted[Math.floor(Math.random() * weighted.length)];
+      if (list.length > 1 && next === rootStudyCurrent) next = weighted.find(item => item !== rootStudyCurrent) || next;
+      pushRecent(rootStudyRecent, next, recencySize(list));
+      rootStudyCurrent = next;
+      rootStudyLocked = false;
+
+      $('rootStudyCard').classList.remove('result-good', 'result-bad');
+      $('rootStudyFeedback').className = 'intensive-feedback';
+      $('rootStudyFeedback').textContent = '';
+      $('rootStudyRelated').textContent = '';
+      $('rootStudyChoices').replaceChildren();
+      $('rootStudyInput').value = '';
+      $('rootStudyInput').readOnly = false;
+
+      if (rootStudyMode === 'choice') {
+        $('rootStudyLabel').textContent = '词根';
+        $('rootStudyPrompt').textContent = next.root;
+        $('rootStudyChoices').hidden = false;
+        $('rootStudyInput').hidden = true;
+        $('rootStudySubmitBtn').hidden = true;
+        renderRootMeaningChoices();
+        setTimeout(() => $('rootStudySection').focus(), 0);
+      } else {
+        $('rootStudyLabel').textContent = '词根含义';
+        $('rootStudyPrompt').textContent = next.meaning;
+        $('rootStudyChoices').hidden = true;
+        $('rootStudyInput').hidden = false;
+        $('rootStudySubmitBtn').hidden = false;
+        $('rootStudySubmitBtn').disabled = false;
+        $('rootStudySubmitBtn').textContent = '提交（Enter）';
+        setTimeout(() => $('rootStudyInput').focus(), 0);
+      }
+      renderRootStudyStats();
+    }
+
+    function renderRootMeaningChoices() {
+      if (!rootStudyCurrent) return;
+      const labels = ['A','S','D','F'];
+      const candidates = [...new Set(rootStudyStore.items
+        .filter(item => item !== rootStudyCurrent)
+        .map(item => item.meaning)
+        .filter(meaning => meaning !== rootStudyCurrent.meaning))];
+      const ranked = candidates
+        .map(meaning => ({meaning, score: zhSimilarity(rootStudyCurrent.meaning, meaning) + Math.random() * .5}))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10);
+      const distractors = [];
+      while (ranked.length && distractors.length < 3) {
+        const index = Math.floor(Math.random() * ranked.length);
+        distractors.push(ranked.splice(index, 1)[0].meaning);
+      }
+      const choices = [rootStudyCurrent.meaning, ...distractors];
+      for (let i = choices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [choices[i], choices[j]] = [choices[j], choices[i]];
+      }
+      const box = $('rootStudyChoices');
+      choices.forEach((meaning, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'choice';
+        button.dataset.correct = String(meaning === rootStudyCurrent.meaning);
+        button.innerHTML = `<span class="choice-key">${labels[index]}</span><span>${meaning}</span>`;
+        button.onclick = () => answerRootMeaningChoice(index);
+        box.append(button);
+      });
+    }
+
+    function finishRootStudyAnswer(correct, answerText) {
+      rootStudyLocked = true;
+      $('rootStudyCard').classList.toggle('result-good', correct);
+      $('rootStudyCard').classList.toggle('result-bad', !correct);
+      $('rootStudyFeedback').className = `intensive-feedback ${correct ? 'good' : 'bad'}`;
+      $('rootStudyFeedback').textContent = `${correct ? '✅ 正确' : '❌ 错误'}\n${answerText}`;
+      $('rootStudyRelated').textContent = `相关单词：${rootStudyCurrent.words.join('、')}`;
+      saveRootStudy();
+      renderRootStudyStats();
+      rootStudyAdvanceTimer = setTimeout(pickRootStudyItem, 850);
+    }
+
+    function answerRootMeaningChoice(index) {
+      if (rootStudyMode !== 'choice' || rootStudyLocked || !rootStudyCurrent) return;
+      const buttons = [...$('rootStudyChoices').children];
+      const selected = buttons[index];
+      if (!selected) return;
+      const correct = selected.dataset.correct === 'true';
+      rootStudyCurrent[correct ? 'choiceRight' : 'choiceWrong']++;
+      buttons.forEach(button => {
+        button.disabled = true;
+        if (button.dataset.correct === 'true') button.classList.add('correct');
+      });
+      if (!correct) selected.classList.add('wrong');
+      finishRootStudyAnswer(correct, `正确含义：${rootStudyCurrent.meaning}`);
+    }
+
+    function normalizeRootAnswer(value) {
+      return String(value).trim().toLowerCase().replace(/[\s-]+/g, '');
+    }
+
+    function acceptedRootAnswers(root) {
+      const full = normalizeRootAnswer(root);
+      const parts = String(root).split('/').map(normalizeRootAnswer).filter(Boolean);
+      return new Set([full, ...parts]);
+    }
+
+    function submitRootStudyWrite() {
+      if (rootStudyMode !== 'write' || !rootStudyCurrent) return;
+      if (rootStudyLocked) {
+        pickRootStudyItem();
+        return;
+      }
+      const typed = normalizeRootAnswer($('rootStudyInput').value);
+      if (!typed) {
+        $('rootStudyFeedback').className = 'intensive-feedback bad';
+        $('rootStudyFeedback').textContent = '❌ 请先输入词根。';
+        $('rootStudyInput').focus();
+        return;
+      }
+      const correct = acceptedRootAnswers(rootStudyCurrent.root).has(typed);
+      rootStudyCurrent[correct ? 'writeRight' : 'writeWrong']++;
+      $('rootStudyInput').readOnly = true;
+      $('rootStudySubmitBtn').textContent = '下一题（Enter）';
+      finishRootStudyAnswer(
+        correct,
+        correct
+          ? `词根：${rootStudyCurrent.root}`
+          : `你的答案：${$('rootStudyInput').value.trim()}\n正确词根：${rootStudyCurrent.root}`
+      );
+    }
+
+    function setRootStudyMode(mode) {
+      rootStudyMode = mode === 'write' ? 'write' : 'choice';
+      rootStudyRecent = [];
+      clearTimeout(rootStudyAdvanceTimer);
+      rootStudyAdvanceTimer = null;
+      $('rootMeaningChoiceModeBtn').classList.toggle('active', rootStudyMode === 'choice');
+      $('meaningRootWriteModeBtn').classList.toggle('active', rootStudyMode === 'write');
+      pickRootStudyItem();
+    }
+
+    function openRootStudySection() {
+      hideUndoToast();
+      $('rootStudySection').hidden = false;
+      pickRootStudyItem();
+      $('rootStudySection').scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+
+    let intensiveMode = 'spell';
+    let meaningMatchMode = localStorage.getItem(MEANING_MATCH_KEY) === 'exact' ? 'exact' : 'contains';
+    let intensiveCurrent = null;
+    let intensivePromptMeaning = '';
+    let intensiveState = 'question';
+
+    const intensiveKeys = mode => mode === 'meaning'
+      ? {right: 'meaningRight', wrong: 'meaningWrong'}
+      : {right: 'spellRight', wrong: 'spellWrong'};
+
+    function intensiveWordMastery(w, mode = intensiveMode) {
+      const k = intensiveKeys(mode);
+      const total = w[k.right] + w[k.wrong];
+      return total ? Math.round(w[k.right] / total * 100) : 0;
+    }
+
+    function renderIntensiveStats() {
+      const list = intensiveStore.words;
+      const k = intensiveKeys(intensiveMode);
+      const total = list.reduce((n, w) => n + w[k.right] + w[k.wrong], 0);
+      const correct = list.reduce((n, w) => n + w[k.right], 0);
+      const mastery = list.length
+        ? Math.round(list.reduce((n, w) => n + intensiveWordMastery(w), 0) / list.length)
+        : 0;
+      const learned = list.filter(w => w[k.right] >= 2).length;
+
+      $('intensiveAnswered').textContent = total;
+      $('intensiveAccuracy').textContent = total ? Math.round(correct / total * 100) + '%' : '--';
+      $('intensiveMastery').textContent = mastery + '%';
+      $('intensiveLearned').textContent = `${learned}/${list.length}`;
+      $('intensiveCount').textContent = `强化词库：${list.length} 个词`;
+      $('intensiveClear').classList.toggle(
+        'show',
+        !!list.length && learned === list.length && total > 0 && correct / total >= .9
+      );
+    }
+
+    function pickIntensiveWord(forceWord) {
+      const list = intensiveStore.words;
+      if (!list.length) {
+        intensiveCurrent = null;
+        $('intensivePrompt').textContent = '请先选择强化单词';
+        $('intensiveInput').value = '';
+        $('intensiveInput').disabled = true;
+        $('intensiveSubmitBtn').disabled = true;
+        $('intensiveFeedback').textContent = '';
+        $('intensiveJudge').hidden = true;
+        renderIntensiveStats();
+        return;
+      }
+
+      const k = intensiveKeys(intensiveMode);
+      const next = forceWord && list.includes(forceWord)
+        ? forceWord
+        : weightedPick(list, k, intensiveMode, new Set(intensiveRecent), intensiveCurrent);
+      pushRecent(intensiveRecent, next, recencySize(list));
+
+      intensiveCurrent = next;
+      intensiveState = 'question';
+      intensivePromptMeaning = next.zh;
+      $('intensiveInput').disabled = false;
+      $('intensiveInput').readOnly = false;
+      $('intensiveInput').value = '';
+      $('intensiveCard').classList.remove('result-good', 'result-bad');
+      $('intensiveFeedback').textContent = '';
+      $('intensiveFeedback').className = 'intensive-feedback';
+      $('intensiveJudge').hidden = true;
+      $('intensiveSubmitBtn').disabled = false;
+      $('intensiveSubmitBtn').textContent = intensiveMode === 'spell' ? '提交（Enter）' : '核对答案（空格 / Enter）';
+
+      if (intensiveMode === 'spell') {
+        $('intensiveLabel').textContent = '中文意思';
+        $('intensivePrompt').textContent = intensivePromptMeaning;
+        $('intensivePrompt').lang = 'zh-CN';
+        $('intensiveInput').placeholder = '输入完整英文单词';
+      } else {
+        $('intensiveLabel').textContent = '完整英文单词';
+        $('intensivePrompt').textContent = next.en;
+        $('intensivePrompt').lang = 'en';
+        $('intensiveInput').placeholder = '写出你记得的中文意思';
+      }
+
+      renderIntensiveStats();
+      setTimeout(() => $('intensiveInput').focus(), 0);
+    }
+
+    function normalizeEnglishInput(value) {
+      return String(value).trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    function splitMeaningParts(value) {
+      return String(value)
+        .split(/[；;，,、\/／|｜\n]+/)
+        .map(part => part.trim().replace(/\s+/g, ' ').replace(/[。.!！?？]+$/g, ''))
+        .filter(Boolean);
+    }
+
+    function normalizeMeaningSearch(value) {
+      return String(value)
+        .trim()
+        .replace(/\s+/g, '')
+        .replace(/[。.!！?？]/g, '');
+    }
+
+    function exactMeaningPartsMatch(input, reference) {
+      const inputParts = splitMeaningParts(input).map(normalizeMeaningSearch);
+      const referenceParts = splitMeaningParts(reference).map(normalizeMeaningSearch);
+      return inputParts.length > 0 &&
+        inputParts.every(part => part && referenceParts.includes(part));
+    }
+
+    function containsMeaningPartsMatch(input, reference) {
+      const inputParts = splitMeaningParts(input).map(normalizeMeaningSearch);
+      const referenceText = normalizeMeaningSearch(reference);
+      return inputParts.length > 0 &&
+        inputParts.every(part => part && referenceText.includes(part));
+    }
+
+    function meaningPartsMatch(input, reference) {
+      return meaningMatchMode === 'exact'
+        ? exactMeaningPartsMatch(input, reference)
+        : containsMeaningPartsMatch(input, reference);
+    }
+
+    function setMeaningMatchMode(mode) {
+      meaningMatchMode = mode === 'exact' ? 'exact' : 'contains';
+      localStorage.setItem(MEANING_MATCH_KEY, meaningMatchMode);
+      $('exactMeaningMatchBtn').classList.toggle('active', meaningMatchMode === 'exact');
+      $('containsMeaningMatchBtn').classList.toggle('active', meaningMatchMode === 'contains');
+    }
+
+    function showIntensiveResult(correct, text) {
+      $('intensiveCard').classList.toggle('result-good', correct);
+      $('intensiveCard').classList.toggle('result-bad', !correct);
+      $('intensiveFeedback').className = `intensive-feedback ${correct ? 'good' : 'bad'}`;
+      $('intensiveFeedback').textContent = `${correct ? '✅ 正确' : '❌ 错误'}\n${text}`;
+      $('intensiveSubmitBtn').disabled = false;
+      $('intensiveSubmitBtn').textContent = '下一题（Enter）';
+      $('intensiveInput').readOnly = true;
+      setTimeout(() => $('intensiveInput').focus(), 0);
+    }
+
+    function submitIntensive() {
+      if (!intensiveCurrent) return;
+
+      if (intensiveState === 'answered') {
+        pickIntensiveWord();
+        return;
+      }
+
+      if (intensiveMode === 'spell') {
+        const typed = normalizeEnglishInput($('intensiveInput').value);
+        if (!typed) {
+          $('intensiveFeedback').className = 'intensive-feedback bad';
+          $('intensiveFeedback').textContent = '❌ 请先输入英文单词。';
+          $('intensiveInput').focus();
+          return;
+        }
+
+        const correct = typed === normalizeEnglishInput(intensiveCurrent.en);
+        markUndo(intensiveCurrent, true);
+        intensiveCurrent[correct ? 'spellRight' : 'spellWrong']++;
+        intensiveState = 'answered';
+        showIntensiveResult(
+          correct,
+          correct
+            ? `正确拼写：${intensiveCurrent.en}`
+            : `你的拼写：${$('intensiveInput').value.trim()}\n正确答案：${intensiveCurrent.en}`
+        );
+        saveIntensive();
+        renderIntensiveStats();
+        return;
+      }
+
+      if (intensiveState !== 'question') return;
+
+      const typedMeaning = $('intensiveInput').value.trim();
+      if (!typedMeaning) {
+        $('intensiveFeedback').className = 'intensive-feedback bad';
+        $('intensiveFeedback').textContent = '❌ 请先输入中文意思。';
+        $('intensiveInput').focus();
+        return;
+      }
+      const referenceMeaning = intensiveCurrent.zh.trim();
+      const typedParts = splitMeaningParts(typedMeaning);
+      const referenceParts = splitMeaningParts(referenceMeaning);
+
+      if (meaningPartsMatch(typedMeaning, referenceMeaning)) {
+        markUndo(intensiveCurrent, true);
+        intensiveCurrent.meaningRight++;
+        intensiveState = 'answered';
+        saveIntensive();
+        renderIntensiveStats();
+        showIntensiveResult(
+          true,
+          meaningMatchMode === 'exact'
+            ? `已精确匹配参考义项：${typedParts.join('；')}`
+            : `已在参考释义中找到：${typedParts.join('；')}`
+        );
+        return;
+      }
+
+      intensiveState = 'checking';
+      $('intensiveInput').readOnly = true;
+      $('intensiveSubmitBtn').disabled = true;
+      $('intensiveFeedback').className = 'intensive-feedback';
+      $('intensiveFeedback').textContent =
+        `你的义项（${typedParts.length} 项）：${typedParts.join('；') || '（未填写）'}\n参考义项（${referenceParts.length} 项）：${referenceParts.join('；')}\n${
+          meaningMatchMode === 'exact'
+            ? '存在未能精确对应的义项'
+            : '输入内容未在参考释义中找到'
+        }，请按 A 记为正确，按 D 记为错误。`;
+      $('intensiveJudge').hidden = false;
+      setTimeout(() => $('intensiveInput').focus(), 0);
+    }
+
+    function judgeIntensiveMeaning(correct) {
+      if (intensiveMode !== 'meaning' || intensiveState !== 'checking' || !intensiveCurrent) return;
+      markUndo(intensiveCurrent, true);
+      intensiveCurrent[correct ? 'meaningRight' : 'meaningWrong']++;
+      saveIntensive();
+      renderIntensiveStats();
+      intensiveState = 'answered';
+      $('intensiveJudge').hidden = true;
+      showIntensiveResult(
+        correct,
+        `你的答案：${$('intensiveInput').value.trim() || '（未填写）'}\n参考释义：${intensiveCurrent.zh}`
+      );
+    }
+
+    function setIntensiveMode(mode) {
+      intensiveMode = mode;
+      intensiveRecent = [];
+      hideUndoToast();
+      $('spellModeBtn').classList.toggle('active', mode === 'spell');
+      $('meaningWriteModeBtn').classList.toggle('active', mode === 'meaning');
+      $('meaningMatchOptions').hidden = mode !== 'meaning';
+      setMeaningMatchMode(meaningMatchMode);
+      pickIntensiveWord();
+    }
+
+    function renderIntensiveSelection() {
+      const list = $('intensiveSelectionList');
+      const selected = new Set(intensiveStore.words.map(w => w.en.toLowerCase()));
+      const currentWords = store.current.words;
+      const currentNames = new Set(currentWords.map(w => w.en.toLowerCase()));
+      const retainedWords = intensiveStore.words.filter(w => !currentNames.has(w.en.toLowerCase()));
+
+      const appendTitle = text => {
+        const title = document.createElement('div');
+        title.className = 'selection-group-title';
+        title.textContent = text;
+        list.append(title);
+      };
+      const appendWord = (w, isCurrent) => {
+        const label = document.createElement('label');
+        label.className = 'selection-item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = w.en;
+        checkbox.dataset.zh = w.zh;
+        checkbox.dataset.current = String(isCurrent);
+        checkbox.checked = selected.has(w.en.toLowerCase());
+
+        const text = document.createElement('span');
+        const en = document.createElement('span');
+        en.className = 'selection-word';
+        en.textContent = w.en;
+        const zh = document.createElement('span');
+        zh.className = 'selection-meaning';
+        zh.textContent = `${isCurrent ? '' : '旧强化词 · '}${w.zh}`;
+        text.append(en, zh);
+
+        label.append(checkbox, text);
+        list.append(label);
+      };
+
+      list.replaceChildren();
+      appendTitle(`当前每日词库（${currentWords.length} 个）`);
+      currentWords.forEach(w => appendWord(w, true));
+      if (retainedWords.length) {
+        appendTitle(`其他词库已选（${retainedWords.length} 个，可取消）`);
+        retainedWords.forEach(w => appendWord(w, false));
+      }
+      $('retainedIntensiveInfo').textContent = retainedWords.length
+        ? `另有 ${retainedWords.length} 个旧强化词`
+        : '';
+    }
+
+    let modalReturnFocus = null;
+    function openIntensiveSelection() {
+      hideUndoToast();
+      modalReturnFocus = document.activeElement;
+      renderIntensiveSelection();
+      $('intensiveSelectionModal').hidden = false;
+      setTimeout(() => {
+        const first = $('intensiveSelectionList').querySelector('input');
+        (first || $('cancelIntensiveSelectionBtn')).focus();
+      }, 0);
+    }
+
+    function closeIntensiveSelection() {
+      $('intensiveSelectionModal').hidden = true;
+      const previous = modalReturnFocus;
+      modalReturnFocus = null;
+      if (previous?.focus) previous.focus();
+    }
+
+    function saveIntensiveSelection() {
+      const oldMap = new Map(intensiveStore.words.map(w => [w.en.toLowerCase(), w]));
+      const selectedWords = [...$('intensiveSelectionList').querySelectorAll('input:checked')].map(input => {
+        const key = input.value.toLowerCase();
+        const old = oldMap.get(key);
+        return normalizeIntensiveWord(old
+          ? {...old, en: input.value, zh: input.dataset.zh}
+          : {en: input.value, zh: input.dataset.zh});
+      });
+
+      if (!selectedWords.length) {
+        alert('请至少选择一个强化单词。');
+        return;
+      }
+
+      intensiveStore.words = selectedWords;
+      intensiveStore.reviewedLibraryId = libraryId;
+      saveIntensive();
+      closeIntensiveSelection();
+      $('intensiveSection').hidden = false;
+      pickIntensiveWord();
+      $('intensiveSection').scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+
+    function openIntensiveSection() {
+      hideUndoToast();
+      $('intensiveSection').hidden = false;
+      if (!intensiveStore.words.length || intensiveStore.reviewedLibraryId !== libraryId) {
+        openIntensiveSelection();
+        return;
+      }
+      pickIntensiveWord();
+      $('intensiveSection').scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+
+    function renderRootSidebar() {
+      const rootList = $('rootList');
+      rootList.replaceChildren();
+
+      if (!current || (studyMode === 'reverse' && !choiceLocked)) {
+        const empty = document.createElement('div');
+        empty.className = 'root-empty';
+        empty.textContent = current
+          ? '看中文选英文时，作答后显示对应词根。'
+          : '当前单词暂无已收录的词根。';
+        rootList.append(empty);
+        return;
+      }
+
+      const rootInfo = ROOT_DATA[current.en.toLowerCase()];
+      if (!rootInfo) {
+        const empty = document.createElement('div');
+        empty.className = 'root-empty';
+        empty.textContent = `${current.en} 暂无已收录的词根。`;
+        rootList.append(empty);
+        return;
+      }
+
+      const [root, meaning] = rootInfo;
+      const card = document.createElement('div');
+      card.className = 'root-item';
+
+      const head = document.createElement('div');
+      head.className = 'root-head';
+
+      const form = document.createElement('span');
+      form.className = 'root-form';
+      form.textContent = root;
+
+      const word = document.createElement('span');
+      word.className = 'root-count';
+      word.textContent = current.en;
+
+      const explanation = document.createElement('div');
+      explanation.className = 'root-meaning';
+      explanation.textContent = meaning;
+
+      head.append(form, word);
+      card.append(head, explanation);
+      rootList.append(card);
+    }
+
+    function enableRootSidebarDrag() {
+      const sidebar = document.querySelector('.root-sidebar');
+      const handle = sidebar?.querySelector('h2');
+      if (!sidebar || !handle) return;
+      let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+      handle.addEventListener('pointerdown', e => {
+        if (e.button !== 0) return;
+        const rect = sidebar.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        sidebar.style.width = `${rect.width}px`;
+        sidebar.style.left = `${rect.left}px`;
+        sidebar.style.top = `${rect.top}px`;
+        sidebar.classList.add('detached', 'dragging');
+        handle.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+
+      handle.addEventListener('pointermove', e => {
+        if (!sidebar.classList.contains('dragging')) return;
+        const maxLeft = Math.max(0, window.innerWidth - sidebar.offsetWidth);
+        const maxTop = Math.max(0, window.innerHeight - Math.min(sidebar.offsetHeight, window.innerHeight));
+        const left = Math.min(maxLeft, Math.max(0, startLeft + e.clientX - startX));
+        const top = Math.min(maxTop, Math.max(0, startTop + e.clientY - startY));
+        sidebar.style.left = `${left}px`;
+        sidebar.style.top = `${top}px`;
+      });
+
+      const stop = e => {
+        if (!sidebar.classList.contains('dragging')) return;
+        sidebar.classList.remove('dragging');
+        try { handle.releasePointerCapture(e.pointerId); } catch {}
+      };
+      handle.addEventListener('pointerup', stop);
+      handle.addEventListener('pointercancel', stop);
+    }
+
+    function render() {
+      words.forEach(w => {
+        w.mastery = wordMastery(w, 'forward');
+        w.reverseMastery = wordMastery(w, 'reverse');
+        w.rareMastery = wordMastery(w, 'rare');
+      });
+      const k = keysFor(studyMode);
+      const total = words.reduce((n,w) => n + w[k.right] + w[k.wrong], 0);
+      const correct = words.reduce((n,w) => n + w[k.right], 0);
+      $('answered').textContent = total;
+      $('accuracy').textContent = total ? Math.round(correct / total * 100) + '%' : '--';
+      const familiarity = words.length ? words.reduce((n,w) => n + w[k.mastery], 0) / words.length : 0;
+      $('mastery').textContent = Math.round(familiarity) + '%';
+      const learned = learnedCount(words, studyMode);
+      $('learned').textContent = `${learned}/${words.length}`;
+      $('clearMessage').textContent = studyMode === 'forward'
+        ? '🎉 看英文说中文已通关！每个词都已答对 2 次，且正确率达到 90%。'
+        : studyMode === 'reverse'
+          ? '🎉 看中文选英文已通关！每个词都已答对 2 次，且正确率达到 90%。'
+          : '🎉 熟词生义已通关！每个词都已答对 2 次，且正确率达到 90%。';
+      $('clearMessage').classList.toggle('show', learned === words.length && total && correct / total >= .9);
+
+      const errors = words.filter(w => w[k.wrong]).sort((a,b) => b[k.wrong] - a[k.wrong] || a.en.localeCompare(b.en));
+      const mistakeList = $('mistakeList');
+      mistakeList.replaceChildren();
+      $('mistakesTitle').textContent = studyMode === 'forward' ? '当前错词' : studyMode === 'reverse' ? '当前选择题错词' : '当前熟词生义错词';
+      if (!errors.length) {
+        mistakeList.textContent = '还没有错词，继续保持。';
+      } else {
+        errors.forEach(w => {
+          const button = document.createElement('button');
+          const isCurrentChoice = studyMode !== 'forward' && w === current;
+          button.type = 'button'; button.className = 'mistake-word';
+          button.textContent = isCurrentChoice
+            ? `当前题（答案已屏蔽） · 错 ${w[k.wrong]} 次`
+            : `${w.en}（错 ${w[k.wrong]} 次）`;
+          button.disabled = w === current;
+          button.onclick = () => {
+            if (isCurrentChoice) return;
+            $('reviewMeaning').textContent = studyMode === 'forward'
+              ? `复习：${w.en} = ${w.zh}`
+              : studyMode === 'reverse'
+                ? `复习：${pickCommonMeaning(w.zh)} = ${w.en}`
+                : `复习：${w.en} = ${pickRareWeightedMeaning(w.zh)}`;
+          };
+          mistakeList.append(button);
+        });
+      }
+
+      const modeName = studyMode === 'forward' ? '看英文说中文' : studyMode === 'reverse' ? '看中文选英文' : '熟词生义';
+      $('libraryInfo').textContent = `${activeLibrary === store.current ? '当前词库' : '昨日复习'} · ${modeName} · 获取日期：${activeLibrary.date}`;
+      $('wrongModeBtn').classList.toggle('active', wrongOnly);
+      $('modeText').textContent = wrongOnly ? `错词复习 · ${errors.length} 个错词` : `全部词库 · ${words.length} 个词`;
+      $('currentBtn').disabled = activeLibrary === store.current;
+      renderRootSidebar();
+
+      const archiveList = $('archiveList');
+      archiveList.replaceChildren();
+      if (!store.archives.length) {
+        archiveList.textContent = '暂无昨日词库。';
+      } else {
+        store.archives.forEach(archive => {
+          const item = document.createElement('div'); item.className = 'archive-item';
+          const forwardLearned = learnedCount(archive.words, 'forward');
+          const reverseLearned = learnedCount(archive.words, 'reverse');
+          const rareLearned = learnedCount(archive.words, 'rare');
+          const label = document.createElement('span');
+          label.textContent = `${archive.date} · ${archive.words.length} 词 · 英→中 ${forwardLearned}/${archive.words.length} · 中→英 ${reverseLearned}/${archive.words.length} · 熟词生义 ${rareLearned}/${archive.words.length}`;
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = archive === activeLibrary ? '复习中' : '复习';
+          button.disabled = archive === activeLibrary;
+          button.onclick = () => { save(); loadLibrary(archive); pick(); };
+          item.append(label, button);
+          archiveList.append(item);
+        });
+      }
+    }
+
+    $('showBtn').onclick = reveal;
+    $('unsureBtn').onclick = beginUncertain;
+    $('recallSubmitBtn').onclick = submitUncertain;
+    $('recallInput').addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key.toLowerCase() === 'u' && uncertainState === 'answered') {
+        e.preventDefault();
+        undoLast();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitUncertain();
+      }
+    });
+    $('undoBtn').onclick = undoLast;
+    $('knowBtn').onclick = () => answer(true);
+    $('dontBtn').onclick = () => answer(false);
+    $('forwardModeBtn').onclick = () => setStudyMode('forward');
+    $('reverseModeBtn').onclick = () => setStudyMode('reverse');
+    $('rareModeBtn').onclick = () => setStudyMode('rare');
+    $('intensiveOpenBtn').onclick = openIntensiveSection;
+
+    $('rootStudyOpenBtn').onclick = openRootStudySection;
+    $('rootMeaningChoiceModeBtn').onclick = () => setRootStudyMode('choice');
+    $('meaningRootWriteModeBtn').onclick = () => setRootStudyMode('write');
+    $('rootStudySubmitBtn').onclick = submitRootStudyWrite;
+    $('rootStudyInput').addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        submitRootStudyWrite();
+      }
+    });
+    $('rootStudySection').addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return;
+      e.stopPropagation();
+      if (rootStudyMode === 'choice') {
+        const index = ['a','s','d','f'].indexOf(e.key.toLowerCase());
+        if (index >= 0) {
+          e.preventDefault();
+          answerRootMeaningChoice(index);
+        }
+      }
+    });
+    $('resetRootStudyBtn').onclick = () => {
+      const name = rootStudyMode === 'choice' ? '看词根选含义' : '看含义写词根';
+      if (!confirm(`确定重新开始“${name}”吗？只会清空词根背诵这一题型的记录。`)) return;
+      const k = rootStudyKeys(rootStudyMode);
+      rootStudyStore.items.forEach(item => { item[k.right] = 0; item[k.wrong] = 0; });
+      rootStudyRecent = [];
+      clearTimeout(rootStudyAdvanceTimer);
+      rootStudyAdvanceTimer = null;
+      saveRootStudy();
+      pickRootStudyItem();
+    };
+
+    $('manageIntensiveBtn').onclick = openIntensiveSelection;
+    $('spellModeBtn').onclick = () => setIntensiveMode('spell');
+    $('meaningWriteModeBtn').onclick = () => setIntensiveMode('meaning');
+    $('exactMeaningMatchBtn').onclick = () => setMeaningMatchMode('exact');
+    $('containsMeaningMatchBtn').onclick = () => setMeaningMatchMode('contains');
+    $('intensiveSubmitBtn').onclick = submitIntensive;
+    $('intensiveKnowBtn').onclick = () => judgeIntensiveMeaning(true);
+    $('intensiveWrongBtn').onclick = () => judgeIntensiveMeaning(false);
+    $('selectAllIntensiveBtn').onclick = () => $('intensiveSelectionList').querySelectorAll('input[data-current="true"]').forEach(x => x.checked = true);
+    $('clearCurrentIntensiveBtn').onclick = () => $('intensiveSelectionList').querySelectorAll('input[data-current="true"]').forEach(x => x.checked = false);
+    $('cancelIntensiveSelectionBtn').onclick = closeIntensiveSelection;
+    $('saveIntensiveSelectionBtn').onclick = saveIntensiveSelection;
+    $('intensiveSelectionModal').onclick = e => { if (e.target === $('intensiveSelectionModal')) closeIntensiveSelection(); };
+    $('intensiveSection').addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 'u' && intensiveState === 'answered') {
+        e.preventDefault();
+        undoLast();
+        return;
+      }
+
+      if (intensiveMode === 'meaning' && intensiveState === 'checking' && (key === 'a' || key === 'd')) {
+        e.preventDefault();
+        judgeIntensiveMeaning(key === 'a');
+        return;
+      }
+
+      if (
+        intensiveMode === 'meaning' &&
+        intensiveState !== 'checking' &&
+        (e.key === 'Enter' || e.key === ' ')
+      ) {
+        e.preventDefault();
+        submitIntensive();
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitIntensive();
+      }
+    });
+    $('resetIntensiveBtn').onclick = () => {
+      const name = intensiveMode === 'spell' ? '中文意思→拼写英文' : '完整英文→写中文意思';
+      if (!confirm(`确定重新开始“${name}”吗？只会清空强化词库这一题型的记录。`)) return;
+      const k = intensiveKeys(intensiveMode);
+      intensiveStore.words.forEach(w => { w[k.right] = 0; w[k.wrong] = 0; });
+      intensiveRecent = [];
+      hideUndoToast();
+      saveIntensive(); pickIntensiveWord();
+    };
+    $('nextBtn').onclick = pick;
+    $('currentBtn').onclick = () => {
+      if (activeLibrary !== store.current) { save(); loadLibrary(store.current); pick(); }
+    };
+    $('exportBtn').onclick = exportProgress;
+    $('importBtn').onclick = () => $('importFile').click();
+    $('importFile').onchange = e => {
+      if (e.target.files[0]) importProgress(e.target.files[0]);
+      e.target.value = '';
+    };
+    $('wrongModeBtn').onclick = () => {
+      const k = keysFor(studyMode);
+      if (!words.some(w => w[k.wrong])) return alert('当前模式还没有错词。');
+      wrongOnly = !wrongOnly;
+      recentWords = [];
+      hideUndoToast();
+      pick();
+    };
+    $('resetBtn').onclick = () => {
+      const name = studyMode === 'forward' ? '看英文说中文' : studyMode === 'reverse' ? '看中文选英文' : '熟词生义';
+      if (!confirm(`确定重新开始“${name}”吗？只会清空当前正在学习词库的这一模式记录，不影响其他模式或其他词库。`)) return;
+      if (studyMode === 'forward') {
+        words.forEach(w => { w.right = 0; w.wrong = 0; w.mastery = 0; });
+      } else if (studyMode === 'reverse') {
+        words.forEach(w => { w.reverseRight = 0; w.reverseWrong = 0; w.reverseMastery = 0; w.reverseReviewWeight = 0; });
+      } else {
+        words.forEach(w => { w.rareRight = 0; w.rareWrong = 0; w.rareMastery = 0; });
+      }
+      wrongOnly = false;
+      recentWords = [];
+      hideUndoToast();
+      save(); pick();
+    };
+    document.addEventListener('keydown', e => {
+      if (!$('intensiveSelectionModal').hidden) {
+        if (e.key === 'Escape') closeIntensiveSelection();
+        return;
+      }
+      if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+      const key = e.key.toLowerCase();
+      if (studyMode === 'forward') {
+        if ((key === ' ' || key === 'spacebar') && uncertainState === 'idle') { e.preventDefault(); reveal(); }
+        if (key === 'w') beginUncertain();
+        if (key === 'a') answer(true);
+        if (key === 'd') answer(false);
+      } else {
+        const index = ['a','s','d','f'].indexOf(key);
+        if (index >= 0) {
+          if (studyMode === 'reverse') chooseReverse(index);
+          else chooseRare(index);
+        }
+      }
+      if (key === 'n') pick();
+      if (key === 'r') $('resetBtn').click();
+      if (key === 'u') undoLast();
+    });
+    $('rootToggleBtn').onclick = () => setRootVisibility(!rootVisible);
+    applyRootVisibility();
+    enableRootSidebarDrag();
+    setMeaningMatchMode(meaningMatchMode);
+    pick();
+  </script>
+</body>
+</html>

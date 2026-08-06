@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+coverage/
+src-tauri/target/
+android/.gradle/
+android/app/build/
+android/local.properties
+.android-sdk/
+.gradle-dist/
+.tauri-tools/
+*.log

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "英语单词速记",
+  "version": "8.0.0",
+  "identifier": "com.englishrebuilt.wordreview",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "英语单词速记",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 390,
+        "minHeight": 640,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "capabilities": ["default"],
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "shortDescription": "离线英语单词背诵与跨端同步",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  }
+}
