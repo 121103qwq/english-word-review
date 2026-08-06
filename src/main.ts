@@ -19,7 +19,7 @@ import {
   saveTextFile,
   speakEnglish,
 } from "./platform/runtime";
-import { comparableLegacyBundle } from "./platform/legacy-bundle";
+import { decideLegacyProjection } from "./platform/legacy-bundle";
 import { retryContentOutbox, syncContentStartup, type ContentSyncResult } from "./sync/content-sync";
 import {
   ContentGitHubTransport,
@@ -514,25 +514,35 @@ if (lastSync) {
 }
 
 let reloadRequested = false;
+let startupMismatchSkipped = false;
 
 if (store.readOnly) {
   const snapshot = store.getSnapshot();
-  const projected = comparableLegacyBundle(store.project());
-  const live = comparableLegacyBundle(legacyRuntime.getBundle());
-  const marker = `english-review:readonly-view:${snapshot.updatedAt}`;
-  if (projected !== live && sessionStorage.getItem(marker) !== "applied") {
-    sessionStorage.setItem(marker, "applied");
+  const projected = store.project();
+  const decision = decideLegacyProjection(
+    projected,
+    legacyRuntime.getBundle(),
+    sessionStorage,
+  );
+  if (decision === "apply") {
     reloadRequested = true;
-    legacyRuntime.applyBundle(store.project());
+    legacyRuntime.applyBundle(projected);
   } else {
+    startupMismatchSkipped = decision === "continue";
     markReadOnly(incompatibility(snapshot) ?? "快照要求更高版本");
   }
 } else {
-  const projected = comparableLegacyBundle(store.project());
-  const live = comparableLegacyBundle(legacyRuntime.getBundle());
-  if (projected !== live) {
+  const projected = store.project();
+  const decision = decideLegacyProjection(
+    projected,
+    legacyRuntime.getBundle(),
+    sessionStorage,
+  );
+  if (decision === "apply") {
     reloadRequested = true;
-    legacyRuntime.applyBundle(store.project());
+    legacyRuntime.applyBundle(projected);
+  } else {
+    startupMismatchSkipped = decision === "continue";
   }
 }
 
@@ -594,5 +604,9 @@ async function initializeApplication(): Promise<void> {
 
 byId<HTMLButtonElement>("exportV4Btn").disabled = true;
 if (!reloadRequested) {
+  if (startupMismatchSkipped) {
+    byId<HTMLElement>("syncPanel").hidden = false;
+    setSyncStatus("已阻止重复刷新，正在继续初始化；建议启动后导出完整快照备份。", "bad");
+  }
   void initializeApplication().catch((error) => setSyncStatus(`初始化失败：${error instanceof Error ? error.message : String(error)}`, "bad"));
 }
