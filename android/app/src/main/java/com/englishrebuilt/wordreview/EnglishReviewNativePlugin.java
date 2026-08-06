@@ -1,18 +1,25 @@
 package com.englishrebuilt.wordreview;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.content.SharedPreferences;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.speech.tts.TextToSpeech;
 import android.util.Base64;
 
+import androidx.activity.result.ActivityResult;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Iterator;
@@ -44,6 +51,50 @@ public class EnglishReviewNativePlugin extends Plugin {
 
     private String alias(String key) {
         return ALIAS_PREFIX + key;
+    }
+
+    @PluginMethod
+    public void saveTextFile(PluginCall call) {
+        String filename = call.getString("filename");
+        String content = call.getString("content");
+        String mimeType = call.getString("mimeType", "text/plain");
+        if (filename == null || filename.trim().isEmpty() || content == null) {
+            call.reject("Missing filename or content");
+            return;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType(mimeType)
+            .putExtra(Intent.EXTRA_TITLE, filename);
+        startActivityForResult(call, intent, "handleSaveTextFileResult");
+    }
+
+    @ActivityCallback
+    private void handleSaveTextFileResult(PluginCall call, ActivityResult activityResult) {
+        if (call == null) return;
+
+        Uri uri = activityResult.getData() == null ? null : activityResult.getData().getData();
+        if (activityResult.getResultCode() != Activity.RESULT_OK || uri == null) {
+            JSObject result = new JSObject();
+            result.put("saved", false);
+            call.resolve(result);
+            return;
+        }
+
+        String content = call.getString("content");
+        new Thread(() -> {
+            try (OutputStream output = getContext().getContentResolver().openOutputStream(uri, "w")) {
+                if (output == null) throw new IllegalStateException("Unable to open selected file");
+                output.write(content.getBytes(StandardCharsets.UTF_8));
+                JSObject result = new JSObject();
+                result.put("saved", true);
+                result.put("path", uri.toString());
+                call.resolve(result);
+            } catch (Exception error) {
+                call.reject("Unable to save file", error);
+            }
+        }).start();
     }
 
     private SecretKey getOrCreateKey(String key) throws Exception {

@@ -17,10 +17,26 @@ export interface HttpResponse {
   body: string;
 }
 
+export interface SaveTextFileResult {
+  saved: boolean;
+  path?: string;
+}
+
+declare global {
+  interface Window {
+    __englishReviewSaveTextFile?: (
+      filename: string,
+      content: string,
+      mimeType?: string,
+    ) => Promise<SaveTextFileResult>;
+  }
+}
+
 interface NativeBridgePlugin {
   saveSecret(options: { key: string; value: string }): Promise<void>;
   loadSecret(options: { key: string }): Promise<{ value: string | null }>;
   deleteSecret(options: { key: string }): Promise<void>;
+  saveTextFile(options: { filename: string; content: string; mimeType: string }): Promise<SaveTextFileResult>;
   speak(options: { text: string; locale: string; rate: number }): Promise<void>;
   httpRequest(options: { request: HttpRequest }): Promise<HttpResponse>;
 }
@@ -37,6 +53,30 @@ function isCapacitorNative(): boolean {
 
 export function isNativeRuntime(): boolean {
   return isTauri() || isCapacitorNative();
+}
+
+export async function saveTextFile(
+  filename: string,
+  content: string,
+  mimeType = "application/json",
+): Promise<SaveTextFileResult> {
+  if (isTauri()) {
+    return invoke<SaveTextFileResult>("save_text_file", { filename, content, mimeType });
+  }
+  if (isCapacitorNative()) {
+    return NativeBridge.saveTextFile({ filename, content, mimeType });
+  }
+
+  const url = URL.createObjectURL(new Blob([content], { type: `${mimeType};charset=utf-8` }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  return { saved: true };
 }
 
 export async function httpRequest(request: HttpRequest): Promise<HttpResponse> {

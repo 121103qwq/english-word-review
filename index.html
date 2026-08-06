@@ -959,15 +959,31 @@
     loadLibrary(activeLibrary);
     save();
 
-    function exportProgress() {
-      save();
-      saveIntensive();
-      saveRootStudy();
-      const settings = {meaningMatchMode, rootVisible};
-      const url = URL.createObjectURL(new Blob([JSON.stringify({store, intensiveStore, rootStudyStore, settings}, null, 2)], {type: 'application/json'}));
-      const link = document.createElement('a');
-      link.href = url; link.download = '英语单词背诵进度.json'; link.click();
-      URL.revokeObjectURL(url);
+    let exportInProgress = false;
+    async function exportProgress() {
+      if (exportInProgress) return;
+      exportInProgress = true;
+      try {
+        save();
+        saveIntensive();
+        saveRootStudy();
+        const settings = {meaningMatchMode, rootVisible};
+        const filename = '英语单词背诵进度.json';
+        const content = JSON.stringify({store, intensiveStore, rootStudyStore, settings}, null, 2);
+        if (window.__englishReviewSaveTextFile) {
+          await window.__englishReviewSaveTextFile(filename, content, 'application/json');
+          return;
+        }
+        const url = URL.createObjectURL(new Blob([content], {type: 'application/json;charset=utf-8'}));
+        const link = document.createElement('a');
+        link.href = url; link.download = filename; link.hidden = true;
+        document.body.append(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (error) {
+        alert(`导出失败：${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        exportInProgress = false;
+      }
     }
     function importProgress(file) {
       const reader = new FileReader();

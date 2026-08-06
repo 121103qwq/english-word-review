@@ -11,7 +11,14 @@ import { initContentManagerUi, type ContentManagerUi } from "./content/ui";
 import type { ContentSnapshotV1 } from "./content/types";
 import { initReviewUi } from "./review/ui";
 import { BrowserCredentialVault } from "./security/browser-vault";
-import { deleteSecret, isNativeRuntime, loadSecret, saveSecret, speakEnglish } from "./platform/runtime";
+import {
+  deleteSecret,
+  isNativeRuntime,
+  loadSecret,
+  saveSecret,
+  saveTextFile,
+  speakEnglish,
+} from "./platform/runtime";
 import { retryContentOutbox, syncContentStartup, type ContentSyncResult } from "./sync/content-sync";
 import {
   ContentGitHubTransport,
@@ -83,16 +90,11 @@ window.__v8Bridge = {
   intensiveSelection: (words, reviewedLibraryId) => store.recordIntensiveSelection(words, reviewedLibraryId),
   replaceLibraries: (libraries, activeLibraryId) => store.replaceLibraries(libraries, activeLibraryId),
 };
+window.__englishReviewSaveTextFile = saveTextFile;
 
-function downloadJson(value: unknown, filename: string): void {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(value, null, 2)], { type: "application/json;charset=utf-8" }),
-  );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+async function downloadJson(value: unknown, filename: string): Promise<boolean> {
+  const result = await saveTextFile(filename, JSON.stringify(value, null, 2), "application/json");
+  return result.saved;
 }
 
 function versionCompare(left: string, right: string): number {
@@ -384,17 +386,26 @@ function markReadOnly(reason: string): void {
   byId<HTMLButtonElement>("syncNowBtn").disabled = true;
 }
 
-byId<HTMLButtonElement>("exportV4Btn").onclick = () => {
+byId<HTMLButtonElement>("exportV4Btn").onclick = async (event) => {
   if (!contentManager) return;
-  const content = contentManager.getSnapshot();
-  downloadJson({
-    schemaVersion: 5,
-    appVersion: APP_VERSION,
-    exportedAt: new Date().toISOString(),
-    learning: store.getSnapshot(),
-    content,
-    audioManifest: Object.values(content.assets),
-  }, `英语单词背诵-完整-8.1-${new Date().toISOString().slice(0, 10)}.json`);
+  const button = event.currentTarget as HTMLButtonElement;
+  button.disabled = true;
+  try {
+    const content = contentManager.getSnapshot();
+    await downloadJson({
+      schemaVersion: 5,
+      appVersion: APP_VERSION,
+      exportedAt: new Date().toISOString(),
+      learning: store.getSnapshot(),
+      content,
+      audioManifest: Object.values(content.assets),
+    }, `英语单词背诵-完整-8.1-${new Date().toISOString().slice(0, 10)}.json`);
+  } catch (error) {
+    setSyncStatus(`完整快照导出失败：${error instanceof Error ? error.message : String(error)}`, "bad");
+    byId<HTMLElement>("syncPanel").hidden = false;
+  } finally {
+    button.disabled = false;
+  }
 };
 
 byId<HTMLButtonElement>("importV4Btn").onclick = () => byId<HTMLInputElement>("importV4File").click();
@@ -413,13 +424,16 @@ byId<HTMLInputElement>("importV4File").onchange = async (event) => {
     const snapshot = parsed.schemaVersion === 5 ? parsed.learning : parsed;
     const issue = incompatibility(snapshot);
     if (issue) {
-      downloadJson(snapshot, `只读备份-${file.name}`);
+      const saved = await downloadJson(snapshot, `只读备份-${file.name}`);
       try {
         localStorage.setItem(`english-word-review-readonly-backup-${Date.now()}`, text);
       } catch {
         // The downloaded original remains the authoritative backup if storage is full.
       }
-      setSyncStatus(`未覆盖当前进度：${issue}。原文件已下载为只读备份。`, "bad");
+      setSyncStatus(
+        `未覆盖当前进度：${issue}。${saved ? "原文件已另存为只读备份。" : "已取消另存文件。"}`,
+        "bad",
+      );
       byId<HTMLElement>("syncPanel").hidden = false;
       return;
     }

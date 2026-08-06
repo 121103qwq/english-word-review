@@ -1,0 +1,76 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  invoke: vi.fn(),
+  isNativePlatform: vi.fn(),
+  nativeSaveTextFile: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@capacitor/core", () => ({
+  Capacitor: { isNativePlatform: mocks.isNativePlatform },
+  registerPlugin: () => ({ saveTextFile: mocks.nativeSaveTextFile }),
+}));
+
+import { saveTextFile } from "../src/platform/runtime";
+
+describe("platform text export", () => {
+  beforeEach(() => {
+    mocks.invoke.mockReset();
+    mocks.isNativePlatform.mockReset().mockReturnValue(false);
+    mocks.nativeSaveTextFile.mockReset();
+  });
+
+  it("opens the Tauri save command on Windows", async () => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    mocks.invoke.mockResolvedValue({ saved: true, path: "C:\\exports\\progress.json" });
+
+    const result = await saveTextFile("progress.json", "{}", "application/json");
+
+    expect(result.saved).toBe(true);
+    expect(mocks.invoke).toHaveBeenCalledWith("save_text_file", {
+      filename: "progress.json",
+      content: "{}",
+      mimeType: "application/json",
+    });
+  });
+
+  it("opens the Capacitor native save prompt on Android", async () => {
+    vi.stubGlobal("window", {});
+    mocks.isNativePlatform.mockReturnValue(true);
+    mocks.nativeSaveTextFile.mockResolvedValue({ saved: false });
+
+    const result = await saveTextFile("progress.json", "{}", "application/json");
+
+    expect(result).toEqual({ saved: false });
+    expect(mocks.nativeSaveTextFile).toHaveBeenCalledWith({
+      filename: "progress.json",
+      content: "{}",
+      mimeType: "application/json",
+    });
+  });
+
+  it("keeps anchor downloads as the HTML fallback", async () => {
+    const link = { href: "", download: "", hidden: false, click: vi.fn(), remove: vi.fn() };
+    const append = vi.fn();
+    const createObjectURL = vi.fn(() => "blob:test");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("window", {
+      setTimeout: (callback: () => void) => {
+        callback();
+        return 1;
+      },
+    });
+    vi.stubGlobal("document", { body: { append }, createElement: vi.fn(() => link) });
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+
+    const result = await saveTextFile("progress.json", "{}", "application/json");
+
+    expect(result).toEqual({ saved: true });
+    expect(link.download).toBe("progress.json");
+    expect(append).toHaveBeenCalledWith(link);
+    expect(link.click).toHaveBeenCalledOnce();
+    expect(link.remove).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:test");
+  });
+});

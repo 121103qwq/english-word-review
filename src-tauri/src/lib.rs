@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use std::{collections::HashMap, process::Command, time::Duration};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, path::Path, process::Command, time::Duration};
 
 const KEYRING_SERVICE: &str = "com.englishrebuilt.wordreview";
 
@@ -21,6 +21,13 @@ struct HttpResponse {
     status: u16,
     headers: HashMap<String, String>,
     body: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveTextFileResponse {
+    saved: bool,
+    path: Option<String>,
 }
 
 #[tauri::command]
@@ -91,6 +98,51 @@ async fn delete_secret(key: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn save_text_file(
+    filename: String,
+    content: String,
+    mime_type: String,
+) -> Result<SaveTextFileResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let filename = if filename.trim().is_empty() {
+            "export.txt".to_owned()
+        } else {
+            filename
+        };
+        let extension = Path::new(&filename)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .filter(|extension| !extension.is_empty())
+            .unwrap_or("txt");
+        let filter_name = if mime_type.trim().is_empty() {
+            "Text files".to_owned()
+        } else {
+            mime_type
+        };
+        let path = rfd::FileDialog::new()
+            .set_file_name(&filename)
+            .add_filter(&filter_name, &[extension])
+            .save_file();
+
+        match path {
+            Some(path) => {
+                std::fs::write(&path, content.as_bytes()).map_err(|error| error.to_string())?;
+                Ok(SaveTextFileResponse {
+                    saved: true,
+                    path: Some(path.to_string_lossy().into_owned()),
+                })
+            }
+            None => Ok(SaveTextFileResponse {
+                saved: false,
+                path: None,
+            }),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 async fn speak_text(text: String, _locale: String, _rate: f32) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let script = "Add-Type -AssemblyName System.Speech; $voice = New-Object System.Speech.Synthesis.SpeechSynthesizer; $voice.Rate = -1; $voice.Speak($args[0])";
@@ -112,6 +164,7 @@ pub fn run() {
             save_secret,
             load_secret,
             delete_secret,
+            save_text_file,
             speak_text
         ])
         .run(tauri::generate_context!())
