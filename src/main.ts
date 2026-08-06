@@ -9,6 +9,7 @@ import { mergeSnapshots } from "./core/merge";
 import type { LegacyBundle, V4Snapshot } from "./core/types";
 import { initContentManagerUi, type ContentManagerUi } from "./content/ui";
 import type { ContentSnapshotV1 } from "./content/types";
+import { initReviewUi } from "./review/ui";
 import { BrowserCredentialVault } from "./security/browser-vault";
 import { deleteSecret, isNativeRuntime, loadSecret, saveSecret, speakEnglish } from "./platform/runtime";
 import { retryContentOutbox, syncContentStartup, type ContentSyncResult } from "./sync/content-sync";
@@ -563,6 +564,7 @@ async function initializeApplication(): Promise<void> {
       if (transports.length) await retryContentOutbox(contentManager!.backend, transports);
     },
   });
+  initReviewUi({ store, legacyRuntime });
   byId<HTMLButtonElement>("exportV4Btn").disabled = false;
   const transports = buildTransports(false).content;
   if (transports.length && !store.readOnly) {

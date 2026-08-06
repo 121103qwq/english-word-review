@@ -1,6 +1,12 @@
-# weighted-random-v1 兼容性约束
+# weighted-random-v1 与 spaced-review-v1 兼容性约束
 
-8.0.0 的共享核心将 7.4.5 行为登记为 `weighted-random-v1`；8.1.0 继续原样使用。时间戳和复习间隔只随事件记录，不参与抽题，离线词典与手动词库也不改变抽题公式。
+8.0.0 的共享核心将 7.4.5 行为登记为 `weighted-random-v1`；当前 8.1.0 发布线继续原样使用。检查背诵由独立的 `spaced-review-v1` 调度，不改变原有学习抽题公式、成绩字段或三种学习模式。
+
+## spaced-review-v1
+
+检查背诵采用主动回忆、间隔练习和即时反馈。固定到期间隔为 1、3、7、14、30、60 天：新卡首答后进入 1 天阶段；到期首答正确才晋级；60 天封顶；未到期答对只记录练习并切换下次方向；任何首答错误回到 1 天阶段且保留方向；补测不改变调度。
+
+该策略只表达“遗忘通常先快后慢、间隔提取有益”的工程假设，不把固定天数称为精确的艾宾浩斯算法。遗忘速度会随材料和个体变化，后续若改变间隔或晋级规则必须新增调度版本，不能覆盖 `spaced-review-v1`。
 
 ## 冻结参数
 
@@ -30,6 +36,9 @@
 
 ## 研究依据
 
+- [Murre & Dros, 2015：艾宾浩斯遗忘研究的现代复现](https://doi.org/10.1371/journal.pone.0120644)
+- [Cepeda et al., 2006：分散练习元分析](https://digitalcommons.usf.edu/psy_facpub/1771/)
+- [Roediger & Karpicke, 2006：测试效应](https://www.psychologicalscience.org/journals/psychological-science/j.1467-9280.2006.01693.x/)
 - [Karpicke & Roediger, 2008](https://doi.org/10.1126/science.1152408)
 - [Bahrick et al., 1993](https://doi.org/10.1111/j.1467-9280.1993.tb00571.x)
 - [Pavlik & Anderson, 2008](https://pubmed.ncbi.nlm.nih.gov/18590367/)

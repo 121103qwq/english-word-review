@@ -20,6 +20,7 @@ export const REQUIRED_FEATURES = [
   "event-log-v1",
   "dual-mirror-v1",
   "algorithm-lock-v1",
+  "spaced-review-v1",
 ] as const;
 
 export const V4_STORAGE_KEY = "english-word-review-v4";

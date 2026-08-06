@@ -1,4 +1,10 @@
 import type { ALGORITHM_VERSION } from "./config";
+import type {
+  ReviewAnswerKind,
+  ReviewCardState,
+  ReviewDeviceStats,
+  ReviewDirection,
+} from "../review/types";
 
 export interface LegacyWord {
   en: string;
@@ -84,7 +90,7 @@ interface BaseEvent {
   deviceId: string;
   seq: number;
   clock: HybridClock;
-  algorithmVersion: typeof ALGORITHM_VERSION;
+  algorithmVersion: typeof ALGORITHM_VERSION | "spaced-review-v1";
   scope: string;
   generationId: string;
 }
@@ -124,12 +130,32 @@ export interface IntensiveSelectionEvent extends BaseEvent {
   reviewedLibraryId: string;
 }
 
+export interface ReviewAnswerEvent extends BaseEvent {
+  type: "review-answer";
+  algorithmVersion: "spaced-review-v1";
+  payload: {
+    sessionId: string;
+    cardId: string;
+    wordKey: string;
+    direction: ReviewDirection;
+    attempt: ReviewAnswerKind;
+    correct: boolean;
+    sourceLibraryIds: string[];
+    answeredAt: string;
+    /** The originating device's monotonically increasing counters. */
+    deviceStats: ReviewDeviceStats;
+    /** Present only for a first answer; retries must never schedule. */
+    scheduleAfter?: ReviewCardState;
+  };
+}
+
 export type LearningEvent =
   | AnswerEvent
   | UndoEvent
   | ResetEvent
   | SettingEvent
-  | IntensiveSelectionEvent;
+  | IntensiveSelectionEvent
+  | ReviewAnswerEvent;
 
 export interface Checkpoint {
   id: string;
@@ -138,6 +164,8 @@ export interface Checkpoint {
   data: LegacyBundle;
   lineage?: string[];
   lastReviewedAt?: Record<string, number>;
+  /** Optional so existing v4 snapshots migrate without a schema bump. */
+  reviewCards?: Record<string, ReviewCardState>;
 }
 
 export interface V4Snapshot {

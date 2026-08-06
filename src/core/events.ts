@@ -10,6 +10,16 @@ import {
   V4_STORAGE_KEY,
 } from "./config";
 import { mastery, updateReverseReviewWeight } from "./algorithm";
+import {
+  advanceReviewCard,
+  incrementReviewStats,
+} from "../review/scheduler";
+import {
+  REVIEW_ALGORITHM_VERSION,
+  normalizeEnglish,
+  reviewCardId,
+  type ReviewCardState,
+} from "../review/types";
 import type {
   AnswerEvent,
   HybridClock,
@@ -21,6 +31,7 @@ import type {
   LegacySettings,
   LegacyWord,
   ResetEvent,
+  ReviewAnswerEvent,
   V4Snapshot,
 } from "./types";
 
@@ -204,6 +215,57 @@ export function projectSnapshot(snapshot: V4Snapshot): LegacyBundle {
   return data;
 }
 
+function mergeReviewStats(
+  left: ReviewCardState["stats"],
+  right: ReviewCardState["stats"],
+): ReviewCardState["stats"] {
+  const result = structuredClone(left);
+  for (const [deviceId, stats] of Object.entries(right)) {
+    const previous = result[deviceId] ?? { primaryRight: 0, primaryWrong: 0, retryRight: 0, retryWrong: 0 };
+    result[deviceId] = {
+      primaryRight: Math.max(previous.primaryRight, stats.primaryRight),
+      primaryWrong: Math.max(previous.primaryWrong, stats.primaryWrong),
+      retryRight: Math.max(previous.retryRight, stats.retryRight),
+      retryWrong: Math.max(previous.retryWrong, stats.retryWrong),
+    };
+  }
+  return result;
+}
+
+function applyReviewAnswer(cards: Record<string, ReviewCardState>, event: ReviewAnswerEvent): void {
+  const { payload } = event;
+  const prior = cards[payload.cardId];
+  const accumulatedStats = mergeReviewStats(prior?.stats ?? {}, { [event.deviceId]: payload.deviceStats });
+  let next = prior;
+  if (payload.attempt === "primary" && payload.scheduleAfter) {
+    const candidate = payload.scheduleAfter;
+    if (!prior || compareClock(prior.revisionClock, candidate.revisionClock) < 0 ||
+      (compareClock(prior.revisionClock, candidate.revisionClock) === 0 && prior.revisionEventId < candidate.revisionEventId)) {
+      next = structuredClone(candidate);
+    }
+  }
+  if (!next) return;
+  next = {
+    ...next,
+    stats: mergeReviewStats(accumulatedStats, next.stats),
+  };
+  cards[payload.cardId] = next;
+}
+
+/** Materializes globally keyed review state without altering the legacy bundle projection. */
+export function projectReviewCards(snapshot: V4Snapshot): Record<string, ReviewCardState> {
+  const cards = structuredClone(snapshot.checkpoint.reviewCards ?? {});
+  const events = snapshot.events
+    .filter((event) => event.seq > (snapshot.checkpoint.vector[event.deviceId] ?? 0))
+    .sort(compareEvents);
+  for (const event of events) {
+    if (event.type === "review-answer" && event.algorithmVersion === REVIEW_ALGORITHM_VERSION) {
+      applyReviewAnswer(cards, event);
+    }
+  }
+  return cards;
+}
+
 export function compactSnapshot(snapshot: V4Snapshot): V4Snapshot {
   const vector = { ...snapshot.checkpoint.vector };
   const lastReviewedAt = { ...(snapshot.checkpoint.lastReviewedAt ?? {}) };
@@ -221,6 +283,7 @@ export function compactSnapshot(snapshot: V4Snapshot): V4Snapshot {
     data,
     lineage: [...new Set([snapshot.checkpoint.id, ...(snapshot.checkpoint.lineage ?? [])])].sort(),
     lastReviewedAt,
+    reviewCards: projectReviewCards(snapshot),
   };
   return { ...snapshot, checkpoint, events: [], updatedAt: new Date().toISOString() };
 }
@@ -244,7 +307,10 @@ export class EventStore {
   private constructor(private readonly storage: StorageLike, snapshot: V4Snapshot, deviceId: string) {
     this.snapshot = snapshot;
     this.deviceId = deviceId;
-    const latest = [...snapshot.events].sort(compareEvents).at(-1)?.clock;
+    const latest = [
+      ...snapshot.events.map((event) => event.clock),
+      ...Object.values(snapshot.checkpoint.reviewCards ?? {}).map((card) => card.revisionClock),
+    ].sort(compareClock).at(-1);
     this.lastClock = latest ?? { wallTime: Date.now(), logical: 0, deviceId };
   }
 
@@ -252,6 +318,8 @@ export class EventStore {
     return compareVersion(this.snapshot.minReaderVersion, APP_VERSION) > 0 ||
       this.snapshot.requiredFeatures.some(
         (feature) => !REQUIRED_FEATURES.includes(feature as typeof REQUIRED_FEATURES[number]),
+      ) || this.snapshot.events.some(
+        (event) => event.type === "review-answer" && event.algorithmVersion !== REVIEW_ALGORITHM_VERSION,
       );
   }
 
@@ -301,11 +369,23 @@ export class EventStore {
   replaceSnapshot(snapshot: V4Snapshot): void {
     if (this.readOnly) throw new Error("当前版本只能只读查看此快照");
     this.snapshot = structuredClone(snapshot);
+    this.lastClock = [
+      ...this.snapshot.events.map((event) => event.clock),
+      ...Object.values(this.snapshot.checkpoint.reviewCards ?? {}).map((card) => card.revisionClock),
+    ].sort(compareClock).at(-1) ?? { wallTime: Date.now(), logical: 0, deviceId: this.deviceId };
     this.save();
   }
 
   project(): LegacyBundle {
     return projectSnapshot(this.snapshot);
+  }
+
+  getReviewCards(): Record<string, ReviewCardState> {
+    return projectReviewCards(this.snapshot);
+  }
+
+  getReviewCard(word: string): ReviewCardState | undefined {
+    return this.getReviewCards()[reviewCardId(word)];
   }
 
   private nextClock(): HybridClock {
@@ -320,6 +400,8 @@ export class EventStore {
     this.snapshot.events.push(event);
     this.snapshot.updatedAt = new Date().toISOString();
     this.snapshot.appVersion = APP_VERSION;
+    this.snapshot.minReaderVersion = MIN_READER_VERSION;
+    this.snapshot.requiredFeatures = [...new Set([...this.snapshot.requiredFeatures, ...REQUIRED_FEATURES])];
     this.save();
     return event.id;
   }
@@ -363,6 +445,44 @@ export class EventStore {
     };
     this.lastAnswerEventId = this.append(event);
     return this.lastAnswerEventId;
+  }
+
+  recordReviewAnswer(input: import("../review/types").ReviewAnswerInput): string {
+    const wordKey = normalizeEnglish(input.word);
+    if (!wordKey || !input.sessionId || !input.sourceLibraryIds.length) return "";
+    const cardId = input.cardId ?? reviewCardId(wordKey);
+    const base = this.base(`review:${wordKey}`);
+    const at = input.answeredAt ?? base.clock.wallTime;
+    const previous = this.getReviewCards()[cardId];
+    const deviceStats = incrementReviewStats(previous?.stats[this.deviceId], input.attempt, input.correct);
+    const stats = { ...(previous?.stats ?? {}), [this.deviceId]: deviceStats };
+    const event: ReviewAnswerEvent = {
+      ...base,
+      type: "review-answer",
+      algorithmVersion: REVIEW_ALGORITHM_VERSION,
+      payload: {
+        sessionId: input.sessionId,
+        cardId,
+        wordKey,
+        direction: input.direction,
+        attempt: input.attempt,
+        correct: input.correct,
+        sourceLibraryIds: [...new Set(input.sourceLibraryIds)].sort(),
+        answeredAt: new Date(at).toISOString(),
+        deviceStats,
+        scheduleAfter: input.attempt === "primary" ? advanceReviewCard({
+          previous,
+          word: wordKey,
+          direction: input.direction,
+          correct: input.correct,
+          at,
+          clock: base.clock,
+          eventId: base.id,
+          stats,
+        }) : undefined,
+      },
+    };
+    return this.append(event);
   }
 
   recordUndo(targetEventId = this.lastAnswerEventId): void {

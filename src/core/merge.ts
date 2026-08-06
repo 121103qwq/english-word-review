@@ -1,5 +1,6 @@
 import { ALGORITHM_VERSION, APP_VERSION, CONTENT_VERSION, REQUIRED_FEATURES } from "./config";
-import { cloneBundle, compareEvents, projectSnapshot, stableHash } from "./events";
+import { cloneBundle, compareClock, compareEvents, projectSnapshot, stableHash } from "./events";
+import type { ReviewCardState } from "../review/types";
 import type { Checkpoint, LegacyBundle, LegacyLibrary, LegacyWord, V4Snapshot } from "./types";
 
 const SCORE_FIELDS = [
@@ -81,7 +82,14 @@ function mergeCheckpoint(left: Checkpoint, right: Checkpoint): Checkpoint {
     for (const [key, value] of Object.entries(right.lastReviewedAt ?? {})) {
       lastReviewedAt[key] = Math.max(lastReviewedAt[key] ?? 0, value);
     }
-    return { ...left, vector, lineage, lastReviewedAt, createdAt: left.createdAt > right.createdAt ? left.createdAt : right.createdAt };
+    return {
+      ...left,
+      vector,
+      lineage,
+      lastReviewedAt,
+      reviewCards: mergeReviewCards(left.reviewCards, right.reviewCards),
+      createdAt: left.createdAt > right.createdAt ? left.createdAt : right.createdAt,
+    };
   }
   if (checkpointDescendsFrom(left, right) && vectorDominates(left.vector, right.vector)) return structuredClone(left);
   if (checkpointDescendsFrom(right, left) && vectorDominates(right.vector, left.vector)) return structuredClone(right);
@@ -99,7 +107,43 @@ function mergeCheckpoint(left: Checkpoint, right: Checkpoint): Checkpoint {
     data,
     lineage: [...new Set([first.id, second.id, ...(first.lineage ?? []), ...(second.lineage ?? [])])].sort(),
     lastReviewedAt: mergeReviewTimes(first.lastReviewedAt, second.lastReviewedAt),
+    reviewCards: mergeReviewCards(first.reviewCards, second.reviewCards),
   };
+}
+
+function mergeReviewCards(
+  left: Record<string, ReviewCardState> | undefined,
+  right: Record<string, ReviewCardState> | undefined,
+): Record<string, ReviewCardState> | undefined {
+  if (!left && !right) return undefined;
+  const merged: Record<string, ReviewCardState> = structuredClone(left ?? {});
+  for (const [cardId, incoming] of Object.entries(right ?? {})) {
+    const current = merged[cardId];
+    const incomingWins = !current || compareClock(current.revisionClock, incoming.revisionClock) < 0 ||
+      (current && compareClock(current.revisionClock, incoming.revisionClock) === 0 && current.revisionEventId < incoming.revisionEventId);
+    const winner = structuredClone(incomingWins ? incoming : current!);
+    const loser = incomingWins ? current : incoming;
+    winner.stats = mergeReviewDeviceStats(winner.stats, loser?.stats);
+    merged[cardId] = winner;
+  }
+  return merged;
+}
+
+function mergeReviewDeviceStats(
+  left: ReviewCardState["stats"],
+  right: ReviewCardState["stats"] | undefined,
+): ReviewCardState["stats"] {
+  const result = structuredClone(left);
+  for (const [deviceId, stats] of Object.entries(right ?? {})) {
+    const old = result[deviceId] ?? { primaryRight: 0, primaryWrong: 0, retryRight: 0, retryWrong: 0 };
+    result[deviceId] = {
+      primaryRight: Math.max(old.primaryRight, stats.primaryRight),
+      primaryWrong: Math.max(old.primaryWrong, stats.primaryWrong),
+      retryRight: Math.max(old.retryRight, stats.retryRight),
+      retryWrong: Math.max(old.retryWrong, stats.retryWrong),
+    };
+  }
+  return result;
 }
 
 function mergeReviewTimes(
@@ -146,6 +190,10 @@ export function mergeSnapshots(...inputs: Array<V4Snapshot | null | undefined>):
     .flatMap((snapshot) => snapshot.requiredFeatures)
     .find((feature) => !REQUIRED_FEATURES.includes(feature as typeof REQUIRED_FEATURES[number]));
   if (unknownFeature) throw new Error(`快照包含未知必需功能 ${unknownFeature}`);
+  const unknownReviewAlgorithm = snapshots
+    .flatMap((snapshot) => snapshot.events as Array<{ type: string; algorithmVersion?: string }>)
+    .find((event) => event.type === "review-answer" && event.algorithmVersion !== "spaced-review-v1");
+  if (unknownReviewAlgorithm) throw new Error(`Unknown spaced review algorithm: ${unknownReviewAlgorithm.algorithmVersion}`);
   let merged = structuredClone(snapshots[0]);
   for (const next of snapshots.slice(1)) {
     const checkpoint = mergeCheckpoint(merged.checkpoint, next.checkpoint);
