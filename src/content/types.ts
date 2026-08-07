@@ -48,7 +48,7 @@ export interface AudioAssetMeta {
 
 export interface ContentSnapshotV1 {
   schemaVersion: 1;
-  appVersion: "8.1.0";
+  appVersion: string;
   dictionaryVersion: string;
   revision: HybridClock;
   revisionId: string;

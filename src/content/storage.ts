@@ -1,4 +1,4 @@
-import { createEmptyContentSnapshot, nextHybridClock } from "./model";
+import { CONTENT_APP_VERSION, createEmptyContentSnapshot, nextHybridClock } from "./model";
 import type { ContentBackup, ContentOutboxItem, ContentSnapshotV1, StoredAudioAsset } from "./types";
 
 export const CONTENT_BACKUP_LIMIT = 30;
@@ -155,7 +155,7 @@ export class ContentRepository {
     const draft = clone(current);
     const changed = mutate(draft) ?? draft;
     const now = this.now();
-    changed.appVersion = "8.1.0";
+    changed.appVersion = CONTENT_APP_VERSION;
     changed.revision = nextHybridClock(current.revision, this.deviceId, now.getTime());
     changed.revisionId = this.uuid();
     changed.modifiedAt = now.toISOString();

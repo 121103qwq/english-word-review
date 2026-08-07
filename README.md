@@ -1,6 +1,6 @@
-# 英语单词速记 8.1.0
+# 英语单词速记 8.1.1
 
-同一套 Vite + TypeScript 核心输出单文件离线 HTML、Tauri 2 Windows 应用和 Capacitor 8 Android 应用。当前 8.1.0 发布线在离线词典、手动词库与内容同步之上新增“检查背诵 / 间隔复习”；原有三种学习模式和 `weighted-random-v1` 抽题算法保持不变。
+同一套 Vite + TypeScript 核心输出单文件离线 HTML、Tauri 2 Windows 应用和 Capacitor 8 Android 应用。当前 8.1.1 发布线修复内容投影绕过刷新保护导致的快速闪烁；原有三种学习模式、检查背诵和 `weighted-random-v1` 抽题算法保持不变。
 
 ## 检查背诵与间隔复习
 

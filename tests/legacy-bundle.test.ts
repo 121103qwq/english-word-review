@@ -4,6 +4,7 @@ import type { LegacyWord } from "../src/core/types";
 import {
   comparableLegacyBundle,
   decideLegacyProjection,
+  reconcileLegacyProjection,
   STARTUP_RECONCILE_MARKER_KEY,
 } from "../src/platform/legacy-bundle";
 import { legacyBundle, MemoryStorage } from "./fixtures";
@@ -165,14 +166,23 @@ describe("legacy bundle startup comparison", () => {
     const projected = legacyBundle();
     const live = structuredClone(projected);
     live.store.current.words[0]!.zh = "legacy normalization changed this value";
+    const applied: string[] = [];
 
-    expect(decideLegacyProjection(projected, live, storage)).toBe("apply");
+    expect(reconcileLegacyProjection(projected, live, storage, (bundle) => {
+      applied.push(bundle.store.current.id);
+    })).toBe("apply");
     expect(storage.getItem(STARTUP_RECONCILE_MARKER_KEY)).toBeTruthy();
-    expect(decideLegacyProjection(projected, live, storage)).toBe("continue");
+    expect(reconcileLegacyProjection(projected, live, storage, () => {
+      applied.push("unexpected-second-apply");
+    })).toBe("continue");
+    expect(applied).toEqual([projected.store.current.id]);
 
     const changedProjection = structuredClone(projected);
     changedProjection.store.current.words[0]!.right = 1;
-    expect(decideLegacyProjection(changedProjection, live, storage)).toBe("apply");
+    expect(reconcileLegacyProjection(changedProjection, live, storage, () => {
+      applied.push("changed-projection");
+    })).toBe("apply");
+    expect(applied).toEqual([projected.store.current.id, "changed-projection"]);
   });
 
   it("fails open instead of reloading forever when marker storage is unavailable", () => {
@@ -197,24 +207,26 @@ describe("legacy bundle startup comparison", () => {
   it("performs the protected second reconciliation after content materialization", () => {
     const source = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
     const materialize = source.indexOf("contentManager = await initContentManagerUi");
-    const reconcile = source.indexOf("const materializedDecision = decideLegacyProjection", materialize);
+    const reconcile = source.indexOf("const materializedDecision = reconcileProjectedLegacy()", materialize);
     const review = source.indexOf("initReviewUi({ store, legacyRuntime })", reconcile);
 
     expect(materialize).toBeGreaterThanOrEqual(0);
     expect(reconcile).toBeGreaterThan(materialize);
     expect(review).toBeGreaterThan(reconcile);
-    expect(source.slice(reconcile, review)).toContain("legacyRuntime.applyBundle(materializedProjection)");
     expect(source.slice(reconcile, review)).toContain("return;");
+    expect(source.slice(reconcile, review)).toContain("reportRepeatedLegacyRefresh()");
+    expect(source.indexOf('byId<HTMLButtonElement>("exportV4Btn").disabled = false', review)).toBeGreaterThan(review);
   });
 
-  it("checks semantic equality before a content-triggered legacy reload", () => {
-    const source = readFileSync(new URL("../src/content/ui.ts", import.meta.url), "utf8");
-    const materialize = source.indexOf("private async materialize(reload: boolean)");
-    const compare = source.indexOf("comparableLegacyBundle(bundle)", materialize);
-    const apply = source.indexOf("this.options.legacyRuntime.applyBundle(bundle)", materialize);
+  it("keeps the platform reconciler as the only non-legacy apply gate", () => {
+    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const content = readFileSync(new URL("../src/content/ui.ts", import.meta.url), "utf8");
 
-    expect(materialize).toBeGreaterThanOrEqual(0);
-    expect(compare).toBeGreaterThan(materialize);
-    expect(apply).toBeGreaterThan(compare);
+    expect(content).not.toContain("applyBundle(");
+    expect(content).toContain("this.options.onLegacyProjectionReady?.()");
+    expect(main).not.toContain("decideLegacyProjection");
+    expect(main.match(/legacyRuntime\.applyBundle\(/g)).toHaveLength(1);
+    expect(main).toContain("onLegacyProjectionReady: async () =>");
+    expect(main).toContain("reconcileLegacyProjection(");
   });
 });

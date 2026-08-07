@@ -1,7 +1,5 @@
 import { checkWord, lookupWord, type DictionaryEntry } from "../dictionary";
-import type { LegacyBundle, LegacyLibrary, LegacyRuntimeApi, LegacyWord } from "../core/types";
-import { rebuildRootStudyStore } from "../core/events";
-import { comparableLegacyBundle } from "../platform/legacy-bundle";
+import type { LegacyLibrary, LegacyRuntimeApi, LegacyWord } from "../core/types";
 import {
   applyWordOverride,
   createLibrary,
@@ -27,6 +25,7 @@ interface ContentUiOptions {
   legacyRuntime: LegacyRuntimeApi;
   getTransports?: () => ContentTransport[];
   onCommitted?: (snapshot: ContentSnapshotV1, result?: ContentSyncResult) => Promise<void> | void;
+  onLegacyProjectionReady?: () => Promise<void> | void;
 }
 
 interface CheckedRow {
@@ -545,7 +544,7 @@ export class ContentManagerUi {
     return result.snapshot;
   }
 
-  private async materialize(reload: boolean): Promise<void> {
+  private async materialize(notifyLegacyProjection: boolean): Promise<void> {
     const live = this.options.legacyRuntime.getBundle();
     const liveLibraries = new Map([live.store.current, ...live.store.archives].map((library) => [library.id, library]));
     const libraries: LegacyLibrary[] = [];
@@ -571,15 +570,7 @@ export class ContentManagerUi {
     if (!libraries.length) return;
     const activeId = this.snapshot.activeLibraryId ?? libraries[0].id;
     window.__v8Bridge?.replaceLibraries(libraries, activeId);
-    if (!reload) return;
-    const current = libraries.find((library) => library.id === activeId) ?? libraries[0];
-    const bundle: LegacyBundle = {
-      ...live,
-      store: { current, archives: libraries.filter((library) => library.id !== current.id) },
-      rootStudyStore: rebuildRootStudyStore(live.rootStudyStore, libraries),
-    };
-    if (comparableLegacyBundle(bundle) === comparableLegacyBundle(live)) return;
-    this.options.legacyRuntime.applyBundle(bundle);
+    if (notifyLegacyProjection) await this.options.onLegacyProjectionReady?.();
   }
 
   async playPrimaryForWord(word: string): Promise<boolean> {

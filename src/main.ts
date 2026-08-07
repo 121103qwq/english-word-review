@@ -19,7 +19,10 @@ import {
   saveTextFile,
   speakEnglish,
 } from "./platform/runtime";
-import { decideLegacyProjection } from "./platform/legacy-bundle";
+import {
+  reconcileLegacyProjection,
+  type LegacyProjectionDecision,
+} from "./platform/legacy-bundle";
 import { retryContentOutbox, syncContentStartup, type ContentSyncResult } from "./sync/content-sync";
 import {
   ContentGitHubTransport,
@@ -374,7 +377,7 @@ async function synchronize(saveSettings = true): Promise<void> {
   if (JSON.stringify(contentManager!.getSnapshot()) !== JSON.stringify(contentResult.snapshot)) {
     await contentManager!.acceptSynchronizedSnapshot(contentResult.snapshot);
   } else {
-    legacyRuntime.applyBundle(store.project());
+    reconcileProjectedLegacy(true);
   }
 }
 
@@ -446,7 +449,7 @@ byId<HTMLInputElement>("importV4File").onchange = async (event) => {
       if (parsed.content?.schemaVersion !== 1) throw new Error("内容快照格式无效");
       await contentManager.replaceFromRemote(parsed.content);
     } else {
-      legacyRuntime.applyBundle(store.project());
+      reconcileProjectedLegacy(true);
     }
   } catch (error) {
     setSyncStatus(`完整快照导入失败：${error instanceof Error ? error.message : String(error)}`, "bad");
@@ -516,32 +519,35 @@ if (lastSync) {
 let reloadRequested = false;
 let startupMismatchSkipped = false;
 
-if (store.readOnly) {
-  const snapshot = store.getSnapshot();
-  const projected = store.project();
-  const decision = decideLegacyProjection(
-    projected,
+function reconcileProjectedLegacy(reportContinue = false): LegacyProjectionDecision {
+  const decision = reconcileLegacyProjection(
+    store.project(),
     legacyRuntime.getBundle(),
     sessionStorage,
+    (bundle) => {
+      reloadRequested = true;
+      legacyRuntime.applyBundle(bundle);
+    },
   );
-  if (decision === "apply") {
-    reloadRequested = true;
-    legacyRuntime.applyBundle(projected);
-  } else {
+  if (decision === "continue" && reportContinue) reportRepeatedLegacyRefresh();
+  return decision;
+}
+
+function reportRepeatedLegacyRefresh(): void {
+  byId<HTMLElement>("syncPanel").hidden = false;
+  setSyncStatus("已阻止内容投影重复刷新，应用将继续初始化；建议导出完整快照备份。", "bad");
+}
+
+if (store.readOnly) {
+  const snapshot = store.getSnapshot();
+  const decision = reconcileProjectedLegacy();
+  if (decision !== "apply") {
     startupMismatchSkipped = decision === "continue";
     markReadOnly(incompatibility(snapshot) ?? "快照要求更高版本");
   }
 } else {
-  const projected = store.project();
-  const decision = decideLegacyProjection(
-    projected,
-    legacyRuntime.getBundle(),
-    sessionStorage,
-  );
-  if (decision === "apply") {
-    reloadRequested = true;
-    legacyRuntime.applyBundle(projected);
-  } else {
+  const decision = reconcileProjectedLegacy();
+  if (decision !== "apply") {
     startupMismatchSkipped = decision === "continue";
   }
 }
@@ -584,20 +590,16 @@ async function initializeApplication(): Promise<void> {
       const transports = buildTransports(false).content;
       if (transports.length) await retryContentOutbox(contentManager!.backend, transports);
     },
+    onLegacyProjectionReady: async () => {
+      reconcileProjectedLegacy(true);
+    },
   });
-  const materializedProjection = store.project();
-  const materializedDecision = decideLegacyProjection(
-    materializedProjection,
-    legacyRuntime.getBundle(),
-    sessionStorage,
-  );
+  const materializedDecision = reconcileProjectedLegacy();
   if (materializedDecision === "apply") {
-    legacyRuntime.applyBundle(materializedProjection);
     return;
   }
   if (materializedDecision === "continue") {
-    byId<HTMLElement>("syncPanel").hidden = false;
-    setSyncStatus("已阻止内容迁移重复刷新，正在继续初始化；建议导出完整快照备份。", "bad");
+    reportRepeatedLegacyRefresh();
   }
   initReviewUi({ store, legacyRuntime });
   byId<HTMLButtonElement>("exportV4Btn").disabled = false;
@@ -619,8 +621,7 @@ async function initializeApplication(): Promise<void> {
 byId<HTMLButtonElement>("exportV4Btn").disabled = true;
 if (!reloadRequested) {
   if (startupMismatchSkipped) {
-    byId<HTMLElement>("syncPanel").hidden = false;
-    setSyncStatus("已阻止重复刷新，正在继续初始化；建议启动后导出完整快照备份。", "bad");
+    reportRepeatedLegacyRefresh();
   }
   void initializeApplication().catch((error) => setSyncStatus(`初始化失败：${error instanceof Error ? error.message : String(error)}`, "bad"));
 }

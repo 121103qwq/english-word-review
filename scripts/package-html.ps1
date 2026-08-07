@@ -1,6 +1,8 @@
 $source = Join-Path $PSScriptRoot "..\dist\index.html"
 $destinationDirectory = Join-Path $PSScriptRoot "..\release\html"
-$destination = Join-Path $destinationDirectory "english-word-review-8.1.0.html"
+$version = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot "..\package.json") | ConvertFrom-Json).version
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid package version: $version" }
+$destination = Join-Path $destinationDirectory "english-word-review-$version.html"
 
 if (-not (Test-Path -LiteralPath $source)) {
   throw "Built HTML not found: $source"

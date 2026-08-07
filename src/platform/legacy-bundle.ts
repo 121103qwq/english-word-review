@@ -131,3 +131,14 @@ export function decideLegacyProjection(
     return "continue";
   }
 }
+
+export function reconcileLegacyProjection(
+  projected: LegacyBundle,
+  live: LegacyBundle,
+  storage: ReconcileMarkerStorage,
+  apply: (bundle: LegacyBundle) => void,
+): LegacyProjectionDecision {
+  const decision = decideLegacyProjection(projected, live, storage);
+  if (decision === "apply") apply(projected);
+  return decision;
+}
