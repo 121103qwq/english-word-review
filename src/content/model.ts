@@ -94,11 +94,32 @@ export function createLibrary(
   };
 }
 
+function automaticLegacyRootForms(bundle: LegacyBundle): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  for (const library of [bundle.store.current, ...bundle.store.archives]) {
+    for (const word of library.words) {
+      const forms = result.get(cleanWord(word.en)) ?? new Set<string>();
+      const roots = Array.isArray(word.roots) ? word.roots as Array<Record<string, unknown>> : [];
+      for (const root of roots) {
+        if (root.source !== "engra" && root.source !== "inferred") continue;
+        const form = String(root.root ?? root.form ?? "").trim().toLocaleLowerCase("en-US");
+        if (form) forms.add(form);
+      }
+      if (forms.size) result.set(cleanWord(word.en), forms);
+    }
+  }
+  return result;
+}
+
 function legacyRoots(bundle: LegacyBundle): Map<string, RootComponent[]> {
   const result = new Map<string, RootComponent[]>();
+  const automaticForms = automaticLegacyRootForms(bundle);
   for (const item of bundle.rootStudyStore.items) {
+    const source = (item as unknown as Record<string, unknown>).source;
+    if (source === "engra" || source === "inferred") continue;
     for (const rawWord of item.words) {
       const word = cleanWord(rawWord);
+      if (automaticForms.get(word)?.has(item.root.trim().toLocaleLowerCase("en-US"))) continue;
       const roots = result.get(word) ?? [];
       roots.push({ root: item.root, meaning: item.meaning, source: "legacy" });
       result.set(word, roots);
@@ -147,6 +168,24 @@ function copyDefined(target: WordOverride, source?: WordOverride): void {
   }
 }
 
+function isAutomaticRoot(root: RootComponent): boolean {
+  return root.source === "engra" || root.source === "inferred";
+}
+
+function mergeLegacyRoots(
+  legacyRoots: RootComponent[] | undefined,
+  dictionaryRoots: RootComponent[] | undefined,
+): RootComponent[] | undefined {
+  const dictionary = dictionaryRoots?.map((root) => structuredClone(root)) ?? [];
+  const dictionaryForms = new Set(dictionary.map((root) => root.root.trim().toLocaleLowerCase("en-US")));
+  const legacy = (legacyRoots ?? [])
+    .filter((root) => !isAutomaticRoot(root))
+    .filter((root) => !dictionaryForms.has(root.root.trim().toLocaleLowerCase("en-US")))
+    .map((root) => structuredClone(root));
+  const roots = [...dictionary, ...legacy];
+  return roots.length ? roots : undefined;
+}
+
 /** Resolves each field independently: local > global > legacy > dictionary. */
 export function resolveWord(
   entry: CustomLibraryWord,
@@ -155,7 +194,13 @@ export function resolveWord(
 ): ResolvedWord {
   const value: WordOverride = {};
   copyDefined(value, dictionaryValue);
-  copyDefined(value, entry.legacyOverride);
+  const legacy = structuredClone(entry.legacyOverride ?? {});
+  delete legacy.roots;
+  copyDefined(value, legacy);
+  const legacyRoots = entry.legacyOverride?.roots;
+  const dictionaryRoots = dictionaryValue?.roots;
+  const mergedRoots = mergeLegacyRoots(legacyRoots, dictionaryRoots);
+  if (mergedRoots) value.roots = mergedRoots;
   copyDefined(value, globalOverride);
   copyDefined(value, entry.override);
   return { word: entry.word, source: entry.source, ...value };

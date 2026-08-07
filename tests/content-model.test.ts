@@ -44,6 +44,38 @@ describe("content model", () => {
     expect(snapshot.libraries[0].words[0].legacyProgress?.en).toBe("accept");
   });
 
+  it("does not freeze automatic legacy roots and replaces stale same-name roots from the dictionary", () => {
+    const legacy = legacyBundle();
+    legacy.rootStudyStore.items[0] = {
+      ...legacy.rootStudyStore.items[0], root: "cap", meaning: "old", words: ["accept"],
+    };
+    legacy.store.current.words[0].roots = [{ root: "cap", meaning: "old", source: "engra" }];
+    const migrated = migrateLegacyBundle(legacy, "device-a", { uuid: () => "revision" });
+    expect(migrated.libraries[0].words[0].legacyOverride?.roots).toBeUndefined();
+
+    const resolved = resolveWord(
+      {
+        word: "accept",
+        source: "dictionary",
+        legacyOverride: { roots: [{ root: "cap", meaning: "stale", source: "legacy" }] },
+      },
+      undefined,
+      { roots: [{ root: "cap", meaning: "current", source: "engra" }] },
+    );
+    expect(resolved.roots).toEqual([{ root: "cap", meaning: "current", source: "engra" }]);
+
+    const manuallyOverridden = resolveWord(
+      {
+        word: "accept",
+        source: "dictionary",
+        override: { roots: [{ root: "cap", meaning: "local", source: "manual" }] },
+      },
+      { roots: [{ root: "cap", meaning: "global", source: "manual" }] },
+      { roots: [{ root: "cap", meaning: "current", source: "engra" }] },
+    );
+    expect(manuallyOverridden.roots?.[0].meaning).toBe("local");
+  });
+
   it("resolves fields local then global then legacy then dictionary", () => {
     const entry: CustomLibraryWord = {
       word: "apple",

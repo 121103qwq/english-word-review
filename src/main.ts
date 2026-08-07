@@ -585,6 +585,20 @@ async function initializeApplication(): Promise<void> {
       if (transports.length) await retryContentOutbox(contentManager!.backend, transports);
     },
   });
+  const materializedProjection = store.project();
+  const materializedDecision = decideLegacyProjection(
+    materializedProjection,
+    legacyRuntime.getBundle(),
+    sessionStorage,
+  );
+  if (materializedDecision === "apply") {
+    legacyRuntime.applyBundle(materializedProjection);
+    return;
+  }
+  if (materializedDecision === "continue") {
+    byId<HTMLElement>("syncPanel").hidden = false;
+    setSyncStatus("已阻止内容迁移重复刷新，正在继续初始化；建议导出完整快照备份。", "bad");
+  }
   initReviewUi({ store, legacyRuntime });
   byId<HTMLButtonElement>("exportV4Btn").disabled = false;
   const transports = buildTransports(false).content;

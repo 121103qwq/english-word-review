@@ -1,5 +1,7 @@
 import { checkWord, lookupWord, type DictionaryEntry } from "../dictionary";
-import type { LegacyBundle, LegacyLibrary, LegacyRuntimeApi, LegacyWord, RootStudyStore } from "../core/types";
+import type { LegacyBundle, LegacyLibrary, LegacyRuntimeApi, LegacyWord } from "../core/types";
+import { rebuildRootStudyStore } from "../core/events";
+import { comparableLegacyBundle } from "../platform/legacy-bundle";
 import {
   applyWordOverride,
   createLibrary,
@@ -43,12 +45,13 @@ const byId = <T extends HTMLElement>(id: string): T => {
 
 function rootsFromDictionary(entry?: DictionaryEntry): RootComponent[] | undefined {
   if (!entry?.roots?.length) return undefined;
-  return entry.roots.map((root) => ({
+  const roots = entry.roots.filter((root) => root.meaningZh.trim()).map((root): RootComponent => ({
     root: root.form,
     meaning: root.meaningZh,
     source: root.inferred ? "inferred" : "engra",
     ...(root.meaningEn ? { note: root.meaningEn } : {}),
   }));
+  return roots.length ? roots : undefined;
 }
 
 function dictionaryOverride(entry?: DictionaryEntry): WordOverride | undefined {
@@ -90,27 +93,6 @@ function cloneScores(word?: LegacyWord): LegacyWord {
     meaningRight: Number(word?.meaningRight) || 0,
     meaningWrong: Number(word?.meaningWrong) || 0,
   };
-}
-
-function materializeRootStudy(base: RootStudyStore, libraries: LegacyLibrary[]): RootStudyStore {
-  const items = new Map(base.items.map((item) => [item.id, structuredClone(item)]));
-  for (const library of libraries) {
-    for (const word of library.words) {
-      const roots = Array.isArray(word.roots) ? word.roots as Array<Record<string, unknown>> : [];
-      for (const value of roots) {
-        const root = String(value.root ?? value.form ?? "").trim();
-        const meaning = String(value.meaning ?? value.meaningZh ?? value.zh ?? "").trim();
-        if (!root || !meaning) continue;
-        const id = `${root}\u0000${meaning}`;
-        const item = items.get(id) ?? {
-          id, root, meaning, words: [], choiceRight: 0, choiceWrong: 0, writeRight: 0, writeWrong: 0,
-        };
-        if (!item.words.includes(word.en)) item.words.push(word.en);
-        items.set(id, item);
-      }
-    }
-  }
-  return { items: [...items.values()] };
 }
 
 export class ContentManagerUi {
@@ -594,8 +576,9 @@ export class ContentManagerUi {
     const bundle: LegacyBundle = {
       ...live,
       store: { current, archives: libraries.filter((library) => library.id !== current.id) },
-      rootStudyStore: materializeRootStudy(live.rootStudyStore, libraries),
+      rootStudyStore: rebuildRootStudyStore(live.rootStudyStore, libraries),
     };
+    if (comparableLegacyBundle(bundle) === comparableLegacyBundle(live)) return;
     this.options.legacyRuntime.applyBundle(bundle);
   }
 

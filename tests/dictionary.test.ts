@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { offlineDictionary } from "../src/dictionary";
 import { decodeGzipJson } from "../src/dictionary/codec";
 import { GENERATED_DICTIONARY } from "../src/dictionary/generated/data";
-import type { DictionaryEntry } from "../src/dictionary/types";
+import rootGlossZh from "../src/dictionary/root-gloss-zh.json";
+import type { DictionaryEntry, RootLexiconEntry } from "../src/dictionary/types";
+
+const rootGlosses: Record<string, string> = rootGlossZh;
 
 describe("offline dictionary", () => {
   it("declares the exact number of entries stored in chunks", async () => {
@@ -43,5 +46,33 @@ describe("offline dictionary", () => {
     const roots = await offlineDictionary.rootsFor(built!);
     expect(roots.length).toBeGreaterThan(0);
     expect(roots.every((root) => root.source === "engra" || root.inferred)).toBe(true);
+  });
+
+  it("covers every generated root gloss with a fixed Chinese construction meaning", async () => {
+    const roots = await decodeGzipJson<RootLexiconEntry[]>(GENERATED_DICTIONARY.roots);
+    const glosses = new Set(roots.map((root) => root.meaningEn));
+    expect(glosses.size).toBe(486);
+    expect(Object.keys(rootGlossZh)).toHaveLength(486);
+    expect([...glosses].every((gloss) => /[\u3400-\u9fff]/u.test(rootGlosses[gloss]))).toBe(true);
+  });
+
+  it.each([
+    ["approval", "prov", "好；检验；证明"],
+    ["graduate", "grad", "走；步；级"],
+  ])("uses the fixed Chinese construction meaning for %s", async (word, form, meaningZh) => {
+    const entry = await offlineDictionary.lookup(word);
+    expect(entry).not.toBeNull();
+    const root = (await offlineDictionary.rootsFor(entry!)).find((candidate) => candidate.form === form);
+    expect(root?.meaningZh).toBe(meaningZh);
+  });
+
+  it("never exposes an automatic root without a Chinese construction meaning", async () => {
+    for (const word of ["approval", "graduate"]) {
+      const entry = await offlineDictionary.lookup(word);
+      expect(entry).not.toBeNull();
+      const roots = await offlineDictionary.rootsFor(entry!);
+      expect(roots.length).toBeGreaterThan(0);
+      expect(roots.every((root) => /[\u3400-\u9fff]/u.test(root.meaningZh))).toBe(true);
+    }
   });
 });

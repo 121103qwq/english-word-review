@@ -1,4 +1,5 @@
 import { decodeGzipJson } from "./codec";
+import rootGlossZh from "./root-gloss-zh.json";
 import type {
   DictionaryCheckResult,
   DictionaryEntry,
@@ -6,6 +7,16 @@ import type {
   EncodedDictionarySource,
   RootLexiconEntry,
 } from "./types";
+
+const rootGlosses: Record<string, string> = rootGlossZh;
+
+function applyRootGloss<T extends { meaningEn: string; meaningZh: string }>(root: T): T {
+  const meaningZh = rootGlosses[root.meaningEn.trim()]?.trim() ?? "";
+  // Generated dictionaries before the gloss mapping used an ECDICT definition
+  // of the root's spelling.  An unmapped automatic root must stay hidden,
+  // rather than falling back to that unrelated word definition or English.
+  return { ...root, meaningZh };
+}
 
 export function normalizeDictionaryWord(value: string): string {
   return value.trim().replaceAll("’", "'").toLocaleLowerCase("en-US");
@@ -61,7 +72,10 @@ export class OfflineDictionary {
     if (!encoded) return Promise.resolve([]);
     let cached = this.entryCache.get(key);
     if (!cached) {
-      cached = decodeGzipJson<DictionaryEntry[]>(encoded);
+      cached = decodeGzipJson<DictionaryEntry[]>(encoded).then((entries) => entries.map((entry) => ({
+        ...entry,
+        roots: entry.roots.map(applyRootGloss),
+      })));
       this.entryCache.set(key, cached);
     }
     return cached;
@@ -79,7 +93,7 @@ export class OfflineDictionary {
   }
 
   private loadRoots(): Promise<RootLexiconEntry[]> {
-    this.rootsPromise ??= decodeGzipJson<RootLexiconEntry[]>(this.source.roots);
+    this.rootsPromise ??= decodeGzipJson<RootLexiconEntry[]>(this.source.roots).then((roots) => roots.map(applyRootGloss));
     return this.rootsPromise;
   }
 
