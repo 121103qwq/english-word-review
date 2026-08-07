@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  BrowserCredentialVault,
-  clearBrowserCredentialEnvelope,
-  sealBrowserCredentials,
-  unlockBrowserCredentials,
+  BROWSER_CREDENTIAL_STORAGE_KEY,
+  BrowserCredentialStore,
+  LEGACY_BROWSER_VAULT_STORAGE_KEY,
 } from "../src/security/browser-vault";
 
 class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem"> {
@@ -14,46 +13,56 @@ class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem
 }
 
 const credentials = {
-  github: { token: "github-secret-token", owner: "owner", repo: "private-data" },
-  webdav: [
-    { id: "primary", url: "https://dav.example/a", username: "one", password: "dav-secret-one" },
-    { id: "backup", url: "https://dav.example/b", username: "two", password: "dav-secret-two" },
-  ],
+  githubToken: "github-secret-token",
+  webdavPasswords: {
+    primary: "dav-secret-one",
+    backup: "dav-secret-two",
+  },
 };
 
-describe("browser credential vault", () => {
-  it("round-trips multiple mirror credentials with PBKDF2-SHA256 and AES-256-GCM", async () => {
-    const envelope = await sealBrowserCredentials(credentials, "correct horse battery staple", { iterations: 100_000 });
-    const serialized = JSON.stringify(envelope);
-    expect(envelope.kdf.name).toBe("PBKDF2-SHA256");
-    expect(envelope.cipher.name).toBe("AES-256-GCM");
-    expect(serialized).not.toContain("github-secret-token");
-    expect(serialized).not.toContain("dav-secret-one");
-    await expect(unlockBrowserCredentials(serialized, "correct horse battery staple")).resolves.toEqual(credentials);
+describe("browser credential storage", () => {
+  it("stores HTML credentials without encryption and loads them directly", () => {
+    const storage = new MemoryStorage();
+    const store = new BrowserCredentialStore<typeof credentials>(storage);
+
+    store.save(credentials);
+
+    expect(store.hasStoredCredentials()).toBe(true);
+    expect(storage.getItem(BROWSER_CREDENTIAL_STORAGE_KEY)).toContain("github-secret-token");
+    expect(store.load()).toEqual(credentials);
   });
 
-  it("rejects a wrong password and authenticated-ciphertext tampering", async () => {
-    const envelope = await sealBrowserCredentials(credentials, "right-password", { iterations: 100_000 });
-    await expect(unlockBrowserCredentials(envelope, "wrong-password")).rejects.toThrow("主密码错误");
-    const tampered = { ...envelope, ciphertext: `${envelope.ciphertext.slice(0, -2)}AA` };
-    await expect(unlockBrowserCredentials(tampered, "right-password")).rejects.toThrow("主密码错误");
+  it("keeps an old encrypted envelope separate until credentials are saved again", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(LEGACY_BROWSER_VAULT_STORAGE_KEY, "legacy-ciphertext");
+    const store = new BrowserCredentialStore<typeof credentials>(storage);
+
+    expect(store.load()).toBeUndefined();
+    expect(store.hasLegacyEncryptedCredentials()).toBe(true);
+    store.save(credentials);
+    expect(store.hasLegacyEncryptedCredentials()).toBe(false);
   });
 
-  it("stores only the envelope and clearing credentials leaves unrelated local data intact", async () => {
+  it("clears current and legacy credentials without touching unrelated local data", () => {
     const storage = new MemoryStorage();
     storage.setItem("content", "keep-me");
-    const vault = new BrowserCredentialVault<typeof credentials>(storage, "vault");
-    await vault.save(credentials, "master-password");
-    expect(vault.hasStoredCredentials()).toBe(true);
-    await expect(vault.unlock("master-password")).resolves.toEqual(credentials);
-    vault.clear();
-    expect(vault.hasStoredCredentials()).toBe(false);
-    expect(storage.getItem("content")).toBe("keep-me");
+    storage.setItem(LEGACY_BROWSER_VAULT_STORAGE_KEY, "legacy-ciphertext");
+    const store = new BrowserCredentialStore<typeof credentials>(storage);
+    store.save(credentials);
+    storage.setItem(LEGACY_BROWSER_VAULT_STORAGE_KEY, "legacy-ciphertext");
 
-    storage.setItem("vault", "ciphertext");
-    clearBrowserCredentialEnvelope(storage, "vault");
-    expect(storage.getItem("vault")).toBeNull();
+    store.clear();
+
+    expect(store.hasStoredCredentials()).toBe(false);
+    expect(store.hasLegacyEncryptedCredentials()).toBe(false);
     expect(storage.getItem("content")).toBe("keep-me");
   });
-});
 
+  it("rejects malformed local credential data", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(BROWSER_CREDENTIAL_STORAGE_KEY, "not-json");
+    const store = new BrowserCredentialStore<typeof credentials>(storage);
+
+    expect(() => store.load()).toThrow("HTML 本地凭据格式无效");
+  });
+});

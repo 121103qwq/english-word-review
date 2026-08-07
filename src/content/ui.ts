@@ -11,6 +11,8 @@ import {
 import { ContentRepository, IndexedDbContentBackend } from "./storage";
 import { commitContentMutation, type ContentSyncResult } from "../sync/content-sync";
 import type { ContentTransport } from "../sync/content-transports";
+import { getRuntimePlatform } from "../platform/runtime";
+import { LibraryDraftStorage } from "../settings/drafts";
 import type {
   ContentSnapshotV1,
   CustomLibrary,
@@ -101,6 +103,8 @@ export class ContentManagerUi {
   private rows: CheckedRow[] = [];
   private inputMode: "paste" | "table" = "paste";
   private editor?: { libraryId: string; word: string; audioIds: string[]; primaryAudioId?: string | null };
+  private readonly draftStorage = new LibraryDraftStorage(getRuntimePlatform());
+  private restoringDraft = false;
 
   constructor(private readonly options: ContentUiOptions) {
     this.repository = new ContentRepository(this.backend, options.deviceId);
@@ -117,6 +121,7 @@ export class ContentManagerUi {
     this.setToday();
     this.ensureTableRows(4);
     this.render();
+    await this.restoreDraft();
     await this.materialize(false);
   }
 
@@ -148,7 +153,10 @@ export class ContentManagerUi {
     byId<HTMLButtonElement>("pasteInputModeBtn").onclick = () => this.setInputMode("paste");
     byId<HTMLButtonElement>("tableInputModeBtn").onclick = () => this.setInputMode("table");
     byId<HTMLButtonElement>("checkAndAddWordsBtn").onclick = () => void this.checkAndAdd();
-    byId<HTMLSelectElement>("libraryTarget").onchange = () => this.applyTargetState();
+    byId<HTMLSelectElement>("libraryTarget").onchange = () => { this.applyTargetState(); this.persistDraft(); };
+    for (const id of ["libraryDate", "libraryName", "libraryPasteInput"]) {
+      byId<HTMLInputElement | HTMLTextAreaElement>(id).addEventListener("input", () => this.persistDraft());
+    }
     byId<HTMLButtonElement>("closeLibraryEditorBtn").onclick = () => this.closeEditor();
     byId<HTMLButtonElement>("saveWordEditBtn").onclick = () => void this.saveEditor();
     byId<HTMLInputElement>("editorAudioFiles").onchange = (event) => void this.addAudioFiles(event);
@@ -169,6 +177,7 @@ export class ContentManagerUi {
     byId("tableInputMode").hidden = mode !== "table";
     byId("pasteInputModeBtn").classList.toggle("active", mode === "paste");
     byId("tableInputModeBtn").classList.toggle("active", mode === "table");
+    this.persistDraft();
     (mode === "paste" ? byId<HTMLTextAreaElement>("libraryPasteInput") : byId<HTMLInputElement>("wordEntryRows").querySelector("input"))?.focus();
   }
 
@@ -188,12 +197,13 @@ export class ContentManagerUi {
         this.ensureTableRows(index + 2);
         body.querySelectorAll<HTMLInputElement>("input")[index + 1]?.focus();
       });
+      input.addEventListener("input", () => this.persistDraft());
       cell.append(input);
       const action = document.createElement("td");
       const clear = document.createElement("button");
       clear.type = "button";
       clear.textContent = "清空";
-      clear.onclick = () => { input.value = ""; input.focus(); };
+      clear.onclick = () => { input.value = ""; this.persistDraft(); input.focus(); };
       action.append(clear);
       row.append(cell, action);
       body.append(row);
@@ -203,6 +213,67 @@ export class ContentManagerUi {
   private inputWords(): string[] {
     if (this.inputMode === "paste") return parseWordInput(byId<HTMLTextAreaElement>("libraryPasteInput").value);
     return parseWordInput([...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].map((input) => input.value).join("\n"));
+  }
+
+  private persistDraft(): void {
+    if (this.restoringDraft) return;
+    try {
+      this.draftStorage.update((draft) => {
+        draft.date = byId<HTMLInputElement>("libraryDate").value;
+        draft.name = byId<HTMLInputElement>("libraryName").value;
+        draft.targetLibraryId = byId<HTMLSelectElement>("libraryTarget").value || "new";
+        draft.inputMode = this.inputMode;
+        draft.pasteInput = byId<HTMLTextAreaElement>("libraryPasteInput").value;
+        draft.tableWords = [...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].map((input) => input.value);
+        draft.checkedRows = this.rows.map((row) => ({ word: row.word, meaning: row.meaning, rootText: row.rootText }));
+      });
+    } catch {
+      // A full or disabled localStorage must not block word-library operations.
+    }
+  }
+
+  private async restoreDraft(): Promise<void> {
+    let draft;
+    try {
+      draft = this.draftStorage.load();
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : String(error), true);
+      return;
+    }
+    if (!draft) return;
+    this.restoringDraft = true;
+    try {
+      byId<HTMLInputElement>("libraryDate").value = draft.date;
+      byId<HTMLInputElement>("libraryName").value = draft.name;
+      const target = byId<HTMLSelectElement>("libraryTarget");
+      target.value = [...target.options].some((option) => option.value === draft.targetLibraryId)
+        ? draft.targetLibraryId
+        : "new";
+      this.applyTargetState();
+      byId<HTMLTextAreaElement>("libraryPasteInput").value = draft.pasteInput;
+      this.ensureTableRows(Math.max(4, draft.tableWords.length));
+      [...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")]
+        .forEach((input, index) => { input.value = draft.tableWords[index] ?? ""; });
+      this.inputMode = draft.inputMode;
+      byId("pasteInputMode").hidden = draft.inputMode !== "paste";
+      byId("tableInputMode").hidden = draft.inputMode !== "table";
+      byId("pasteInputModeBtn").classList.toggle("active", draft.inputMode === "paste");
+      byId("tableInputModeBtn").classList.toggle("active", draft.inputMode === "table");
+      this.rows = await Promise.all(draft.checkedRows.map(async (saved): Promise<CheckedRow> => {
+        const checked = await checkWord(saved.word);
+        return {
+          word: checked.normalized,
+          entry: checked.entry,
+          suggestions: checked.suggestions,
+          meaning: saved.meaning || checked.entry?.translation || "",
+          rootText: saved.rootText || (checked.entry ? rootsToText(rootsFromDictionary(checked.entry)) : ""),
+        };
+      }));
+      this.renderCheckRows();
+      this.setStatus("已恢复本机尚未提交的词库草稿。");
+    } finally {
+      this.restoringDraft = false;
+    }
   }
 
   private setStatus(message: string, bad = false): void {
@@ -231,6 +302,7 @@ export class ContentManagerUi {
         };
       }));
       this.renderCheckRows();
+      this.persistDraft();
       if (this.rows.every((row) => row.entry || row.meaning.trim())) await this.commitRows();
       else this.setStatus("请修正错误单词，或为用户词条填写中文释义。", true);
     } catch (error) {
@@ -270,13 +342,13 @@ export class ContentManagerUi {
       const meaning = document.createElement("input");
       meaning.value = row.meaning;
       meaning.placeholder = "未知词必须填写中文";
-      meaning.oninput = () => { row.meaning = meaning.value; };
+      meaning.oninput = () => { row.meaning = meaning.value; this.persistDraft(); };
       meaningCell.append(meaning);
       const rootCell = document.createElement("td");
       const roots = document.createElement("input");
       roots.value = row.rootText.replace(/\n/g, "; ");
       roots.placeholder = "root = 中文义";
-      roots.oninput = () => { row.rootText = roots.value.replace(/;\s*/g, "\n"); };
+      roots.oninput = () => { row.rootText = roots.value.replace(/;\s*/g, "\n"); this.persistDraft(); };
       rootCell.append(roots);
       tr.append(word, status, meaningCell, rootCell);
       body.append(tr);
@@ -293,6 +365,7 @@ export class ContentManagerUi {
     row.meaning = result.entry?.translation ?? "";
     row.rootText = rootsToText(rootsFromDictionary(result.entry));
     this.renderCheckRows();
+    this.persistDraft();
     if (this.rows.every((item) => item.entry || item.meaning.trim())) await this.commitRows();
   }
 
@@ -323,6 +396,14 @@ export class ContentManagerUi {
     this.setStatus(`已在本地保存 ${additions.length} 个单词，正在同步……`);
     sessionStorage.setItem("english-review:content-status", "词库已保存并进入同步队列。");
     this.rows = [];
+    byId<HTMLTextAreaElement>("libraryPasteInput").value = "";
+    [...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].forEach((input) => { input.value = ""; });
+    byId<HTMLInputElement>("libraryName").value = "";
+    byId<HTMLSelectElement>("libraryTarget").value = "new";
+    this.setToday();
+    this.applyTargetState();
+    this.renderCheckRows();
+    this.draftStorage.clear();
     await this.materialize(true);
   }
 

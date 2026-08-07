@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export interface HttpRequest {
   url: string;
-  method: "GET" | "PUT" | "DELETE" | "HEAD" | "MKCOL" | "PROPFIND";
+  method: "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "MKCOL" | "PROPFIND";
   headers?: Record<string, string>;
   body?: string;
   bodyBase64?: string;
@@ -53,6 +53,14 @@ function isCapacitorNative(): boolean {
 
 export function isNativeRuntime(): boolean {
   return isTauri() || isCapacitorNative();
+}
+
+export type RuntimePlatform = "windows" | "android" | "html";
+
+export function getRuntimePlatform(): RuntimePlatform {
+  if (isTauri()) return "windows";
+  if (isCapacitorNative()) return "android";
+  return "html";
 }
 
 export async function saveTextFile(
@@ -132,16 +140,26 @@ export async function deleteSecret(key: string): Promise<void> {
   else sessionStorage.removeItem(`english-review:${key}`);
 }
 
-export async function speakEnglish(text: string): Promise<void> {
+export interface SpeakEnglishOptions {
+  rate?: number;
+  voice?: string;
+}
+
+export async function speakEnglish(text: string, options: SpeakEnglishOptions = {}): Promise<void> {
+  const rate = Math.max(0.5, Math.min(2, options.rate ?? 0.85));
   if ("speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined") {
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
-    utterance.rate = 0.85;
+    utterance.rate = rate;
+    if (options.voice) {
+      const voice = speechSynthesis.getVoices().find((candidate) => candidate.name === options.voice);
+      if (voice) utterance.voice = voice;
+    }
     speechSynthesis.speak(utterance);
     return;
   }
-  if (isTauri()) await invoke("speak_text", { text, locale: "en-US", rate: 0.85 });
-  else if (isCapacitorNative()) await NativeBridge.speak({ text, locale: "en-US", rate: 0.85 });
+  if (isTauri()) await invoke("speak_text", { text, locale: "en-US", rate });
+  else if (isCapacitorNative()) await NativeBridge.speak({ text, locale: "en-US", rate });
   else throw new Error("当前环境不支持语音朗读");
 }

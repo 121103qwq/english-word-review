@@ -1,6 +1,6 @@
 [package]
 name = "english-word-review"
-version = "8.1.1"
+version = "8.2.0"
 description = "Offline English vocabulary review"
 authors = ["English Rebuilt"]
 edition = "2021"

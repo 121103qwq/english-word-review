@@ -10,7 +10,22 @@ import type { V4Snapshot } from "./core/types";
 import { initContentManagerUi, type ContentManagerUi } from "./content/ui";
 import type { ContentSnapshotV1 } from "./content/types";
 import { initReviewUi } from "./review/ui";
-import { BrowserCredentialVault } from "./security/browser-vault";
+import {
+  initPlatformSettingsController,
+  type PlatformSettingsController,
+} from "./settings/controller";
+import {
+  SettingsGitHubTransport,
+  SettingsWebDavTransport,
+  type SettingsTransport,
+} from "./settings/transports";
+import { BrowserCredentialStore } from "./security/browser-vault";
+import {
+  createNativePasswordVerifier,
+  NATIVE_CREDENTIAL_PASSWORD_KEY,
+  parseNativePasswordVerifier,
+  verifyNativePassword,
+} from "./security/native-password";
 import {
   deleteSecret,
   isNativeRuntime,
@@ -71,9 +86,14 @@ const DEFAULT_SYNC_METADATA: SyncMetadata = {
   webdavs: [{ id: "webdav-primary", name: "WebDAV 1", rootUrl: "", username: "", enabled: false }],
 };
 
-const browserVault = new BrowserCredentialVault<SyncCredentials>(localStorage);
+const browserCredentialStore = new BrowserCredentialStore<SyncCredentials>(localStorage);
 let contentManager: ContentManagerUi | undefined;
-let unlockedBrowserCredentials: SyncCredentials | undefined;
+let settingsController: PlatformSettingsController | undefined;
+let latestReviewSpeechCandidate: { word: string; safeToSpeak: boolean } | undefined;
+let currentCredentials: SyncCredentials | undefined;
+let nativeCredentialVerifier: string | undefined;
+let nativeCredentialVerifierInvalid = false;
+let nativeCredentialsUnlocked = false;
 
 const byId = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id);
@@ -194,7 +214,7 @@ function renderWebDavForms(configs: WebDavMetadata[]): void {
     remove.disabled = configs.length === 1;
     remove.onclick = () => {
       const current = metadataFromForm().webdavs.filter((item) => item.id !== config.id);
-      delete unlockedBrowserCredentials?.webdavPasswords[config.id];
+      delete currentCredentials?.webdavPasswords[config.id];
       renderWebDavForms(current.length ? current : structuredClone(DEFAULT_SYNC_METADATA.webdavs));
     };
     head.append(enabledLabel, remove);
@@ -204,7 +224,7 @@ function renderWebDavForms(configs: WebDavMetadata[]): void {
       createField("名称", "name", config.name),
       createField("HTTPS 根地址", "rootUrl", config.rootUrl, "url"),
       createField("用户名", "username", config.username),
-      createField("密码", "password", unlockedBrowserCredentials?.webdavPasswords[config.id] ?? "", "password"),
+      createField("密码", "password", currentCredentials?.webdavPasswords[config.id] ?? "", "password"),
     );
     if (index === 0) fields.querySelector<HTMLInputElement>('[data-field="rootUrl"]')!.id = "webdavUrl";
     card.append(head, fields);
@@ -243,12 +263,20 @@ function credentialsFromForm(): SyncCredentials {
   };
 }
 
-function applyCredentials(credentials: SyncCredentials): void {
-  unlockedBrowserCredentials = credentials;
-  byId<HTMLInputElement>("githubToken").value = credentials.githubToken;
+function applyCredentials(credentials: unknown): void {
+  const candidate = credentials as Partial<SyncCredentials> | null;
+  const passwords = candidate?.webdavPasswords && typeof candidate.webdavPasswords === "object"
+    ? Object.fromEntries(Object.entries(candidate.webdavPasswords).filter((entry): entry is [string, string] => typeof entry[1] === "string"))
+    : {};
+  const normalized: SyncCredentials = {
+    githubToken: typeof candidate?.githubToken === "string" ? candidate.githubToken : "",
+    webdavPasswords: passwords,
+  };
+  currentCredentials = normalized;
+  byId<HTMLInputElement>("githubToken").value = normalized.githubToken;
   for (const card of document.querySelectorAll<HTMLElement>(".webdav-config")) {
     const password = card.querySelector<HTMLInputElement>('[data-field="password"]');
-    if (password) password.value = credentials.webdavPasswords[card.dataset.webdavId || ""] ?? "";
+    if (password) password.value = normalized.webdavPasswords[card.dataset.webdavId || ""] ?? "";
   }
 }
 
@@ -257,7 +285,61 @@ async function persistSecret(key: string, value: string): Promise<void> {
   else await deleteSecret(key);
 }
 
+function requireNativeCredentialsUnlocked(): void {
+  if (isNativeRuntime() && !nativeCredentialsUnlocked) {
+    throw new Error(nativeCredentialVerifier ? "请先输入凭据密码解锁" : "请先设置凭据密码并解锁");
+  }
+}
+
+function renderNativeCredentialGate(): void {
+  const hasPassword = Boolean(nativeCredentialVerifier);
+  const passwordLabel = byId<HTMLElement>("nativeCredentialPasswordLabel");
+  const passwordInput = byId<HTMLInputElement>("nativeCredentialPassword");
+  const confirmLabel = byId<HTMLElement>("nativeCredentialConfirmLabel");
+  const action = byId<HTMLButtonElement>("nativeCredentialActionBtn");
+
+  if (nativeCredentialVerifierInvalid) {
+    byId<HTMLElement>("nativeCredentialTitle").textContent = "原生凭据密码记录损坏";
+    byId<HTMLElement>("nativeCredentialNote").textContent = "请清除原生同步凭据后重新设置密码。";
+    passwordLabel.hidden = true;
+    confirmLabel.hidden = true;
+    action.hidden = true;
+    return;
+  }
+  if (nativeCredentialsUnlocked) {
+    byId<HTMLElement>("nativeCredentialTitle").textContent = "原生凭据已解锁";
+    byId<HTMLElement>("nativeCredentialNote").textContent = "本次运行已可读取 Windows 凭据管理器或 Android Keystore。";
+    passwordLabel.hidden = true;
+    confirmLabel.hidden = true;
+    action.hidden = true;
+    return;
+  }
+
+  byId<HTMLElement>("nativeCredentialTitle").textContent = hasPassword ? "输入凭据密码" : "首次设置凭据密码";
+  byId<HTMLElement>("nativeCredentialNote").textContent = hasPassword
+    ? "输入已设置的密码后，才能读取原生安全存储中的同步凭据。"
+    : "首次使用 Windows 凭据管理器或 Android Keystore 前必须设置并确认密码。";
+  byId<HTMLElement>("nativeCredentialPasswordLabelText").textContent = hasPassword ? "凭据密码" : "设置密码";
+  passwordInput.autocomplete = hasPassword ? "current-password" : "new-password";
+  passwordLabel.hidden = false;
+  confirmLabel.hidden = hasPassword;
+  action.hidden = false;
+  action.textContent = hasPassword ? "解锁并自动同步" : "设置密码并解锁";
+}
+
+async function loadNativeStoredCredentials(metadata = readMetadata()): Promise<SyncCredentials> {
+  const token = await loadSecret("github-token");
+  const passwords = Object.fromEntries(await Promise.all(metadata.webdavs.map(async (config, index) => [
+    config.id,
+    (await loadSecret(`webdav-password:${config.id}`)) || (index === 0 ? await loadSecret("webdav-password") : ""),
+  ])));
+  const credentials = { githubToken: token, webdavPasswords: passwords };
+  applyCredentials(credentials);
+  return credentials;
+}
+
 async function saveSyncSettings(): Promise<void> {
+  requireNativeCredentialsUnlocked();
   const metadata = metadataFromForm();
   localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(metadata));
   const credentials = credentialsFromForm();
@@ -266,11 +348,13 @@ async function saveSyncSettings(): Promise<void> {
       persistSecret("github-token", credentials.githubToken),
       ...metadata.webdavs.map((config) => persistSecret(`webdav-password:${config.id}`, credentials.webdavPasswords[config.id] ?? "")),
     ]);
-  } else if (credentials.githubToken || Object.values(credentials.webdavPasswords).some(Boolean)) {
-    const masterPassword = byId<HTMLInputElement>("syncMasterPassword").value;
-    if (!masterPassword) throw new Error("请先填写主密码再保存 HTML 凭据");
-    await browserVault.save(credentials, masterPassword);
-    unlockedBrowserCredentials = credentials;
+  } else {
+    if (credentials.githubToken || Object.values(credentials.webdavPasswords).some(Boolean)) {
+      browserCredentialStore.save(credentials);
+    } else {
+      browserCredentialStore.clear();
+    }
+    currentCredentials = credentials;
   }
   setSyncStatus("同步设置已保存。", "good");
 }
@@ -284,15 +368,31 @@ async function loadSyncForm(): Promise<void> {
   byId<HTMLInputElement>("githubPath").value = metadata.github.path;
   renderWebDavForms(metadata.webdavs.length ? metadata.webdavs : structuredClone(DEFAULT_SYNC_METADATA.webdavs));
   if (isNativeRuntime()) {
-    byId<HTMLElement>("browserVaultGroup").hidden = true;
-    const token = await loadSecret("github-token");
-    const passwords = Object.fromEntries(await Promise.all(metadata.webdavs.map(async (config, index) => [
-      config.id,
-      (await loadSecret(`webdav-password:${config.id}`)) || (index === 0 ? await loadSecret("webdav-password") : ""),
-    ])));
-    applyCredentials({ githubToken: token, webdavPasswords: passwords });
-  } else if (browserVault.hasStoredCredentials()) {
-    setSyncStatus("同步凭据已加密保存；请输入主密码解锁。", "");
+    byId<HTMLElement>("browserCredentialGroup").hidden = true;
+    byId<HTMLElement>("nativeCredentialGroup").hidden = false;
+    nativeCredentialVerifier = (await loadSecret(NATIVE_CREDENTIAL_PASSWORD_KEY)) || undefined;
+    nativeCredentialVerifierInvalid = false;
+    if (nativeCredentialVerifier) {
+      try {
+        parseNativePasswordVerifier(nativeCredentialVerifier);
+      } catch {
+        nativeCredentialVerifierInvalid = true;
+      }
+    }
+    renderNativeCredentialGate();
+  } else {
+    byId<HTMLElement>("nativeCredentialGroup").hidden = true;
+    try {
+      const storedCredentials = browserCredentialStore.load();
+      if (storedCredentials) {
+        applyCredentials(storedCredentials);
+        setSyncStatus("HTML 凭据已从本地直接加载。", "good");
+      } else if (browserCredentialStore.hasLegacyEncryptedCredentials()) {
+        setSyncStatus("检测到旧版加密凭据；请重新填写令牌和密码并保存。旧密文会在保存或清除时删除。", "bad");
+      }
+    } catch (error) {
+      setSyncStatus(error instanceof Error ? error.message : String(error), "bad");
+    }
   }
 }
 
@@ -341,6 +441,41 @@ function buildTransports(strict = false): { progress: SyncTransport[]; content: 
     }));
   }
   return { progress, content };
+}
+
+/** Manual-only settings-file transports; never used by startup content sync or its outbox. */
+function buildSettingsTransports(strict = false): SettingsTransport[] {
+  const metadata = metadataFromForm();
+  const credentials = credentialsFromForm();
+  const transports: SettingsTransport[] = [];
+  if (metadata.github.enabled) {
+    if (!metadata.github.owner || !metadata.github.repo || !credentials.githubToken) {
+      if (strict) throw new Error("GitHub 设置不完整");
+    } else {
+      transports.push(new SettingsGitHubTransport({
+        id: "github-settings",
+        owner: metadata.github.owner,
+        repo: metadata.github.repo,
+        branch: metadata.github.branch,
+        token: credentials.githubToken,
+      }));
+    }
+  }
+  for (const config of metadata.webdavs.filter((item) => item.enabled)) {
+    const password = credentials.webdavPasswords[config.id] ?? "";
+    if (!config.rootUrl.startsWith("https://") || !config.username || !password) {
+      if (strict) throw new Error(`${config.name} 设置不完整，且根地址必须使用 HTTPS`);
+      continue;
+    }
+    transports.push(new SettingsWebDavTransport({
+      id: `settings-${config.id}`,
+      name: config.name,
+      rootUrl: config.rootUrl,
+      username: config.username,
+      password,
+    }));
+  }
+  return transports;
 }
 
 function contentStatus(result: ContentSyncResult): string {
@@ -460,7 +595,13 @@ byId<HTMLInputElement>("importV4File").onchange = async (event) => {
 byId<HTMLButtonElement>("syncManageBtn").onclick = () => {
   const panel = byId<HTMLElement>("syncPanel");
   panel.hidden = !panel.hidden;
-  if (!panel.hidden) byId<HTMLInputElement>("githubOwner").focus();
+  if (!panel.hidden) {
+    if (isNativeRuntime() && !nativeCredentialsUnlocked && !nativeCredentialVerifierInvalid) {
+      byId<HTMLInputElement>("nativeCredentialPassword").focus();
+    } else {
+      byId<HTMLInputElement>("githubOwner").focus();
+    }
+  }
 };
 byId<HTMLButtonElement>("addWebdavBtn").onclick = () => {
   const current = metadataFromForm().webdavs;
@@ -478,29 +619,83 @@ byId<HTMLButtonElement>("saveSyncBtn").onclick = () => {
   void saveSyncSettings().catch((error) => setSyncStatus(String(error), "bad"));
 };
 byId<HTMLButtonElement>("syncNowBtn").onclick = () => {
-  void synchronize().catch((error) => setSyncStatus(error instanceof Error ? error.message : String(error), "bad"));
-};
-byId<HTMLButtonElement>("unlockCredentialsBtn").onclick = () => {
   void (async () => {
-    const masterPassword = byId<HTMLInputElement>("syncMasterPassword").value;
-    const credentials = await browserVault.unlock(masterPassword);
-    applyCredentials(credentials);
-    setSyncStatus("凭据已解锁，正在自动同步……");
-    await synchronize(false);
+    requireNativeCredentialsUnlocked();
+    await synchronize();
   })().catch((error) => setSyncStatus(error instanceof Error ? error.message : String(error), "bad"));
 };
 byId<HTMLButtonElement>("clearCredentialsBtn").onclick = () => {
-  if (!confirm("只清除加密的云端凭据，不会删除本地词库。确定继续吗？")) return;
-  browserVault.clear();
+  if (!confirm("只清除 HTML 保存的云端凭据，不会删除本地词库。确定继续吗？")) return;
+  browserCredentialStore.clear();
   applyCredentials({ githubToken: "", webdavPasswords: {} });
-  byId<HTMLInputElement>("syncMasterPassword").value = "";
-  setSyncStatus("凭据密文已清除；本地词库未受影响。", "good");
+  setSyncStatus("HTML 本地凭据已清除；本地词库未受影响。", "good");
+};
+byId<HTMLButtonElement>("nativeCredentialActionBtn").onclick = () => {
+  void (async () => {
+    if (!isNativeRuntime() || nativeCredentialVerifierInvalid) return;
+    const passwordInput = byId<HTMLInputElement>("nativeCredentialPassword");
+    const password = passwordInput.value;
+    if (!password) throw new Error("凭据密码不能为空");
+    const settingPassword = !nativeCredentialVerifier;
+
+    if (settingPassword) {
+      const confirmation = byId<HTMLInputElement>("nativeCredentialPasswordConfirm").value;
+      if (password !== confirmation) throw new Error("两次输入的密码不一致");
+      const verifier = await createNativePasswordVerifier(password);
+      nativeCredentialVerifier = JSON.stringify(verifier);
+      await saveSecret(NATIVE_CREDENTIAL_PASSWORD_KEY, nativeCredentialVerifier);
+    } else if (!await verifyNativePassword(nativeCredentialVerifier!, password)) {
+      throw new Error("凭据密码错误");
+    }
+
+    nativeCredentialsUnlocked = true;
+    passwordInput.value = "";
+    byId<HTMLInputElement>("nativeCredentialPasswordConfirm").value = "";
+    renderNativeCredentialGate();
+    const enteredCredentials = credentialsFromForm();
+    const hasEnteredCredentials = enteredCredentials.githubToken || Object.values(enteredCredentials.webdavPasswords).some(Boolean);
+    const credentials = settingPassword && hasEnteredCredentials
+      ? (await saveSyncSettings(), enteredCredentials)
+      : await loadNativeStoredCredentials();
+    if (credentials.githubToken || Object.values(credentials.webdavPasswords).some(Boolean)) {
+      setSyncStatus("原生凭据已解锁，正在自动同步……", "good");
+      await synchronize(false);
+    } else {
+      setSyncStatus("凭据密码已设置并解锁；请填写同步凭据后保存。", "good");
+    }
+  })().catch((error) => setSyncStatus(error instanceof Error ? error.message : String(error), "bad"));
+};
+byId<HTMLButtonElement>("clearNativeCredentialsBtn").onclick = () => {
+  void (async () => {
+    if (!isNativeRuntime()) return;
+    if (!confirm("这会清除凭据密码、GitHub Token 和所有 WebDAV 密码，但不会删除本地词库。确定继续吗？")) return;
+    const ids = new Set([
+      ...readMetadata().webdavs.map((config) => config.id),
+      ...metadataFromForm().webdavs.map((config) => config.id),
+    ]);
+    await Promise.all([
+      deleteSecret(NATIVE_CREDENTIAL_PASSWORD_KEY),
+      deleteSecret("github-token"),
+      deleteSecret("webdav-password"),
+      ...[...ids].map((id) => deleteSecret(`webdav-password:${id}`)),
+    ]);
+    nativeCredentialVerifier = undefined;
+    nativeCredentialVerifierInvalid = false;
+    nativeCredentialsUnlocked = false;
+    applyCredentials({ githubToken: "", webdavPasswords: {} });
+    renderNativeCredentialGate();
+    setSyncStatus("原生同步凭据已清除；请重新设置凭据密码。", "good");
+  })().catch((error) => setSyncStatus(error instanceof Error ? error.message : String(error), "bad"));
 };
 
 byId<HTMLButtonElement>("speakBtn").onclick = () => {
-  const word = legacyRuntime.getCurrentWord();
-  if (!word) return;
   void (async () => {
+    if (settingsController) {
+      await settingsController.speakWord();
+      return;
+    }
+    const word = legacyRuntime.getCurrentWord();
+    if (!word) return;
     if (contentManager && await contentManager.playPrimaryForWord(word)) return;
     await speakEnglish(word);
   })().catch((error) => alert(error instanceof Error ? error.message : String(error)));
@@ -601,8 +796,44 @@ async function initializeApplication(): Promise<void> {
   if (materializedDecision === "continue") {
     reportRepeatedLegacyRefresh();
   }
-  initReviewUi({ store, legacyRuntime });
+  initReviewUi({
+    store,
+    legacyRuntime,
+    onSpeakCandidate: (word, safeToSpeak) => {
+      latestReviewSpeechCandidate = { word, safeToSpeak };
+      settingsController?.onQuestion(word, safeToSpeak);
+    },
+    onAnswerFeedback: (correct) => settingsController?.onAnswerFeedback(correct),
+    onClose: () => {
+      latestReviewSpeechCandidate = undefined;
+      const state = legacyRuntime.getModeState();
+      if (state.mode === "review") legacyRuntime.requestMode(state.studyMode);
+    },
+  });
   byId<HTMLButtonElement>("exportV4Btn").disabled = false;
+
+  const settingsButton = byId<HTMLButtonElement>("settingsOpenBtn");
+  void initPlatformSettingsController({
+      deviceId: store.deviceId,
+      legacyRuntime,
+      getSettingsTransports: buildSettingsTransports,
+      playPrimaryForWord: (word) => contentManager!.playPrimaryForWord(word),
+      canUseNativeSecrets: () => !isNativeRuntime() || nativeCredentialsUnlocked,
+      reportStatus: setSyncStatus,
+    })
+    .then((controller) => {
+      settingsController = controller;
+      if (legacyRuntime.getModeState().mode === "review" && latestReviewSpeechCandidate) {
+        controller.onQuestion(latestReviewSpeechCandidate.word, latestReviewSpeechCandidate.safeToSpeak);
+      }
+      settingsButton.disabled = false;
+      settingsButton.title = "设置";
+    })
+    .catch((error) => {
+      settingsButton.disabled = true;
+      settingsButton.title = "个性化设置初始化失败";
+      setSyncStatus(`个性化设置初始化失败，学习功能仍可使用：${error instanceof Error ? error.message : String(error)}`, "bad");
+    });
   const transports = buildTransports(false).content;
   if (transports.length && !store.readOnly) {
     setSyncStatus("启动检查：正在比较本地与所有内容镜像……");

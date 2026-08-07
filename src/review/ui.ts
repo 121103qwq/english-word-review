@@ -20,6 +20,9 @@ const SESSION_KEY = "english-word-review:spaced-review-session-v1";
 interface ReviewUiOptions {
   store: EventStore;
   legacyRuntime: LegacyRuntimeApi;
+  onSpeakCandidate?: (word: string, safeToSpeak: boolean) => void;
+  onAnswerFeedback?: (correct: boolean) => void;
+  onClose?: () => void;
 }
 
 const byId = <T extends HTMLElement>(id: string): T => {
@@ -77,6 +80,19 @@ export function initReviewUi(options: ReviewUiOptions): void {
   let showingMeaning = false;
   let locked = false;
   let awaitingAdvance = false;
+
+  const setSubmitLabel = (base: string) => {
+    submit.dataset.baseLabel = base;
+    const hint = Object.prototype.hasOwnProperty.call(submit.dataset, "shortcutLabel")
+      ? submit.dataset.shortcutLabel ?? ""
+      : "Enter";
+    submit.textContent = hint ? `${base}（${hint}）` : base;
+  };
+
+  const closePanel = () => {
+    panel.hidden = true;
+    options.onClose?.();
+  };
 
   if (options.store.readOnly) {
     const open = byId<HTMLButtonElement>("reviewOpenBtn");
@@ -140,12 +156,13 @@ export function initReviewUi(options: ReviewUiOptions): void {
       ? "输入完整英文"
       : "可写下或口述后查看释义（不自动判分）";
     submit.hidden = false;
-    submit.textContent = question.direction === "zh-to-en" ? "提交（Enter）" : "显示完整释义";
+    setSubmitLabel(question.direction === "zh-to-en" ? "提交" : "显示完整释义");
     meanings.hidden = true;
     judge.hidden = true;
     clearFeedback();
     promptLabel.textContent = question.direction === "en-to-zh" ? "英 → 中：先独立回忆，再查看完整释义" : "中 → 英：输入完整英文";
     prompt.textContent = question.direction === "en-to-zh" ? question.word : (question.meanings.join("；") || "（暂无中文释义）");
+    options.onSpeakCandidate?.(question.word, question.direction === "en-to-zh");
     const primaryTotal = session.questions.filter((item) => item.attempt === "primary").length;
     const primaryDone = session.answers.filter((item) => item.attempt === "primary").length;
     progress.textContent = `${question.attempt === "retry" ? "补测" : "主队列"} · ${primaryDone + (question.attempt === "primary" ? 1 : 0)}/${primaryTotal}`;
@@ -196,11 +213,13 @@ export function initReviewUi(options: ReviewUiOptions): void {
     meanings.hidden = false;
     feedback.textContent = result.answer.correct ? "正确。" : "这题先记为没记得，正确答案已显示。";
     feedback.className = `review-feedback ${result.answer.correct ? "good" : "bad"}`;
+    options.onAnswerFeedback?.(result.answer.correct);
+    if (result.question.direction === "zh-to-en") options.onSpeakCandidate?.(result.question.word, true);
     input.hidden = true;
     judge.hidden = true;
     awaitingAdvance = true;
     submit.hidden = false;
-    submit.textContent = result.complete ? "查看结果（Enter）" : "下一题（Enter）";
+    setSubmitLabel(result.complete ? "查看结果" : "下一题");
     window.setTimeout(() => submit.focus(), 0);
   };
 
@@ -257,8 +276,8 @@ export function initReviewUi(options: ReviewUiOptions): void {
     }
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  byId<HTMLButtonElement>("reviewCloseBtn").onclick = () => { panel.hidden = true; };
-  byId<HTMLButtonElement>("reviewBackBtn").onclick = () => { panel.hidden = true; };
+  byId<HTMLButtonElement>("reviewCloseBtn").onclick = closePanel;
+  byId<HTMLButtonElement>("reviewBackBtn").onclick = closePanel;
   byId<HTMLButtonElement>("reviewCurrentBtn").onclick = () => start("current");
   spacedButton.onclick = () => start("spaced");
   byId<HTMLButtonElement>("reviewNextBatchBtn").onclick = () => {
@@ -274,6 +293,9 @@ export function initReviewUi(options: ReviewUiOptions): void {
   };
   byId<HTMLButtonElement>("reviewKnowBtn").onclick = () => commitAnswer(true);
   byId<HTMLButtonElement>("reviewDontBtn").onclick = () => commitAnswer(false);
+  window.addEventListener("english-review:shortcut-labels-updated", () => {
+    if (submit.dataset.baseLabel) setSubmitLabel(submit.dataset.baseLabel);
+  });
   input.addEventListener("keydown", (event) => {
     if (event.isComposing || event.keyCode === 229 || event.key !== "Enter") return;
     event.preventDefault();
@@ -287,13 +309,34 @@ export function initReviewUi(options: ReviewUiOptions): void {
     session = abandonReviewSession(session);
     session = undefined;
     persist();
-    panel.hidden = true;
+    closePanel();
   };
 
   // The legacy learner registers its document shortcut handler earlier. Capture
   // here so review typing and shortcuts never leak through to the page beneath.
   document.addEventListener("keydown", (event) => {
     if (panel.hidden) return;
+    const settingsModal = document.getElementById("settingsModal");
+    if (settingsModal && !settingsModal.hidden) return;
+    const externalShortcut = (window as Window & {
+      __englishReviewShortcutHandler?: (keyboardEvent: KeyboardEvent) => boolean;
+    }).__englishReviewShortcutHandler;
+    if (externalShortcut?.(event)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (event.key === "Escape" && !questionState.hidden) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closePanel();
+      return;
+    }
+    const editingReviewInput = !input.hidden && document.activeElement === input;
+    if (externalShortcut && !editingReviewInput) {
+      event.stopImmediatePropagation();
+      return;
+    }
     if (event.key === "Enter" && !event.isComposing && awaitingAdvance) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -307,7 +350,6 @@ export function initReviewUi(options: ReviewUiOptions): void {
       else commitAnswer();
     }
     event.stopImmediatePropagation();
-    if (event.key === "Escape" && !questionState.hidden) panel.hidden = true;
     if (event.key === "Enter" && !event.isComposing && document.activeElement !== input) {
       const question = session && getCurrentReviewQuestion(session);
       if (question?.direction === "en-to-zh" && !showingMeaning) {
