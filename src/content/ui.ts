@@ -8,6 +8,7 @@ import {
   parseWordInput,
   resolveWord,
 } from "./model";
+import { migrateV820BundledLibrary, V820_BUNDLED_LIBRARY_ID } from "./bundled-library";
 import { ContentRepository, IndexedDbContentBackend } from "./storage";
 import { commitContentMutation, type ContentSyncResult } from "../sync/content-sync";
 import type { ContentTransport } from "../sync/content-transports";
@@ -117,6 +118,7 @@ export class ContentManagerUi {
       this.snapshot = migrateLegacyBundle(this.options.legacyRuntime.getBundle(), this.options.deviceId);
       await this.backend.putCurrent(this.snapshot);
     }
+    await this.migrateBundledLibraryIfNeeded();
     this.bind();
     this.setToday();
     this.ensureTableRows(4);
@@ -130,6 +132,7 @@ export class ContentManagerUi {
   async acceptSynchronizedSnapshot(snapshot: ContentSnapshotV1): Promise<void> {
     await this.backend.putCurrent(snapshot);
     this.snapshot = structuredClone(snapshot);
+    await this.migrateBundledLibraryIfNeeded();
     this.render();
     await this.materialize(true);
   }
@@ -137,6 +140,7 @@ export class ContentManagerUi {
   async replaceFromRemote(snapshot: ContentSnapshotV1): Promise<void> {
     await this.repository.replaceFromRemote(snapshot);
     this.snapshot = structuredClone(snapshot);
+    await this.migrateBundledLibraryIfNeeded();
     this.render();
     await this.materialize(true);
   }
@@ -213,6 +217,19 @@ export class ContentManagerUi {
   private inputWords(): string[] {
     if (this.inputMode === "paste") return parseWordInput(byId<HTMLTextAreaElement>("libraryPasteInput").value);
     return parseWordInput([...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].map((input) => input.value).join("\n"));
+  }
+
+  private async migrateBundledLibraryIfNeeded(): Promise<void> {
+    if (this.snapshot.activeLibraryId !== V820_BUNDLED_LIBRARY_ID) return;
+    const result = await commitContentMutation({
+      persistence: this.backend,
+      transports: this.options.getTransports?.() ?? [],
+      deviceId: this.options.deviceId,
+      mutate: (draft) => {
+        migrateV820BundledLibrary(draft);
+      },
+    });
+    this.snapshot = result.snapshot;
   }
 
   private persistDraft(): void {

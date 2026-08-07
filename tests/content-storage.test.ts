@@ -3,7 +3,7 @@ import { createEmptyContentSnapshot } from "../src/content/model";
 import { ContentRepository, MemoryContentBackend, OUTBOX_RETRY_DELAYS_MS } from "../src/content/storage";
 
 describe("content repository", () => {
-  it("reads an 8.1.0 snapshot and stamps new mutations with 8.2.0", async () => {
+  it("reads an 8.1.0 snapshot and stamps new mutations with 8.2.1", async () => {
     const backend = new MemoryContentBackend();
     const oldSnapshot = createEmptyContentSnapshot("device-a");
     oldSnapshot.appVersion = "8.1.0";
@@ -11,7 +11,7 @@ describe("content repository", () => {
     const repository = new ContentRepository(backend, "device-a");
 
     expect((await repository.open()).appVersion).toBe("8.1.0");
-    expect((await repository.commit(() => undefined)).appVersion).toBe("8.2.0");
+    expect((await repository.commit(() => undefined)).appVersion).toBe("8.2.1");
   });
 
   it("backs up before each mutation and keeps exactly the newest 30", async () => {

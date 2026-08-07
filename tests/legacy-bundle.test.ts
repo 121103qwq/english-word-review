@@ -208,7 +208,7 @@ describe("legacy bundle startup comparison", () => {
     const source = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
     const materialize = source.indexOf("contentManager = await initContentManagerUi");
     const reconcile = source.indexOf("const materializedDecision = reconcileProjectedLegacy()", materialize);
-    const review = source.indexOf("initReviewUi({ store, legacyRuntime })", reconcile);
+    const review = source.indexOf("initReviewUi({", reconcile);
 
     expect(materialize).toBeGreaterThanOrEqual(0);
     expect(reconcile).toBeGreaterThan(materialize);

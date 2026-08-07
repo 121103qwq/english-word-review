@@ -214,5 +214,11 @@ declare global {
     __englishReviewLegacy?: LegacyRuntimeApi;
     __v8Bridge?: V8Bridge;
     __englishReviewShortcutHandler?: (event: KeyboardEvent) => boolean;
+    __englishReviewSettingsUi?: {
+      open(): void;
+      close(): void;
+      activateSection(section: string): void;
+      readonly activeSection: string;
+    };
   }
 }

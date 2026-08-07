@@ -485,6 +485,21 @@ function contentStatus(result: ContentSyncResult): string {
   return `${result.complete ? "内容镜像同步完成" : "内容已保存；部分镜像等待重试"}\n${detail.join("\n")}`;
 }
 
+function openDataSyncSettings(focusField = true): void {
+  const settingsUi = window.__englishReviewSettingsUi;
+  if (!settingsUi) return;
+  settingsUi.activateSection("data-sync");
+  settingsUi.open();
+  if (!focusField) return;
+  window.setTimeout(() => {
+    if (isNativeRuntime() && !nativeCredentialsUnlocked && !nativeCredentialVerifierInvalid) {
+      byId<HTMLInputElement>("nativeCredentialPassword").focus();
+    } else {
+      byId<HTMLInputElement>("githubOwner").focus();
+    }
+  }, 0);
+}
+
 async function synchronize(saveSettings = true): Promise<void> {
   if (store.readOnly) throw new Error("当前快照只读，不能同步回写");
   if (saveSettings) await saveSyncSettings();
@@ -539,10 +554,10 @@ byId<HTMLButtonElement>("exportV4Btn").onclick = async (event) => {
       learning: store.getSnapshot(),
       content,
       audioManifest: Object.values(content.assets),
-    }, `英语单词背诵-完整-8.1-${new Date().toISOString().slice(0, 10)}.json`);
+    }, `英语单词背诵-完整-${APP_VERSION}-${new Date().toISOString().slice(0, 10)}.json`);
   } catch (error) {
     setSyncStatus(`完整快照导出失败：${error instanceof Error ? error.message : String(error)}`, "bad");
-    byId<HTMLElement>("syncPanel").hidden = false;
+    openDataSyncSettings(false);
   } finally {
     button.disabled = false;
   }
@@ -574,7 +589,7 @@ byId<HTMLInputElement>("importV4File").onchange = async (event) => {
         `未覆盖当前进度：${issue}。${saved ? "原文件已另存为只读备份。" : "已取消另存文件。"}`,
         "bad",
       );
-      byId<HTMLElement>("syncPanel").hidden = false;
+      openDataSyncSettings(false);
       return;
     }
     const merged = mergeSnapshots(store.getSnapshot(), snapshot);
@@ -588,20 +603,12 @@ byId<HTMLInputElement>("importV4File").onchange = async (event) => {
     }
   } catch (error) {
     setSyncStatus(`完整快照导入失败：${error instanceof Error ? error.message : String(error)}`, "bad");
-    byId<HTMLElement>("syncPanel").hidden = false;
+    openDataSyncSettings(false);
   }
 };
 
 byId<HTMLButtonElement>("syncManageBtn").onclick = () => {
-  const panel = byId<HTMLElement>("syncPanel");
-  panel.hidden = !panel.hidden;
-  if (!panel.hidden) {
-    if (isNativeRuntime() && !nativeCredentialsUnlocked && !nativeCredentialVerifierInvalid) {
-      byId<HTMLInputElement>("nativeCredentialPassword").focus();
-    } else {
-      byId<HTMLInputElement>("githubOwner").focus();
-    }
-  }
+  openDataSyncSettings();
 };
 byId<HTMLButtonElement>("addWebdavBtn").onclick = () => {
   const current = metadataFromForm().webdavs;
@@ -707,7 +714,7 @@ const lastSync = sessionStorage.getItem("english-review:last-sync");
 if (lastSync) {
   sessionStorage.removeItem("english-review:last-sync");
   const parsed = JSON.parse(lastSync) as { summary: string; complete: boolean };
-  byId<HTMLElement>("syncPanel").hidden = false;
+  openDataSyncSettings(false);
   setSyncStatus(parsed.summary, parsed.complete ? "good" : "bad");
 }
 
@@ -729,7 +736,7 @@ function reconcileProjectedLegacy(reportContinue = false): LegacyProjectionDecis
 }
 
 function reportRepeatedLegacyRefresh(): void {
-  byId<HTMLElement>("syncPanel").hidden = false;
+  openDataSyncSettings(false);
   setSyncStatus("已阻止内容投影重复刷新，应用将继续初始化；建议导出完整快照备份。", "bad");
 }
 

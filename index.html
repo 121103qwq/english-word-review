@@ -169,6 +169,7 @@
     .sync-panel { margin-top: 14px; padding: 17px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
     .sync-panel[hidden] { display: none !important; }
     .sync-panel h2 { margin: 0; font-size: 17px; }
+    .settings-embedded-sync { margin-top: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
     .sync-note { margin: 5px 0 14px; color: #718099; font-size: 13px; }
     .sync-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .sync-group { min-width: 0; padding: 13px; border: 1px solid #e7ebf2; border-radius: 12px; background: #fafbfd; }
@@ -185,7 +186,7 @@
     .webdav-config-head button, #addWebdavBtn { padding: 7px 10px; background: #eef2f8; color: #3b4c67; font-size: 12px; }
     .sync-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
     .sync-actions button { background: #2768d6; color: #fff; }
-    .sync-status { flex: 1 1 260px; min-height: 22px; color: #52647f; font-size: 13px; white-space: pre-line; }
+    .sync-status { flex: 1 1 260px; min-width: 0; min-height: 22px; overflow-wrap: anywhere; color: #52647f; font-size: 13px; white-space: pre-line; }
     .sync-status.good { color: #176a40; } .sync-status.bad { color: #ac3434; }
     .library-manager { margin-top: 14px; padding: 18px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
     .library-manager[hidden], .library-input-mode[hidden] { display: none !important; }
@@ -314,6 +315,7 @@
     html[data-theme="dark"] .settings-search-row input, html[data-theme="dark"] .settings-mobile-section, html[data-theme="dark"] .setting-control input, html[data-theme="dark"] .setting-control select { border-color: #3a4a61; background: #101a29; color: #e5edf8; }
     html[data-theme="dark"] .setting-label, html[data-theme="dark"] .shortcut-name, html[data-theme="dark"] .settings-group h4 { color: #d4dfef; }
     html[data-theme="dark"] .setting-description, html[data-theme="dark"] .settings-section-note, html[data-theme="dark"] .settings-heading p, html[data-theme="dark"] .settings-file-item span { color: #9dacbf; }
+    html[data-theme="dark"] .settings-embedded-sync { border: 0; background: transparent; box-shadow: none; }
     html[data-theme="dark"] .word, html[data-theme="dark"] .review-prompt, html[data-theme="dark"] .intensive-prompt { color: #78aafd; }
     html[data-theme="dark"] .meaning, html[data-theme="dark"] .stat b { color: #e5edf8; }
     html[data-theme="dark"] .top-mode-item, html[data-theme="dark"] .top-wrong-toggle { color: #d3deed; }
@@ -433,53 +435,6 @@
     </section>
     <input id="importFile" type="file" accept="application/json" hidden>
     <input id="importV4File" type="file" accept="application/json" hidden>
-    <section class="sync-panel" id="syncPanel" hidden aria-labelledby="syncTitle">
-      <h2 id="syncTitle">学习进度与内容镜像同步</h2>
-      <p class="sync-note">学习进度按事件合并；词库内容严格采用最新完整快照。本机、GitHub 和全部启用的 WebDAV 均为对等镜像。</p>
-      <div class="sync-grid">
-        <div class="sync-group">
-          <h3>GitHub Contents API</h3>
-          <div class="sync-fields">
-            <label><span><input id="githubEnabled" type="checkbox" checked> 启用 GitHub 镜像</span></label>
-            <label>仓库所有者<input id="githubOwner" value="121103qwq" autocomplete="off"></label>
-            <label>私有数据仓库名<input id="githubRepo" value="english-word-review-data" autocomplete="off"></label>
-            <label>分支<input id="githubBranch" value="main" autocomplete="off"></label>
-            <label>学习快照路径<input id="githubPath" value="progress/snapshot-v4.json" autocomplete="off"></label>
-            <label>细粒度令牌<input id="githubToken" type="password" autocomplete="off" placeholder="只需 Contents 读写权限"></label>
-          </div>
-        </div>
-        <div class="sync-group">
-          <h3>WebDAV 镜像（HTTPS，可添加多个）</h3>
-          <div id="webdavConfigs"></div>
-          <button id="addWebdavBtn" type="button">添加 WebDAV 镜像</button>
-        </div>
-      </div>
-      <div class="sync-group" id="browserCredentialGroup">
-        <h3>HTML 本地凭据</h3>
-        <p class="sync-note">令牌和密码将不加密地保存在当前浏览器，并在下次打开时自动加载。请勿在共享电脑上保存凭据。</p>
-        <div class="sync-actions">
-          <button id="clearCredentialsBtn" type="button">清除 HTML 本地凭据</button>
-        </div>
-      </div>
-      <div class="sync-group" id="nativeCredentialGroup" hidden>
-        <h3 id="nativeCredentialTitle">首次设置凭据密码</h3>
-        <p class="sync-note" id="nativeCredentialNote">首次使用原生安全存储前必须设置密码。</p>
-        <div class="sync-fields">
-          <label id="nativeCredentialPasswordLabel"><span id="nativeCredentialPasswordLabelText">设置密码</span><input id="nativeCredentialPassword" type="password" autocomplete="new-password"></label>
-          <label id="nativeCredentialConfirmLabel">确认密码<input id="nativeCredentialPasswordConfirm" type="password" autocomplete="new-password"></label>
-        </div>
-        <div class="sync-actions">
-          <button id="nativeCredentialActionBtn" type="button">设置密码并解锁</button>
-          <button id="clearNativeCredentialsBtn" type="button">忘记密码：清除原生同步凭据</button>
-        </div>
-      </div>
-      <div class="sync-actions">
-        <button id="saveSyncBtn" type="button">保存同步设置</button>
-        <button id="syncNowBtn" type="button">立即同步</button>
-        <span class="version-chip" id="versionChip">8.2.0 · weighted-random-v1</span>
-        <span class="sync-status" id="syncStatus" role="status"></span>
-      </div>
-    </section>
     <section class="library-manager" id="libraryManager" hidden aria-labelledby="libraryManagerTitle">
       <div class="library-manager-head">
         <div><h2 id="libraryManagerTitle">手动词库</h2><span class="sync-note">释义、检查和词根分析均在本机完成。</span></div>
@@ -823,10 +778,54 @@
 
           <section class="settings-section" id="settingsSectionDataSync" data-settings-section-panel="data-sync" data-settings-search="数据 同步 GitHub WebDAV 凭据 词库 进度" hidden>
             <h3>数据同步</h3>
-            <p class="settings-section-note">这里沿用现有的学习进度与词库镜像配置；个性化设置目录不会参与普通同步检查。</p>
-            <div class="settings-group">
-              <div class="setting-row"><div class="setting-label">学习进度与词库镜像<span class="setting-description">配置 GitHub、多个 WebDAV、凭据以及立即同步。</span></div><div class="setting-control"><div class="settings-inline-actions"><button class="primary" type="button" id="settingsOpenDataSyncBtn">打开数据同步设置</button><span class="settings-status" id="settingsDataSyncStatus"></span></div></div></div>
-            </div>
+            <p class="settings-section-note">学习进度按事件合并；词库内容严格采用最新完整快照。个性化设置使用独立目录，不参与这里的普通同步检查。</p>
+            <section class="sync-panel settings-embedded-sync" id="syncPanel" aria-labelledby="syncTitle">
+              <h2 id="syncTitle">学习进度与内容镜像同步</h2>
+              <p class="sync-note">本机、GitHub 和全部启用的 WebDAV 均为对等镜像。保存配置不会更改学习算法。</p>
+              <div class="sync-grid">
+                <div class="sync-group">
+                  <h3>GitHub Contents API</h3>
+                  <div class="sync-fields">
+                    <label><span><input id="githubEnabled" type="checkbox" checked> 启用 GitHub 镜像</span></label>
+                    <label>仓库所有者<input id="githubOwner" value="121103qwq" autocomplete="off"></label>
+                    <label>私有数据仓库名<input id="githubRepo" value="english-word-review-data" autocomplete="off"></label>
+                    <label>分支<input id="githubBranch" value="main" autocomplete="off"></label>
+                    <label>学习快照路径<input id="githubPath" value="progress/snapshot-v4.json" autocomplete="off"></label>
+                    <label>细粒度令牌<input id="githubToken" type="password" autocomplete="off" placeholder="只需 Contents 读写权限"></label>
+                  </div>
+                </div>
+                <div class="sync-group">
+                  <h3>WebDAV 镜像（HTTPS，可添加多个）</h3>
+                  <div id="webdavConfigs"></div>
+                  <button id="addWebdavBtn" type="button">添加 WebDAV 镜像</button>
+                </div>
+              </div>
+              <div class="sync-group" id="browserCredentialGroup">
+                <h3>HTML 本地凭据</h3>
+                <p class="sync-note">令牌和密码将不加密地保存在当前浏览器，并在下次打开时自动加载。请勿在共享电脑上保存凭据。</p>
+                <div class="sync-actions">
+                  <button id="clearCredentialsBtn" type="button">清除 HTML 本地凭据</button>
+                </div>
+              </div>
+              <div class="sync-group" id="nativeCredentialGroup" hidden>
+                <h3 id="nativeCredentialTitle">首次设置凭据密码</h3>
+                <p class="sync-note" id="nativeCredentialNote">首次使用原生安全存储前必须设置密码。</p>
+                <div class="sync-fields">
+                  <label id="nativeCredentialPasswordLabel"><span id="nativeCredentialPasswordLabelText">设置密码</span><input id="nativeCredentialPassword" type="password" autocomplete="new-password"></label>
+                  <label id="nativeCredentialConfirmLabel">确认密码<input id="nativeCredentialPasswordConfirm" type="password" autocomplete="new-password"></label>
+                </div>
+                <div class="sync-actions">
+                  <button id="nativeCredentialActionBtn" type="button">设置密码并解锁</button>
+                  <button id="clearNativeCredentialsBtn" type="button">忘记密码：清除原生同步凭据</button>
+                </div>
+              </div>
+              <div class="sync-actions">
+                <button id="saveSyncBtn" type="button">保存同步设置</button>
+                <button id="syncNowBtn" type="button">立即同步</button>
+                <span class="version-chip" id="versionChip">8.2.1 · weighted-random-v1</span>
+                <span class="sync-status" id="syncStatus" role="status"></span>
+              </div>
+            </section>
           </section>
         </div>
       </div>
@@ -897,45 +896,11 @@
       weightedPick as sharedWeightedPick,
       zhSimilarity as sharedZhSimilarity
     } from '/src/core/selection.ts';
-    const words = [
-      ["childhood", "童年；儿童时期"],
-      ["ceremony", "仪式；典礼；礼节"],
-      ["routine", "常规；惯例；例行公事；日常的；常规的"],
-      ["endless", "无尽的；没完没了的；无数的"],
-      ["scenery", "风景；景色；舞台布景"],
-      ["silvery", "银色的；银白色的；银铃般的"],
-      ["kindness", "善良；仁慈；好意；友好的行为"],
-      ["happiness", "幸福；快乐"],
-      ["darkness", "黑暗；漆黑；阴暗；邪恶"],
-      ["weakness", "弱点；缺点；虚弱；软弱"],
-      ["racial", "种族的；人种的"],
-      ["official", "官方的；正式的；公务的；官员；公务员"],
-      ["facial", "面部的；脸部的；面部护理"],
-      ["initial", "最初的；开始的；首字母；姓名首字母；用首字母签署"],
-      ["failure", "失败；失败的人或事；故障；未能做到"],
-      ["measure", "测量；衡量；措施；程度；尺寸；量度"],
-      ["creature", "生物；动物；人；受支配的人"],
-      ["guilty", "内疚的；有罪的；犯罪的"],
-      ["steady", "稳定的；平稳的；稳步的；使稳定"],
-      ["tasty", "美味的；可口的"],
-      ["worthy", "值得的；有价值的；值得尊敬的"],
-      ["muddy", "泥泞的；浑浊的；使沾上泥；使混乱"],
-      ["harmony", "和谐；协调；和声"],
-      ["energy", "能量；精力；活力"],
-      ["novel", "小说；新颖的；新奇的"],
-      ["previous", "以前的；先前的；上一个的"],
-      ["graduate", "毕业；毕业生；大学毕业生；授予学位"],
-      ["graduation", "毕业；毕业典礼"],
-      ["gradual", "逐渐的；渐进的"],
-      ["duty", "责任；义务；职责；值班；税"],
-      ["advocate", "提倡；拥护；主张；拥护者；辩护律师"],
-      ["microwave", "微波炉；微波；用微波炉加热"],
-      ["gentle", "温和的；轻柔的；文雅的；缓慢的"],
-      ["engine", "发动机；引擎；机车；搜索引擎"],
-      ["comfort", "安慰；舒适；慰藉；使安慰；使舒适"],
-      ["effort", "努力；尝试；力气；成果"],
-      ["professor", "教授；教师"]
-    ].map(([en, zh]) => ({en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0, reverseMastery: 0, rareRight: 0, rareWrong: 0, rareMastery: 0}));
+    import { V746_BUNDLED_LIBRARY } from '/src/content/bundled-library.ts';
+    const words = V746_BUNDLED_LIBRARY.map(({word: en, meaning: zh}) => ({
+      en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0,
+      reverseMastery: 0, reverseReviewWeight: 0, rareRight: 0, rareWrong: 0, rareMastery: 0
+    }));
 
     const yesterdayWords = [
       ['theory','理论；学说；原理；看法；推测'],
@@ -983,7 +948,7 @@
       ['poison','毒药；毒物；毒害；败坏；有害影响'],
       ['poisonous','有毒的；恶毒的；有害的']
     ].map(([en, zh]) => ({en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0, reverseMastery: 0, rareRight: 0, rareWrong: 0, rareMastery: 0}));
-    const ROOT_DATA = {
+    const V820_ROOT_DATA = {
       "childhood": ["child / -hood", "儿童；时期、状态"],
       "ceremony": ["ceremon", "仪式；礼节"],
       "routine": ["rout / route", "道路；固定路线"],
@@ -1022,7 +987,8 @@
       "effort": ["ex- / fort", "向外；强壮"],
       "professor": ["pro- / fess", "向前、公开；说"]
     };
-    const ROOT_HINT_DATA = {
+    const ROOT_DATA = Object.fromEntries(V746_BUNDLED_LIBRARY.map(entry => [entry.word, [entry.root, entry.rootMeaning]]));
+    const V820_ROOT_HINT_DATA = {
       "childhood": "child（儿童）+ -hood（时期、状态）→一个人处于儿童阶段的那段时期",
       "ceremony": "ceremon（礼仪、仪式）+ -y（名词后缀）→按固定礼节举行的一套正式活动",
       "routine": "route（道路、路线）→每天沿着同一条“路线”重复进行的安排",
@@ -1061,6 +1027,9 @@
       "effort": "ex-（向外）+ fort（强壮、力量）→把身体或意志中的力量向外用出来",
       "professor": "pro-（向前、公开）+ fess（说）+ -or（人）→公开讲授并表达专业知识的人"
     };
+    const ROOT_HINT_DATA = Object.fromEntries(V746_BUNDLED_LIBRARY.map(entry => [entry.word, entry.rootHint]));
+    void V820_ROOT_DATA;
+    void V820_ROOT_HINT_DATA;
     const YESTERDAY_ARCHIVE_DATE = '2026-07-21';
     const yesterdayLibraryId = yesterdayWords.map(w => w.en).join('|');
 
@@ -1155,7 +1124,7 @@
       store.current = normalizeLibrary(store.current);
       store.archives = pruneArchives(store.archives);
       // Legacy daily libraries use a pipe-joined word-list id. UUID libraries are
-      // managed by the 8.1 content store and must remain active across reloads.
+      // managed by the v8 content store and must remain active across reloads.
       if (store.current.id !== libraryId && store.current.id.includes('|') && !v8ManagedLibraryIds.has(store.current.id)) {
         store.archives = store.archives.filter(a => a.id !== store.current.id);
         store.archives.unshift(store.current);
@@ -1703,7 +1672,7 @@
       const rootInfo = ROOT_DATA[current.en.toLowerCase()];
       const customRoots = Array.isArray(current.roots) ? current.roots.filter(item =>
         (item.root || item.form) && (item.meaning || item.meaningZh || item.zh)) : [];
-      const customHint = customRoots.map(item =>
+      const customHint = customRoots.find(item => item.note)?.note || customRoots.map(item =>
         `${item.root || item.form}（${item.meaning || item.meaningZh || item.zh}${item.source === 'inferred' ? '，推测' : ''}）`).join(' + ');
       $('meaning').textContent = customHint || rootHint || (rootInfo
         ? `${rootInfo[0]}（${rootInfo[1]}）→根据这个词根关系回想完整意思`
@@ -2880,6 +2849,10 @@
       document.querySelectorAll('[data-settings-section]').forEach(button => button.classList.toggle('active', button.dataset.settingsSection === next));
       document.querySelectorAll('[data-settings-section-panel]').forEach(panel => { panel.hidden = panel.dataset.settingsSectionPanel !== next; });
       $('settingsSectionSelect').value = next;
+      const dataSync = next === 'data-sync';
+      $('settingsApplyBtn').hidden = dataSync;
+      $('settingsSaveBtn').hidden = dataSync;
+      $('settingsCancelBtn').textContent = dataSync ? '关闭' : '取消';
       $('settingsContent').scrollTop = 0;
     }
 
@@ -2980,11 +2953,6 @@
         event.stopPropagation();
         requestSettingsAction('cancel');
       }
-    });
-    $('settingsOpenDataSyncBtn').addEventListener('click', () => {
-      if (!requestSettingsAction('cancel')) return;
-      $('syncManageBtn').click();
-      $('syncPanel').scrollIntoView({behavior: 'smooth', block: 'start'});
     });
     [['settingsAutoAdvanceDelay', 'settingsAutoAdvanceDelayOutput', value => `${(Number(value) / 1000).toFixed(2)} 秒`], ['settingsUiScale', 'settingsUiScaleOutput', value => `${value}%`], ['settingsWordScale', 'settingsWordScaleOutput', value => `${value}%`], ['settingsSpeechRate', 'settingsSpeechRateOutput', value => `${Number(value).toFixed(2)}×`], ['settingsSoundVolume', 'settingsSoundVolumeOutput', value => `${value}%`]].forEach(([inputId, outputId, format]) => {
       $(inputId).addEventListener('input', event => { $(outputId).textContent = format(event.currentTarget.value); });

@@ -50,4 +50,15 @@ describe("settings UI integration safeguards", () => {
     expect(html).toMatch(/id="settingsOpenBtn"[^>]*disabled/);
     expect(main).toContain("settingsButton.disabled = false;");
   });
+
+  it("embeds progress and content mirror controls inside the settings data-sync section", () => {
+    const html = read("index.html");
+    const main = read("src/main.ts");
+    const dataSyncSection = html.match(/id="settingsSectionDataSync"[\s\S]*?<\/section>\s*<\/div>\s*<\/div>/)?.[0] ?? "";
+    expect(dataSyncSection).toContain('id="syncPanel"');
+    expect(html.match(/id="syncPanel"/g)).toHaveLength(1);
+    expect(html).not.toContain("settingsOpenDataSyncBtn");
+    expect(main).not.toContain('byId<HTMLElement>("syncPanel").hidden');
+    expect(main).toContain('settingsUi.activateSection("data-sync")');
+  });
 });
