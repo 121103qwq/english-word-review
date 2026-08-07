@@ -706,6 +706,14 @@
     const MEANING_MATCH_KEY = 'english-word-meaning-match-v1';
     const ROOT_VISIBILITY_KEY = 'english-word-root-visible-v1';
     const ROOT_STUDY_KEY = 'english-word-root-study-v1';
+    const V8_MANAGED_LIBRARY_IDS_KEY = 'english-review-v8-managed-library-ids';
+    let v8ManagedLibraryIds = new Set();
+    try {
+      const savedManagedIds = JSON.parse(localStorage.getItem(V8_MANAGED_LIBRARY_IDS_KEY) || '[]');
+      if (Array.isArray(savedManagedIds)) {
+        v8ManagedLibraryIds = new Set(savedManagedIds.filter(id => typeof id === 'string' && id));
+      }
+    } catch {}
     const libraryId = words.map(w => w.en).join('|');
     const localDate = () => {
       const d = new Date(), pad = n => String(n).padStart(2, '0');
@@ -785,7 +793,7 @@
       store.archives = pruneArchives(store.archives);
       // Legacy daily libraries use a pipe-joined word-list id. UUID libraries are
       // managed by the 8.1 content store and must remain active across reloads.
-      if (store.current.id !== libraryId && store.current.id.includes('|')) {
+      if (store.current.id !== libraryId && store.current.id.includes('|') && !v8ManagedLibraryIds.has(store.current.id)) {
         store.archives = store.archives.filter(a => a.id !== store.current.id);
         store.archives.unshift(store.current);
         store.archives = pruneArchives(store.archives);
@@ -960,8 +968,9 @@
     save();
 
     let exportInProgress = false;
-    async function exportProgress() {
+    async function exportProgress(event) {
       if (exportInProgress) return;
+      event?.currentTarget?.blur?.();
       exportInProgress = true;
       try {
         save();
@@ -2207,7 +2216,10 @@
       utterance.rate = 0.85;
       speechSynthesis.speak(utterance);
     }
-    $('nextBtn').onclick = pick;
+    $('nextBtn').onclick = event => {
+      event.currentTarget.blur();
+      pick();
+    };
     $('speakBtn').onclick = speakCurrentWord;
     $('currentBtn').onclick = () => {
       if (activeLibrary !== store.current) { save(); loadLibrary(store.current); pick(); }
@@ -2243,6 +2255,7 @@
       save(); pick();
     };
     document.addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229 || e.repeat) return;
       if (!$('intensiveSelectionModal').hidden) {
         if (e.key === 'Escape') closeIntensiveSelection();
         return;
@@ -2261,7 +2274,7 @@
           else chooseRare(index);
         }
       }
-      if (key === 'n') pick();
+      if (key === 'n') { e.preventDefault(); pick(); }
       if (key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); speakCurrentWord(); }
       if (key === 'u') undoLast();
     });
@@ -2282,6 +2295,11 @@
         });
       },
       applyBundle(bundle) {
+        const managedIds = [bundle.store.current, ...(bundle.store.archives || [])]
+          .map(library => library?.id)
+          .filter(id => typeof id === 'string' && id);
+        v8ManagedLibraryIds = new Set(managedIds);
+        localStorage.setItem(V8_MANAGED_LIBRARY_IDS_KEY, JSON.stringify([...v8ManagedLibraryIds]));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(bundle.store));
         localStorage.setItem(INTENSIVE_KEY, JSON.stringify(bundle.intensiveStore));
         localStorage.setItem(ROOT_STUDY_KEY, JSON.stringify(bundle.rootStudyStore));
