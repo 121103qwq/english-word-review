@@ -3,17 +3,17 @@ import { describe, expect, it } from "vitest";
 
 const read = (path: string): string => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-describe("8.2.1 version consistency", () => {
+describe("8.2.2 version consistency", () => {
   it("keeps web, content, Windows, Tauri, and Android versions aligned", () => {
     const packageJson = JSON.parse(read("package.json")) as { version: string };
 
-    expect(packageJson.version).toBe("8.2.1");
-    expect(read("src/core/config.ts")).toContain('APP_VERSION = "8.2.1"');
-    expect(read("src/content/model.ts")).toContain('CONTENT_APP_VERSION = "8.2.1"');
-    expect(read("src-tauri/tauri.conf.json")).toContain('"version": "8.2.1"');
-    expect(read("src-tauri/Cargo.toml")).toContain('version = "8.2.1"');
-    expect(read("android/app/build.gradle")).toContain('versionName "8.2.1"');
-    expect(read("android/app/build.gradle")).toContain("versionCode 80201");
+    expect(packageJson.version).toBe("8.2.2");
+    expect(read("src/core/config.ts")).toContain('APP_VERSION = "8.2.2"');
+    expect(read("src/content/model.ts")).toContain('CONTENT_APP_VERSION = "8.2.2"');
+    expect(read("src-tauri/tauri.conf.json")).toContain('"version": "8.2.2"');
+    expect(read("src-tauri/Cargo.toml")).toContain('version = "8.2.2"');
+    expect(read("android/app/build.gradle")).toContain('versionName "8.2.2"');
+    expect(read("android/app/build.gradle")).toContain("versionCode 80202");
   });
 
   it("derives every release artifact filename from package.json", () => {

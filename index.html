@@ -224,10 +224,12 @@
     .app-brand { min-width: 0; }
     .app-brand h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .topbar-actions { position: relative; display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-    .top-mode-button, .settings-open-button { min-height: 42px; background: #eef2f8; color: #29415f; }
+    .top-mode-button, .settings-open-button, .android-speak-button { min-height: 42px; background: #eef2f8; color: #29415f; }
     .top-mode-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 168px; }
     .top-mode-button[aria-expanded="true"], .settings-open-button[aria-expanded="true"] { background: #e2edff; color: #1753ad; }
     .settings-open-button { display: grid; place-items: center; width: 42px; min-width: 42px; padding: 0; font-size: 21px; }
+    .android-speak-button { display: grid; place-items: center; width: 42px; min-width: 42px; padding: 0; font-size: 19px; }
+    .android-speak-button[hidden] { display: none !important; }
     .top-mode-menu { position: absolute; top: calc(100% + 8px); right: 50px; z-index: 80; width: min(280px, calc(100vw - 32px)); overflow: hidden; padding: 7px; border: 1px solid #dfe6f0; border-radius: 13px; background: #fff; box-shadow: 0 18px 50px #17233a2b; }
     .top-mode-menu[hidden] { display: none !important; }
     .top-mode-item { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 11px; background: transparent; color: #334966; text-align: left; }
@@ -331,7 +333,7 @@
     @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .root-sidebar { position: static; margin: 0 0 30px; } }
     @media (max-width: 720px) { .settings-dialog { height: calc(100dvh - 20px); } .settings-search-row { display: grid; grid-template-columns: 1fr; padding: 10px 14px; } .settings-mobile-section { display: block; } .settings-body { grid-template-columns: 1fr; } .settings-nav { display: none; } .settings-content { padding: 15px 14px 24px; } .setting-row { grid-template-columns: 1fr; gap: 7px; } .settings-foot { padding: 10px 14px; } }
     @media (max-width: 600px) { button { min-width: 44px; min-height: 44px; } .suggestion-chip, .managed-word-row button { min-height: 44px; } .selection-list, .sync-grid, .library-form-grid, .review-choice-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } .word-check-table { display: block; overflow-x: auto; } .managed-word-row { grid-template-columns: 1fr auto; } .managed-word-row .managed-word-meaning { grid-column: 1 / -1; } .app-topbar { min-height: 58px; gap: 8px; padding: 8px; } .app-brand h1 { font-size: 20px; } .top-mode-button { min-width: 0; max-width: 190px; } .shortcut-binding-row, .shortcut-legend { grid-template-columns: minmax(110px, 1fr) minmax(76px, .6fr) minmax(76px, .6fr) 36px; } }
-    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } .top-mode-menu { right: 0; } .settings-modal { padding: 0; } .settings-dialog { height: 100dvh; border: 0; border-radius: 0; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } }
+    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal { padding: 0; } .settings-dialog { height: 100dvh; border: 0; border-radius: 0; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } }
   </style>
 </head>
 <body>
@@ -353,6 +355,7 @@
           <div class="top-mode-divider" role="separator"></div>
           <label class="top-wrong-toggle"><input id="topWrongOnlyToggle" type="checkbox" data-shortcut-action="toggleWrongOnly">仅复习错词</label>
         </div>
+        <button class="android-speak-button" id="androidSpeakBtn" type="button" aria-label="朗读当前单词" title="朗读当前单词" hidden disabled><span aria-hidden="true">🔊</span></button>
         <button class="settings-open-button" id="settingsOpenBtn" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsModal" title="设置正在初始化" disabled><span aria-hidden="true">⚙</span></button>
       </div>
     </header>
@@ -822,7 +825,7 @@
               <div class="sync-actions">
                 <button id="saveSyncBtn" type="button">保存同步设置</button>
                 <button id="syncNowBtn" type="button">立即同步</button>
-                <span class="version-chip" id="versionChip">8.2.1 · weighted-random-v1</span>
+                <span class="version-chip" id="versionChip">8.2.2 · weighted-random-v1</span>
                 <span class="sync-status" id="syncStatus" role="status"></span>
               </div>
             </section>

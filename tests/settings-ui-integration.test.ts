@@ -61,4 +61,14 @@ describe("settings UI integration safeguards", () => {
     expect(main).not.toContain('byId<HTMLElement>("syncPanel").hidden');
     expect(main).toContain('settingsUi.activateSection("data-sync")');
   });
+
+  it("shows a dedicated speech button only in the Android runtime", () => {
+    const html = read("index.html");
+    const main = read("src/main.ts");
+    expect(html).toMatch(/id="androidSpeakBtn"[^>]*hidden/);
+    expect(main).toContain('androidSpeakButton.hidden = runtimePlatform !== "android"');
+    expect(main).toContain('byId<HTMLButtonElement>("speakBtn").onclick = speakCurrentQuestion');
+    expect(main).toContain("androidSpeakButton.onclick");
+    expect(main).toContain("updateAndroidSpeakButton(question.safeToSpeak)");
+  });
 });

@@ -28,6 +28,7 @@ import {
 } from "./security/native-password";
 import {
   deleteSecret,
+  getRuntimePlatform,
   isNativeRuntime,
   loadSecret,
   saveSecret,
@@ -695,7 +696,18 @@ byId<HTMLButtonElement>("clearNativeCredentialsBtn").onclick = () => {
   })().catch((error) => setSyncStatus(error instanceof Error ? error.message : String(error), "bad"));
 };
 
-byId<HTMLButtonElement>("speakBtn").onclick = () => {
+const runtimePlatform = getRuntimePlatform();
+document.documentElement.dataset.runtimePlatform = runtimePlatform;
+const androidSpeakButton = byId<HTMLButtonElement>("androidSpeakBtn");
+androidSpeakButton.hidden = runtimePlatform !== "android";
+
+function updateAndroidSpeakButton(safeToSpeak: boolean): void {
+  if (runtimePlatform !== "android") return;
+  androidSpeakButton.disabled = !safeToSpeak;
+  androidSpeakButton.title = safeToSpeak ? "朗读当前单词" : "当前题型朗读会泄露答案";
+}
+
+function speakCurrentQuestion(): void {
   void (async () => {
     if (settingsController) {
       await settingsController.speakWord();
@@ -706,7 +718,14 @@ byId<HTMLButtonElement>("speakBtn").onclick = () => {
     if (contentManager && await contentManager.playPrimaryForWord(word)) return;
     await speakEnglish(word);
   })().catch((error) => alert(error instanceof Error ? error.message : String(error)));
+}
+
+byId<HTMLButtonElement>("speakBtn").onclick = speakCurrentQuestion;
+androidSpeakButton.onclick = (event) => {
+  (event.currentTarget as HTMLButtonElement).blur();
+  speakCurrentQuestion();
 };
+legacyRuntime.subscribeQuestion((question) => updateAndroidSpeakButton(question.safeToSpeak));
 
 byId<HTMLElement>("versionChip").textContent = `${APP_VERSION} · ${ALGORITHM_VERSION}`;
 
@@ -808,6 +827,7 @@ async function initializeApplication(): Promise<void> {
     legacyRuntime,
     onSpeakCandidate: (word, safeToSpeak) => {
       latestReviewSpeechCandidate = { word, safeToSpeak };
+      updateAndroidSpeakButton(safeToSpeak);
       settingsController?.onQuestion(word, safeToSpeak);
     },
     onAnswerFeedback: (correct) => settingsController?.onAnswerFeedback(correct),
