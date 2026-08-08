@@ -1,6 +1,6 @@
-# 英语单词速记 8.2.2
+# 英语单词速记 8.2.3
 
-同一套 Vite + TypeScript 核心输出单文件离线 HTML、Tauri 2 Windows 应用和 Capacitor 8 Android 应用。当前 8.2.2 发布线为 Android 顶部栏增加独立朗读按钮；学习进度与内容镜像仍完整整合在设置内，并采用 v7.4.6 重构版的 39 词内置词库。原有三种学习模式、检查背诵和 `weighted-random-v1` 抽题算法保持不变。
+同一套 Vite + TypeScript 核心输出单文件离线 HTML、Tauri 2 Windows 应用和 Capacitor 8 Android 应用。当前 8.2.3 发布线优化宽屏和专注模式布局，并保留 Android 顶部栏独立朗读按钮；学习进度与内容镜像仍完整整合在设置内，并采用 v7.4.6 重构版的 39 词内置词库。原有三种学习模式、检查背诵和 `weighted-random-v1` 抽题算法保持不变。
 
 ## 检查背诵与间隔复习
 

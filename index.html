@@ -8,7 +8,7 @@
     :root { --ui-scale: 1; --word-scale: 1; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; padding-top: env(safe-area-inset-top); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); background: #f5f7fb; color: #17233a; font: 16px/1.5 "Microsoft YaHei", system-ui, sans-serif; }
-    .app-shell { width: min(1040px, calc(100% - 32px)); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 720px) 290px; gap: 20px; align-items: start; zoom: var(--ui-scale); }
+    .app-shell { width: min(1360px, calc(100% - 32px)); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 23vw, 320px); gap: clamp(16px, 2vw, 28px); align-items: start; zoom: var(--ui-scale); }
     main { width: 100%; padding: 30px 0; }
     h1 { margin: 0; font-size: 28px; letter-spacing: .04em; }
     .subtitle { margin: 4px 0 22px; color: #6b7890; }
@@ -18,7 +18,7 @@
     .stat b { display: block; color: #1b2c49; font-size: 22px; }
     .clear { display: none; margin: 0 0 14px; padding: 12px 16px; border-radius: 12px; background: #e4f7eb; color: #176a40; text-align: center; font-weight: 700; }
     .clear.show { display: block; }
-    .card { min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px; text-align: center; }
+    .card { min-height: clamp(300px, 46vh, 500px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: clamp(24px, 4vw, 48px); text-align: center; }
     .word { font-size: clamp(calc(35px * var(--word-scale)), calc(8vw * var(--word-scale)), calc(58px * var(--word-scale))); font-weight: 750; letter-spacing: .02em; color: #174ea6; word-break: break-word; }
     .meaning { min-height: 48px; margin-top: 22px; font-size: 22px; color: #273a59; }
     .hint { margin-top: 8px; color: #98a3b4; font-size: 14px; }
@@ -29,6 +29,7 @@
     .forward-actions { display: flex; justify-content: center; gap: 10px; margin-top: 17px; flex-wrap: wrap; }
     .forward-actions[hidden], .recall-box[hidden] { display: none !important; }
     .forward-actions .show { margin-top: 0; }
+    .forward-actions button, .answers button { min-width: clamp(118px, 10vw, 180px); min-height: clamp(44px, 5vh, 58px); padding: 11px clamp(17px, 2vw, 28px); }
     .unsure { background: #fff1cf; color: #8a5a00; }
     .recall-box { width: min(520px, 100%); display: flex; flex-direction: column; align-items: center; margin-top: 17px; }
     .recall-input { width: 100%; padding: 12px 14px; border: 1px solid #ccd5e2; border-radius: 10px; outline: none; background: #fff; color: #203654; font: inherit; }
@@ -37,7 +38,7 @@
     .recall-feedback { min-height: 23px; margin-top: 10px; color: #3e5777; font-size: 14px; white-space: pre-line; }
     .recall-feedback.good { padding: 8px 11px; border-radius: 9px; background: #e4f7eb; color: #176a40; font-weight: 700; }
     .recall-feedback.bad { padding: 8px 11px; border-radius: 9px; background: #ffe4e3; color: #ac3434; font-weight: 700; }
-    .choices { width: min(560px, 100%); display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 22px; }
+    .choices { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(10px, 1.2vw, 16px); margin-top: 22px; }
     .choices[hidden] { display: none !important; }
     .choice { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f3f6fb; color: #243a5c; text-align: left; }
     .choice-key { flex: 0 0 auto; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; background: #e2edff; color: #1753ad; font-size: 13px; }
@@ -304,6 +305,11 @@
     .settings-foot .settings-save-button { background: #2768d6; color: #fff; }
     .settings-search-hidden { display: none !important; }
     body.focus-mode .stats, body.focus-mode .clear, body.focus-mode .toolbar, body.focus-mode .mistakes, body.focus-mode .archives, body.focus-mode .root-sidebar, body.focus-mode .library-info { display: none !important; }
+    body.focus-mode .app-shell { width: min(1240px, calc(100% - 32px)); grid-template-columns: minmax(0, 1fr); }
+    body.focus-mode .card { min-height: clamp(420px, 62vh, 680px); }
+    body.focus-mode .word { font-size: clamp(calc(46px * var(--word-scale)), calc(9vw * var(--word-scale)), calc(78px * var(--word-scale))); }
+    body.focus-mode .meaning { font-size: clamp(22px, 2vw, 30px); }
+    body.focus-mode .forward-actions button, body.focus-mode .answers button { min-width: clamp(150px, 14vw, 220px); min-height: clamp(52px, 6vh, 66px); font-size: clamp(16px, 1.25vw, 20px); }
     body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
     html[data-theme="light"] { color-scheme: light; }
     html[data-theme="dark"] { color-scheme: dark; }
@@ -333,7 +339,7 @@
     @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .root-sidebar { position: static; margin: 0 0 30px; } }
     @media (max-width: 720px) { .settings-dialog { height: calc(100dvh - 20px); } .settings-search-row { display: grid; grid-template-columns: 1fr; padding: 10px 14px; } .settings-mobile-section { display: block; } .settings-body { grid-template-columns: 1fr; } .settings-nav { display: none; } .settings-content { padding: 15px 14px 24px; } .setting-row { grid-template-columns: 1fr; gap: 7px; } .settings-foot { padding: 10px 14px; } }
     @media (max-width: 600px) { button { min-width: 44px; min-height: 44px; } .suggestion-chip, .managed-word-row button { min-height: 44px; } .selection-list, .sync-grid, .library-form-grid, .review-choice-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } .word-check-table { display: block; overflow-x: auto; } .managed-word-row { grid-template-columns: 1fr auto; } .managed-word-row .managed-word-meaning { grid-column: 1 / -1; } .app-topbar { min-height: 58px; gap: 8px; padding: 8px; } .app-brand h1 { font-size: 20px; } .top-mode-button { min-width: 0; max-width: 190px; } .shortcut-binding-row, .shortcut-legend { grid-template-columns: minmax(110px, 1fr) minmax(76px, .6fr) minmax(76px, .6fr) 36px; } }
-    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal { padding: 0; } .settings-dialog { height: 100dvh; border: 0; border-radius: 0; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } }
+    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell, body.focus-mode .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card, body.focus-mode .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal { padding: 0; } .settings-dialog { height: 100dvh; border: 0; border-radius: 0; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } }
   </style>
 </head>
 <body>
@@ -825,7 +831,7 @@
               <div class="sync-actions">
                 <button id="saveSyncBtn" type="button">保存同步设置</button>
                 <button id="syncNowBtn" type="button">立即同步</button>
-                <span class="version-chip" id="versionChip">8.2.2 · weighted-random-v1</span>
+                <span class="version-chip" id="versionChip">8.2.3 · weighted-random-v1</span>
                 <span class="sync-status" id="syncStatus" role="status"></span>
               </div>
             </section>

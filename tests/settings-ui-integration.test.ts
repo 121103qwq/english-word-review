@@ -71,4 +71,14 @@ describe("settings UI integration safeguards", () => {
     expect(main).toContain("androidSpeakButton.onclick");
     expect(main).toContain("updateAndroidSpeakButton(question.safeToSpeak)");
   });
+
+  it("hides word roots but expands the study card and controls in focus mode", () => {
+    const html = read("index.html");
+    const focusRule = html.match(/body\.focus-mode \.stats[^}]+/u)?.[0] ?? "";
+    expect(focusRule).toContain(".root-sidebar");
+    expect(html).toContain("width: min(1360px, calc(100% - 32px))");
+    expect(html).toContain("body.focus-mode .app-shell");
+    expect(html).toContain("min-height: clamp(420px, 62vh, 680px)");
+    expect(html).toContain("body.focus-mode .forward-actions button, body.focus-mode .answers button");
+  });
 });
