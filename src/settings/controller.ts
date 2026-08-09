@@ -95,9 +95,7 @@ const UI_TO_ACTION = {
 } as const satisfies Record<string, ShortcutAction>;
 
 const ACTION_TO_LEGACY: Readonly<Partial<Record<ShortcutAction, string>>> = Object.freeze({
-  "next-word": "next",
   "speak-word": "speak",
-  "undo-answer": "undo",
   "reveal-answer": "reveal",
   uncertain: "uncertain",
   "answer-known": "know",
@@ -205,10 +203,24 @@ function currentShortcutContext(mode: ReturnType<LegacyRuntimeApi["getModeState"
 function contextIsActive(action: ShortcutAction, context: ShortcutContext): boolean {
   const actionContext = SHORTCUT_ACTION_CONTEXT[action];
   if (context === "review") return actionContext === "mode" || actionContext === "review" || action === "speak-word";
+  if (action === "undo-answer" && context === "root") return false;
   return actionContext === "global" || actionContext === "mode" || actionContext === context;
 }
 
-function referencedAssets(snapshot: PlatformSettingsSnapshotV1): SettingsAssetReference[] {
+export function legacyActionForShortcut(action: ShortcutAction, context: ShortcutContext): string | undefined {
+  if (action === "next-word") {
+    if (context === "intensive") return "intensiveSkip";
+    if (context === "root") return "rootSkip";
+    return "next";
+  }
+  if (action === "undo-answer") {
+    if (context === "root" || context === "review") return undefined;
+    return context === "intensive" ? "undoIntensive" : "undoNormal";
+  }
+  return ACTION_TO_LEGACY[action];
+}
+
+function referencedAssets(snapshot: Pick<PlatformSettingsSnapshotV1, "settings">): SettingsAssetReference[] {
   return [snapshot.settings.feedback.customCorrectSound, snapshot.settings.feedback.customWrongSound]
     .filter((value): value is SettingsAssetReference => Boolean(value));
 }
@@ -272,6 +284,7 @@ export class PlatformSettingsController {
     this.options.legacyRuntime.subscribeQuestion((question) => this.onQuestion(question.word, question.safeToSpeak));
     this.options.legacyRuntime.subscribeAnswerFeedback((correct) => this.onAnswerFeedback(correct));
     window.__englishReviewShortcutHandler = (event) => this.handleShortcut(event);
+    void this.pruneUnusedSettingsAssets().catch(() => undefined);
   }
 
   async speakWord(word?: string): Promise<void> {
@@ -392,6 +405,7 @@ export class PlatformSettingsController {
         }
         this.draft = clone(this.state);
         this.dirty = false;
+        void this.pruneUnusedSettingsAssets().catch(() => undefined);
         return;
       }
       if (action === "apply" || action === "save") {
@@ -465,10 +479,12 @@ export class PlatformSettingsController {
     byId<HTMLButtonElement>("settingsResetCorrectSoundBtn").onclick = () => {
       delete this.draft.settings.feedback.customCorrectSound;
       this.dirty = true;
+      void this.pruneUnusedSettingsAssets().catch(() => undefined);
     };
     byId<HTMLButtonElement>("settingsResetWrongSoundBtn").onclick = () => {
       delete this.draft.settings.feedback.customWrongSound;
       this.dirty = true;
+      void this.pruneUnusedSettingsAssets().catch(() => undefined);
     };
     byId<HTMLButtonElement>("settingsSpeechPreviewBtn").onclick = () => {
       this.readFormIntoDraft();
@@ -580,6 +596,7 @@ export class PlatformSettingsController {
     this.state = next;
     this.draft = clone(next);
     this.dirty = false;
+    void this.pruneUnusedSettingsAssets().catch(() => undefined);
     void this.applyState().catch((error) => this.report(error, "bad"));
     this.setTextStatus("settingsGeneralStatus", "已保存，仅影响当前平台的个性化设置。", "good");
     this.options.reportStatus?.("个性化设置已保存；未写入词库或学习进度。", "good");
@@ -687,7 +704,7 @@ export class PlatformSettingsController {
         void this.speakWord().catch((error) => this.report(error, "bad"));
         return true;
       }
-      const legacyAction = ACTION_TO_LEGACY[action];
+      const legacyAction = legacyActionForShortcut(action, context);
       return legacyAction ? this.options.legacyRuntime.performAction(legacyAction) : false;
     }
     return false;
@@ -725,7 +742,19 @@ export class PlatformSettingsController {
     select("settingsSoundTheme").value = "custom";
     input("settingsSoundEnabled").checked = true;
     this.dirty = true;
+    await this.pruneUnusedSettingsAssets();
     this.options.reportStatus?.(`${result === "correct" ? "答对" : "答错"}音效已保存在独立本机附件库；应用后启用。`, "good");
+  }
+
+  private referencedSettingsAssetHashes(): string[] {
+    return [
+      ...referencedAssets(this.state),
+      ...referencedAssets(this.draft),
+    ].map((reference) => reference.sha256);
+  }
+
+  private async pruneUnusedSettingsAssets(): Promise<void> {
+    await this.assets.prune(this.referencedSettingsAssetHashes());
   }
 
   private async feedbackAsset(reference?: SettingsAssetReference): Promise<FeedbackSoundAsset | undefined> {
@@ -940,6 +969,7 @@ export class PlatformSettingsController {
     this.draft = clone(this.state);
     this.dirty = false;
     this.renderForm();
+    void this.pruneUnusedSettingsAssets().catch(() => undefined);
     void this.applyState().catch((error) => this.report(error, "bad"));
   }
 }

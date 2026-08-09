@@ -205,6 +205,22 @@ describe("manual platform settings transports", () => {
     expect(write.url).not.toContain("content/assets");
   });
 
+  it("reads GitHub settings audio through the raw media endpoint", async () => {
+    const bytes = new Uint8Array(1024 * 1024 + 1);
+    bytes.set([0x49, 0x44, 0x33]);
+    const asset = await createSettingsAsset(bytes, "large.mp3", "audio/mpeg");
+    mocks.httpRequest.mockResolvedValueOnce(response(200, Buffer.from(bytes).toString("base64"), { etag: '"asset-etag"' }));
+    const transport = new SettingsGitHubTransport({ owner: "o", repo: "r", token: "t" });
+
+    const downloaded = await transport.readAsset(asset.reference);
+
+    expect(downloaded.data).toEqual(bytes);
+    expect(downloaded.revision).toBe('"asset-etag"');
+    const read = mocks.httpRequest.mock.calls[0][0];
+    expect(read.headers.Accept).toBe("application/vnd.github.raw+json");
+    expect(read.responseType).toBe("base64");
+  });
+
   it("deduplicates mirror files and puts the current location first", async () => {
     const home = ref("8F3A21CD_PC_家里_20260807-0203_A7F2.json");
     const office = { ...ref("8F3A21CD_PC_办公室_20260808-0203_B7F2.json"), modifiedAt: "2026-08-08T02:03:00.000Z" };

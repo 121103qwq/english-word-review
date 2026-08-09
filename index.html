@@ -1771,6 +1771,11 @@
         pick(w);
       }
     }
+    function undoLastForMode(intensive) {
+      if (!undoable || undoable.intensive !== intensive) return false;
+      undoLast();
+      return true;
+    }
     function scheduleNext() {
       clearTimeout(autoAdvanceTimer);
       autoAdvanceTimer = setTimeout(() => {
@@ -2830,6 +2835,23 @@
         reviewKnow: 'reviewKnowBtn', reviewDontKnow: 'reviewDontBtn', toggleWrongOnly: 'wrongModeBtn'
       };
       if (action === 'speak') return click('speakBtn');
+      if (action === 'undoNormal') return undoLastForMode(false);
+      if (action === 'undoIntensive') return undoLastForMode(true);
+      if (action === 'intensiveSkip') {
+        if (activeUiMode !== 'intensive') return false;
+        clearTimeout(autoAdvanceTimer);
+        autoAdvanceTimer = null;
+        hideUndoToast();
+        pickIntensiveWord();
+        return true;
+      }
+      if (action === 'rootSkip') {
+        if (activeUiMode !== 'root') return false;
+        clearTimeout(rootStudyAdvanceTimer);
+        rootStudyAdvanceTimer = null;
+        pickRootStudyItem();
+        return true;
+      }
       if (directActions[action]) return click(directActions[action]);
       const optionMatch = /^option([1-4])$/.exec(action);
       if (optionMatch) return clickChoice('choices', Number(optionMatch[1]) - 1);

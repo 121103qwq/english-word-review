@@ -32,6 +32,25 @@ describe("settings UI integration safeguards", () => {
     expect(controller).toContain('"root-submit": "rootConfirm"');
   });
 
+  it("routes skip and undo actions to the active learning surface", () => {
+    const html = read("index.html");
+    const controller = read("src/settings/controller.ts");
+    expect(controller).toContain('if (context === "intensive") return "intensiveSkip"');
+    expect(controller).toContain('if (context === "root") return "rootSkip"');
+    expect(controller).toContain('return context === "intensive" ? "undoIntensive" : "undoNormal"');
+    expect(html).toContain("if (action === 'undoNormal') return undoLastForMode(false)");
+    expect(html).toContain("if (action === 'undoIntensive') return undoLastForMode(true)");
+    expect(html).toContain("if (action === 'intensiveSkip')");
+    expect(html).toContain("if (action === 'rootSkip')");
+  });
+
+  it("prunes abandoned settings audio while retaining active and draft references", () => {
+    const controller = read("src/settings/controller.ts");
+    expect(controller).toContain("private referencedSettingsAssetHashes(): string[]");
+    expect(controller).toContain("await this.assets.prune(this.referencedSettingsAssetHashes())");
+    expect(controller.match(/pruneUnusedSettingsAssets\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
+  });
+
   it("never bypasses current-question speech safety from the toolbar", () => {
     const main = read("src/main.ts");
     expect(main).toContain("await settingsController.speakWord();");

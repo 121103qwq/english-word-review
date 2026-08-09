@@ -8,8 +8,18 @@ import {
   shortcutFromKeyboardEvent,
   validateShortcutMap,
 } from "../src/settings/shortcuts";
+import { legacyActionForShortcut } from "../src/settings/controller";
 
 describe("platform shortcut settings", () => {
+  it("routes global skip and undo actions without touching a hidden learning surface", () => {
+    expect(legacyActionForShortcut("next-word", "forward")).toBe("next");
+    expect(legacyActionForShortcut("next-word", "intensive")).toBe("intensiveSkip");
+    expect(legacyActionForShortcut("next-word", "root")).toBe("rootSkip");
+    expect(legacyActionForShortcut("undo-answer", "forward")).toBe("undoNormal");
+    expect(legacyActionForShortcut("undo-answer", "intensive")).toBe("undoIntensive");
+    expect(legacyActionForShortcut("undo-answer", "root")).toBeUndefined();
+  });
+
   it("preserves existing defaults and leaves mode switches unbound", () => {
     const shortcuts = createDefaultShortcutMap();
 

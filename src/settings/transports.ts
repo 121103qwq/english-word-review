@@ -307,11 +307,15 @@ export class SettingsGitHubTransport implements SettingsTransport {
 
   async readAsset(reference: SettingsAssetReference): Promise<SettingsAssetDocument> {
     const path = `${this.assetsPath}/${reference.sha256}.${extension(reference)}`;
-    const response = await request("GET", `${this.endpoint(path)}?ref=${encodeURIComponent(this.config.branch || "main")}`, this.headers());
+    const response = await httpRequest({
+      url: `${this.endpoint(path)}?ref=${encodeURIComponent(this.config.branch || "main")}`,
+      method: "GET",
+      headers: { ...this.headers("application/octet-stream"), Accept: "application/vnd.github.raw+json" },
+      responseType: "base64",
+    });
     if (response.status === 404) return { data: null };
     if (response.status < 200 || response.status >= 300) throw new Error(`GitHub 设置附件读取失败（${response.status}）`);
-    const body = JSON.parse(response.body) as { content: string; sha: string };
-    return { data: await verifyAsset(base64ToBytes(body.content), reference), revision: body.sha };
+    return { data: await verifyAsset(base64ToBytes(response.body), reference), revision: response.headers.etag };
   }
 
   async writeAsset(asset: StoredSettingsAsset): Promise<void> {
