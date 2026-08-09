@@ -1,4 +1,4 @@
-export const APP_VERSION = "8.2.3";
+export const APP_VERSION = "8.2.4";
 export const SCHEMA_VERSION = 4 as const;
 export const ALGORITHM_VERSION = "weighted-random-v1" as const;
 export const CONTENT_VERSION = "2026-08-06.2";
