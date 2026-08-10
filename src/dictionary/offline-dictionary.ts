@@ -79,8 +79,20 @@ const PRODUCTIVE_SUFFIXES: readonly ProductiveAffix[] = [
   { form: "y", meaningZh: "具有……特征的" },
 ];
 
-function briefChineseMeaning(translation: string): string {
-  const line = translation.split("\n").find((item) => /[\u3400-\u9fff]/u.test(item)) ?? "";
+function preferredBaseParts(suffix?: string): readonly string[] {
+  if (["ness", "ly", "ity"].includes(suffix ?? "")) return ["a", "adj"];
+  if (["er", "or", "ment", "tion", "sion", "ation", "able", "ible", "ed", "ing"].includes(suffix ?? "")) {
+    return ["v", "vi", "vt"];
+  }
+  if (["ful", "less", "ship", "hood"].includes(suffix ?? "")) return ["n"];
+  return [];
+}
+
+function briefChineseMeaning(translation: string, preferredParts: readonly string[] = []): string {
+  const lines = translation.split("\n").filter((item) => /[\u3400-\u9fff]/u.test(item));
+  const preferred = lines.find((line) => preferredParts.some((part) =>
+    new RegExp(`^\\s*${part}\\.`, "iu").test(line)));
+  const line = preferred ?? lines[0] ?? "";
   const cleaned = line.replace(/^[a-z]+\.\s*/iu, "").replace(/\[[^\]]+\]/gu, "").trim();
   return cleaned.split(/[,，;；]/u).map((item) => item.trim())
     .filter((item) => /[\u3400-\u9fff]/u.test(item)).slice(0, 2).join("；");
@@ -261,7 +273,7 @@ export class OfflineDictionary {
           // cross-reference-only spellings. They are unsafe decomposition
           // bases (for example happi, kinde and stope).
           if (!base || base.frequencyRank >= 9_999_999 || /^\s*(?:abbr\.|\[=)/iu.test(base.translation)) continue;
-          const baseMeaningZh = briefChineseMeaning(base.translation);
+          const baseMeaningZh = briefChineseMeaning(base.translation, preferredBaseParts(suffix?.form));
           if (!baseMeaningZh) continue;
           candidates.push({
             prefix,

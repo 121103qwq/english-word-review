@@ -89,6 +89,12 @@ describe("offline dictionary", () => {
     expect(checked.entry?.roots.map((root) => root.form)).toEqual(["un-", "usual"]);
   });
 
+  it("selects the base-word part of speech required by a productive suffix", async () => {
+    const entry = await offlineDictionary.lookup("kindness");
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots[0]).toMatchObject({ form: "kind", meaningZh: "亲切的；仁慈的" });
+  });
+
   it("covers every generated root gloss with a fixed Chinese construction meaning", async () => {
     const roots = await decodeGzipJson<RootLexiconEntry[]>(GENERATED_DICTIONARY.roots);
     const glosses = new Set(roots.map((root) => root.meaningEn));

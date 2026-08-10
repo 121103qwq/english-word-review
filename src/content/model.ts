@@ -10,7 +10,7 @@ import type {
   WordOverride,
 } from "./types";
 
-export const CONTENT_APP_VERSION = "8.3.1" as const;
+export const CONTENT_APP_VERSION = "8.3.2" as const;
 export const DICTIONARY_VERSION = "ecdict-bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b+engra-798d54beb0deae476b856719cb8d5ad33d0baab2";
 export const MAX_MP3_BYTES = 20 * 1024 * 1024;
 
