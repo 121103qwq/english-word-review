@@ -33,7 +33,7 @@ struct SaveTextFileResponse {
 #[tauri::command]
 async fn native_http_request(request: HttpRequest) -> Result<HttpResponse, String> {
     let client = reqwest::Client::builder()
-        .user_agent("EnglishWordReview/8.3.2")
+        .user_agent("EnglishWordReview/8.4.0")
         .timeout(Duration::from_millis(request.timeout_ms.unwrap_or(12_000)))
         .build()
         .map_err(|error| error.to_string())?;
@@ -156,6 +156,22 @@ async fn speak_text(text: String, _locale: String, _rate: f32) -> Result<(), Str
     .map_err(|error| error.to_string())?
 }
 
+#[tauri::command]
+async fn open_external_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err("only HTTPS update URLs are allowed".to_owned());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        Command::new("explorer.exe")
+            .arg(&url)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -165,7 +181,8 @@ pub fn run() {
             load_secret,
             delete_secret,
             save_text_file,
-            speak_text
+            speak_text,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("failed to run English Word Review");

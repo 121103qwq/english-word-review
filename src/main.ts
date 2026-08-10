@@ -25,10 +25,15 @@ import {
   getRuntimePlatform,
   isNativeRuntime,
   loadSecret,
+  openExternalUrl,
   saveSecret,
   saveTextFile,
   speakEnglish,
 } from "./platform/runtime";
+import {
+  GitHubReleaseUpdateChecker,
+  type AvailableUpdate,
+} from "./platform/update-check";
 import {
   reconcileLegacyProjection,
   type LegacyProjectionDecision,
@@ -104,6 +109,8 @@ let currentCredentials: SyncCredentials | undefined;
 let currentLibrarySyncBatch: LibrarySyncBatchV1 | undefined;
 let currentLibrarySyncChoices: LibrarySyncChoiceModel | undefined;
 let currentLibrarySyncTransports: LibraryFileTransport[] = [];
+const updateChecker = new GitHubReleaseUpdateChecker(APP_VERSION, getRuntimePlatform());
+let availableUpdate: AvailableUpdate | undefined;
 
 const byId = <T extends HTMLElement>(id: string): T => {
   const element = document.getElementById(id);
@@ -465,11 +472,39 @@ function contentStatus(result: ContentSyncResult): string {
   return `${result.complete ? "内容镜像同步完成" : "内容已保存；部分镜像等待重试"}\n${detail.join("\n")}`;
 }
 
+function closeUpdatePrompt(): void {
+  byId<HTMLElement>("updateModal").hidden = true;
+  availableUpdate = undefined;
+}
+
+function showUpdatePrompt(update: AvailableUpdate): void {
+  const promptKey = `english-review:update-prompted:${update.version}`;
+  if (sessionStorage.getItem(promptKey)) return;
+  sessionStorage.setItem(promptKey, "1");
+  availableUpdate = update;
+  byId("updateVersionText").textContent = `当前版本 ${APP_VERSION}，最新正式版 ${update.version}。`;
+  byId("updateAssetText").textContent = update.assetName
+    ? `将打开适合当前平台的文件：${update.assetName}`
+    : "未找到当前平台的专用文件，将打开 GitHub Release 页面。";
+  byId<HTMLElement>("updateModal").hidden = false;
+  byId<HTMLElement>("updateDialog").focus();
+}
+
+async function checkForApplicationUpdate(): Promise<void> {
+  try {
+    const update = await updateChecker.check();
+    if (update) showUpdatePrompt(update);
+  } catch {
+    // Update checks must never block offline startup or manual synchronization.
+  }
+}
+
 function openDataSyncSettings(focusField = true): void {
   const settingsUi = window.__englishReviewSettingsUi;
   if (!settingsUi) return;
   settingsUi.activateSection("data-sync");
   settingsUi.open();
+  void checkForApplicationUpdate();
   if (!focusField) return;
   window.setTimeout(() => {
     byId<HTMLInputElement>("githubOwner").focus();
@@ -798,6 +833,22 @@ byId<HTMLInputElement>("importV4File").onchange = async (event) => {
 byId<HTMLButtonElement>("syncManageBtn").onclick = () => {
   openDataSyncSettings();
 };
+byId<HTMLButtonElement>("updateLaterBtn").onclick = closeUpdatePrompt;
+byId<HTMLButtonElement>("updateNowBtn").onclick = (event) => {
+  const update = availableUpdate;
+  if (!update) return;
+  const button = event.currentTarget as HTMLButtonElement;
+  button.disabled = true;
+  void openExternalUrl(update.downloadUrl)
+    .then(closeUpdatePrompt)
+    .catch((error) => {
+      byId("updateAssetText").textContent = `无法打开更新地址：${error instanceof Error ? error.message : String(error)}`;
+    })
+    .finally(() => { button.disabled = false; });
+};
+byId<HTMLElement>("updateModal").onclick = (event) => {
+  if (event.target === event.currentTarget) closeUpdatePrompt();
+};
 byId<HTMLButtonElement>("addWebdavBtn").onclick = () => {
   const current = metadataFromForm().webdavs;
   current.push({
@@ -839,6 +890,12 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   event.stopImmediatePropagation();
   closeLibrarySyncPicker();
+}, true);
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || byId<HTMLElement>("updateModal").hidden) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  closeUpdatePrompt();
 }, true);
 byId<HTMLButtonElement>("clearCredentialsBtn").onclick = () => {
   if (!confirm("只清除 HTML 保存的云端凭据，不会删除本地词库。确定继续吗？")) return;
@@ -981,6 +1038,7 @@ async function initializeApplication(): Promise<void> {
     },
   });
   byId<HTMLButtonElement>("exportV4Btn").disabled = false;
+  void checkForApplicationUpdate();
 
   const settingsButton = byId<HTMLButtonElement>("settingsOpenBtn");
   void initPlatformSettingsController({

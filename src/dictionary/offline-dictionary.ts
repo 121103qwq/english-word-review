@@ -109,6 +109,24 @@ function restoredBaseForms(stem: string, suffix?: string): string[] {
   return [...forms].filter((form) => form.length >= 3 && /^[a-z]+$/u.test(form));
 }
 
+function isUnsafeDerivationBase(entry: DictionaryEntry): boolean {
+  const translation = entry.translation.trim();
+  if (entry.frequencyRank >= 9_999_999 || /^\s*(?:abbr\.|\[=)/iu.test(translation)) return true;
+  const properNameMarker = /(?:\[|（|\()(?:[^\]\n）)]*?)(?:人名|地名|姓氏)(?:[^\]\n）)]*?)(?:\]|）|\))/u;
+  const crossReferenceOnly = /(?:^|\n)\s*(?:\[[^\]]+\]\s*)+[^\n]*(?:的变体|简称|缩写)\s*$/iu;
+  return properNameMarker.test(translation) || crossReferenceOnly.test(translation);
+}
+
+function inflectionSuffixForLemma(word: string, lemma: string): ProductiveAffix | undefined {
+  return PRODUCTIVE_SUFFIXES
+    .filter((suffix) => suffix.form === "ed" || suffix.form === "ing")
+    .find((suffix) => {
+      if (!word.endsWith(suffix.form)) return false;
+      const stem = word.slice(0, -suffix.form.length);
+      return restoredBaseForms(stem, suffix.form).includes(lemma);
+    });
+}
+
 function applyRootGloss<T extends { meaningEn: string; meaningZh: string }>(root: T): T {
   const meaningZh = rootGlosses[root.meaningEn.trim()]?.trim() ?? "";
   // Generated dictionaries before the gloss mapping used an ECDICT definition
@@ -269,10 +287,9 @@ export class OfflineDictionary {
         for (const baseForm of restoredBaseForms(stem, suffix?.form)) {
           if (baseForm === word) continue;
           const base = await this.lookup(baseForm);
-          // ECDICT uses the maximum rank for obscure names, abbreviations and
-          // cross-reference-only spellings. They are unsafe decomposition
-          // bases (for example happi, kinde and stope).
-          if (!base || base.frequencyRank >= 9_999_999 || /^\s*(?:abbr\.|\[=)/iu.test(base.translation)) continue;
+          // Names, locations, abbreviations and cross-reference-only spellings
+          // are unsafe decomposition bases (for example wedd, kinde and usu).
+          if (!base || isUnsafeDerivationBase(base)) continue;
           const baseMeaningZh = briefChineseMeaning(base.translation, preferredBaseParts(suffix?.form));
           if (!baseMeaningZh) continue;
           candidates.push({
@@ -338,14 +355,11 @@ export class OfflineDictionary {
     const lemma = entry.forms["0"]?.trim().toLocaleLowerCase("en-US");
     if (lemma && lemma !== entry.word && /^[a-z]+$/u.test(lemma)) {
       const lemmaEntry = await this.lookup(lemma);
-      if (lemmaEntry) {
-        const meaningZh = lemmaEntry.translation
-          .split("\n")
-          .find((line) => /[\u3400-\u9fff]/u.test(line))
-          ?.replace(/^[a-z]+\.\s*/iu, "")
-          .trim() ?? "";
+      if (lemmaEntry && !isUnsafeDerivationBase(lemmaEntry)) {
+        const suffix = inflectionSuffixForLemma(entry.word, lemma);
+        const meaningZh = briefChineseMeaning(lemmaEntry.translation, preferredBaseParts(suffix?.form));
         if (meaningZh) {
-          return [{
+          const result: DictionaryRoot[] = [{
             form: lemma,
             meaningZh,
             meaningEn: "",
@@ -353,6 +367,15 @@ export class OfflineDictionary {
             inferred: true,
             source: "inferred",
           }];
+          if (suffix) result.push({
+            form: `-${suffix.form}`,
+            meaningZh: suffix.meaningZh,
+            meaningEn: "",
+            kind: "suffix",
+            inferred: true,
+            source: "inferred",
+          });
+          return result;
         }
       }
     }

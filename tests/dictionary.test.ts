@@ -95,6 +95,24 @@ describe("offline dictionary", () => {
     expect(roots[0]).toMatchObject({ form: "kind", meaningZh: "亲切的；仁慈的" });
   });
 
+  it("rejects person names as derivation bases and restores doubled consonants", async () => {
+    const entry = await offlineDictionary.lookup("wedding");
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.map((root) => root.form)).toEqual(["wed", "-ing"]);
+    expect(roots[0]?.meaningZh).toMatch(/结婚/u);
+    expect(roots.some((root) => root.form === "wedd" || /人名/u.test(root.meaningZh))).toBe(false);
+  });
+
+  it.each([
+    ["running", "run", "-ing"],
+    ["planned", "plan", "-ed"],
+    ["swimming", "swim", "-ing"],
+  ])("retains the productive suffix for inflected form %s", async (word, lemma, suffix) => {
+    const entry = await offlineDictionary.lookup(word);
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.map((root) => root.form)).toEqual([lemma, suffix]);
+  });
+
   it("covers every generated root gloss with a fixed Chinese construction meaning", async () => {
     const roots = await decodeGzipJson<RootLexiconEntry[]>(GENERATED_DICTIONARY.roots);
     const glosses = new Set(roots.map((root) => root.meaningEn));

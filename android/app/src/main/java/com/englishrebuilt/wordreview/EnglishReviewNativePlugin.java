@@ -219,6 +219,23 @@ public class EnglishReviewNativePlugin extends Plugin {
         getActivity().runOnUiThread(() -> enqueueSpeech(request));
     }
 
+    @PluginMethod
+    public void openExternalUrl(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || !url.startsWith("https://")) {
+            call.reject("Only HTTPS update URLs are allowed");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception error) {
+            call.reject("Unable to open update page", error);
+        }
+    }
+
     private void enqueueSpeech(PendingSpeech request) {
         if (textToSpeechInitializing) {
             pendingSpeech.add(request);

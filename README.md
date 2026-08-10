@@ -1,6 +1,6 @@
-# 英语单词速记 8.3.2
+# 英语单词速记 8.4.0
 
-同一套 Vite + TypeScript 核心输出单文件离线 HTML、Tauri 2 Windows 应用和 Capacitor 8 Android 应用。当前 8.3.2 发布线在 8.3.0 手动多文件词库同步与 Android 原生朗读基础上，补全离线词典的通用前缀、后缀和基础词构词推测，按构词后缀选择合适的基础词词性，并过滤缩写、人名、地名等不可靠基础词。内置词库继续采用 v7.4.6 重构版的 39 词内容，原有三种学习模式、检查背诵和 `weighted-random-v1` 抽题算法保持不变。
+同一套 Vite + TypeScript 核心输出单文件离线 HTML、Tauri 2 Windows 应用和 Capacitor 8 Android 应用。当前 8.4.0 发布线会在应用启动及打开数据同步设置时检查 GitHub 最新正式 Release；发现更高版本后按当前平台提示打开 HTML、Windows 安装包或 Android APK。检查不会定时运行，网络失败不会阻塞离线学习。8.3 系列的手动多文件同步、Android 原生朗读和通用中文构词推测继续保留；原有三种学习模式、检查背诵和 `weighted-random-v1` 抽题算法保持不变。
 
 ## 检查背诵与间隔复习
 

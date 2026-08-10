@@ -189,8 +189,14 @@
     .sync-actions button { background: #2768d6; color: #fff; }
     .sync-status { flex: 1 1 260px; min-width: 0; min-height: 22px; overflow-wrap: anywhere; color: #52647f; font-size: 13px; white-space: pre-line; }
     .sync-status.good { color: #176a40; } .sync-status.bad { color: #ac3434; }
-    .data-sync-picker { position: fixed; inset: 0; z-index: 260; display: grid; place-items: center; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: #101a2cb8; }
+    .data-sync-picker, .update-modal { position: fixed; inset: 0; z-index: 260; display: grid; place-items: center; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: #101a2cb8; }
     .data-sync-picker[hidden] { display: none !important; }
+    .update-modal[hidden] { display: none !important; }
+    .update-dialog { width: min(460px, 100%); padding: 22px; border: 1px solid #dfe6f0; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px #07132970; }
+    .update-dialog h2 { margin: 0 0 9px; font-size: 21px; }
+    .update-dialog p { margin: 7px 0; color: #5e6d83; line-height: 1.65; }
+    .update-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .update-actions .primary { background: #2768d6; color: #fff; }
     .data-sync-picker-dialog { width: min(1120px, 100%); max-height: calc(100dvh - 36px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid #dfe6f0; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px #07132970; }
     .data-sync-picker-head, .data-sync-picker-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #e7ebf2; }
     .data-sync-picker-head h2 { margin: 0; font-size: 19px; }
@@ -339,7 +345,8 @@
     html[data-theme="dark"] body { background: #0e1625; color: #e6edf8; }
     html[data-theme="dark"] .app-topbar { border-color: #2c3a50; background: #111c2deb; }
     html[data-theme="dark"] .stat, html[data-theme="dark"] .card, html[data-theme="dark"] .toolbar, html[data-theme="dark"] .mistakes, html[data-theme="dark"] .review-panel, html[data-theme="dark"] .sync-panel, html[data-theme="dark"] .library-manager, html[data-theme="dark"] .archives, html[data-theme="dark"] .intensive, html[data-theme="dark"] .root-sidebar { border-color: #28374d; background: #151f30; box-shadow: 0 8px 28px #0005; }
-    html[data-theme="dark"] .top-mode-menu, html[data-theme="dark"] .settings-dialog, html[data-theme="dark"] .settings-file-item, html[data-theme="dark"] .shortcut-binding, html[data-theme="dark"] .data-sync-picker-dialog, html[data-theme="dark"] .data-sync-file-item { border-color: #334158; background: #182335; color: #dbe6f5; }
+    html[data-theme="dark"] .top-mode-menu, html[data-theme="dark"] .settings-dialog, html[data-theme="dark"] .settings-file-item, html[data-theme="dark"] .shortcut-binding, html[data-theme="dark"] .data-sync-picker-dialog, html[data-theme="dark"] .data-sync-file-item, html[data-theme="dark"] .update-dialog { border-color: #334158; background: #182335; color: #dbe6f5; }
+    html[data-theme="dark"] .update-dialog p { color: #a9b8cb; }
     html[data-theme="dark"] .data-sync-column { border-color: #2d3c52; background: #121d2d; }
     html[data-theme="dark"] .settings-head, html[data-theme="dark"] .settings-search-row, html[data-theme="dark"] .settings-foot { border-color: #2c3a50; background: #121d2d; }
     html[data-theme="dark"] .settings-nav, html[data-theme="dark"] .settings-group, html[data-theme="dark"] .shortcut-group h4 { border-color: #2c3a50; background: #111b2a; }
@@ -363,7 +370,7 @@
     @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .root-sidebar { position: static; margin: 0 0 30px; } }
     @media (max-width: 720px) { .settings-dialog { height: calc(100dvh - 20px); } .settings-search-row { display: grid; grid-template-columns: 1fr; padding: 10px 14px; } .settings-mobile-section { display: block; } .settings-body { grid-template-columns: 1fr; } .settings-nav { display: none; } .settings-content { padding: 15px 14px 24px; } .setting-row { grid-template-columns: 1fr; gap: 7px; } .settings-foot { padding: 10px 14px; } .data-sync-picker-grid { grid-template-columns: 1fr; } }
     @media (max-width: 600px) { button { min-width: 44px; min-height: 44px; } .suggestion-chip, .managed-word-row button { min-height: 44px; } .selection-list, .sync-grid, .library-form-grid, .review-choice-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } .word-check-table { display: block; overflow-x: auto; } .managed-word-row { grid-template-columns: 1fr auto; } .managed-word-row .managed-word-meaning { grid-column: 1 / -1; } .app-topbar { min-height: 58px; gap: 8px; padding: 8px; } .app-brand h1 { font-size: 20px; } .top-mode-button { min-width: 0; max-width: 190px; } .shortcut-binding-row, .shortcut-legend { grid-template-columns: minmax(110px, 1fr) minmax(76px, .6fr) minmax(76px, .6fr) 36px; } }
-    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell, body.focus-mode .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card, body.focus-mode .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal, .data-sync-picker { padding: 0; } .settings-dialog, .data-sync-picker-dialog { height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } .data-sync-picker-actions { flex-wrap: wrap; } .data-sync-picker-actions .sync-status { flex-basis: 100%; } }
+    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell, body.focus-mode .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card, body.focus-mode .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal, .data-sync-picker { padding: 0; } .settings-dialog, .data-sync-picker-dialog { height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; } .update-modal { padding: 12px; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } .data-sync-picker-actions { flex-wrap: wrap; } .data-sync-picker-actions .sync-status { flex-basis: 100%; } }
   </style>
 </head>
 <body>
@@ -429,7 +436,7 @@
       <button id="currentBtn">当前词库</button>
       <button id="wrongModeBtn" data-shortcut-action="toggleWrongOnly">仅复习错词</button>
       <button id="exportBtn">导出 v7.4.5 兼容版</button>
-      <button id="exportV4Btn">导出完整 8.3.2</button>
+      <button id="exportV4Btn">导出完整 8.4.0</button>
       <button id="importBtn">导入旧版</button>
       <button id="importV4Btn">导入完整快照</button>
       <button id="libraryManageBtn">管理手动词库</button>
@@ -850,7 +857,7 @@
               <div class="sync-actions">
                 <button id="saveSyncBtn" type="button">保存同步设置</button>
                 <button id="syncNowBtn" type="button">选择上传 / 下载</button>
-                <span class="version-chip" id="versionChip">8.3.2 · weighted-random-v1</span>
+                <span class="version-chip" id="versionChip">8.4.0 · weighted-random-v1</span>
                 <span class="sync-status" id="syncStatus" role="status"></span>
               </div>
             </section>
@@ -885,6 +892,18 @@
         <button id="dataSyncSelectionRefreshBtn" type="button">刷新列表</button>
         <button class="primary" id="dataSyncSelectionApplyBtn" type="button">执行已选同步</button>
       </footer>
+    </div>
+  </div>
+
+  <div class="update-modal" id="updateModal" hidden>
+    <div class="update-dialog" id="updateDialog" role="dialog" aria-modal="true" aria-labelledby="updateTitle" tabindex="-1">
+      <h2 id="updateTitle">发现新版本</h2>
+      <p id="updateVersionText"></p>
+      <p id="updateAssetText"></p>
+      <div class="update-actions">
+        <button id="updateLaterBtn" type="button">稍后</button>
+        <button class="primary" id="updateNowBtn" type="button">前往更新</button>
+      </div>
     </div>
   </div>
 

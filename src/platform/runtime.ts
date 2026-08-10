@@ -39,6 +39,7 @@ interface NativeBridgePlugin {
   saveTextFile(options: { filename: string; content: string; mimeType: string }): Promise<SaveTextFileResult>;
   speak(options: { text: string; locale: string; rate: number }): Promise<void>;
   httpRequest(options: { request: HttpRequest }): Promise<HttpResponse>;
+  openExternalUrl(options: { url: string }): Promise<void>;
 }
 
 const NativeBridge = registerPlugin<NativeBridgePlugin>("EnglishReviewNative");
@@ -143,6 +144,27 @@ export async function deleteSecret(key: string): Promise<void> {
 export interface SpeakEnglishOptions {
   rate?: number;
   voice?: string;
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") throw new Error("只允许打开 HTTPS 更新地址");
+  if (isTauri()) {
+    await invoke("open_external_url", { url: parsed.href });
+    return;
+  }
+  if (isCapacitorNative()) {
+    await NativeBridge.openExternalUrl({ url: parsed.href });
+    return;
+  }
+  const opened = window.open(parsed.href, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    const link = document.createElement("a");
+    link.href = parsed.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.click();
+  }
 }
 
 export async function speakEnglish(text: string, options: SpeakEnglishOptions = {}): Promise<void> {
