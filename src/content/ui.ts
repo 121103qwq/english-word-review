@@ -410,8 +410,8 @@ export class ContentManagerUi {
       library.modifiedAt = new Date().toISOString();
       draft.activeLibraryId = library.id;
     });
-    this.setStatus(`已在本地保存 ${additions.length} 个单词，正在同步……`);
-    sessionStorage.setItem("english-review:content-status", "词库已保存并进入同步队列。");
+    this.setStatus(`已在本地保存 ${additions.length} 个单词；需要上传时请打开同步选择。`);
+    sessionStorage.setItem("english-review:content-status", "词库已保存本地，尚未主动上传。");
     this.rows = [];
     byId<HTMLTextAreaElement>("libraryPasteInput").value = "";
     [...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].forEach((input) => { input.value = ""; });
@@ -530,7 +530,7 @@ export class ContentManagerUi {
         if (!this.editor.audioIds.includes(asset.meta.id)) this.editor.audioIds.push(asset.meta.id);
         this.editor.primaryAudioId ??= asset.meta.id;
       }
-      status.textContent = "MP3 已保存到本地，保存单词后同步。";
+      status.textContent = "MP3 已保存到本地；保存单词后可在同步选择中上传。";
       status.className = "sync-status good";
       await this.renderAudioList();
     } catch (error) {
@@ -617,7 +617,7 @@ export class ContentManagerUi {
         for (const asset of pendingAssets) if (asset) changed.assets[asset.meta.id] = asset.meta;
         return changed;
       });
-      status.textContent = "已保存本地，正在同步……";
+      status.textContent = "已保存本地；需要上传时请打开同步选择。";
       status.className = "sync-status good";
       this.closeEditor();
       await this.materialize(true);

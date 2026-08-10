@@ -33,7 +33,7 @@ struct SaveTextFileResponse {
 #[tauri::command]
 async fn native_http_request(request: HttpRequest) -> Result<HttpResponse, String> {
     let client = reqwest::Client::builder()
-        .user_agent("EnglishWordReview/8.2.4")
+        .user_agent("EnglishWordReview/8.3.0")
         .timeout(Duration::from_millis(request.timeout_ms.unwrap_or(12_000)))
         .build()
         .map_err(|error| error.to_string())?;

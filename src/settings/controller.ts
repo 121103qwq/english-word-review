@@ -145,7 +145,6 @@ export interface PlatformSettingsControllerOptions {
   legacyRuntime: LegacyRuntimeApi;
   getSettingsTransports: (strict?: boolean) => SettingsTransport[];
   playPrimaryForWord: (word: string) => Promise<boolean>;
-  canUseNativeSecrets: () => boolean;
   reportStatus?: (message: string, kind?: StatusKind) => void;
 }
 
@@ -250,7 +249,6 @@ export class PlatformSettingsController {
     const localKey = {
       load: async () => {
         if (!isNativeRuntime()) return localStorage.getItem(HTML_MIMO_KEY) ?? "";
-        if (!this.options.canUseNativeSecrets()) throw new Error("请先设置或输入原生凭据密码");
         return loadSecret("mimo-api-key");
       },
       save: async (value: string) => {
@@ -258,7 +256,6 @@ export class PlatformSettingsController {
           localStorage.setItem(HTML_MIMO_KEY, value);
           return;
         }
-        if (!this.options.canUseNativeSecrets()) throw new Error("请先设置或输入原生凭据密码");
         await saveSecret("mimo-api-key", value);
       },
     };
@@ -784,7 +781,6 @@ export class PlatformSettingsController {
 
   private async fetchMimoKey(): Promise<void> {
     try {
-      if (isNativeRuntime() && !this.options.canUseNativeSecrets()) throw new Error("请先在“数据同步”中设置或输入凭据密码");
       const github = this.options.getSettingsTransports(true)
         .find((transport): transport is SettingsGitHubTransport =>
           typeof (transport as Partial<SettingsGitHubTransport>).readMimoApiKey === "function");
@@ -802,7 +798,6 @@ export class PlatformSettingsController {
   private async clearMimoKey(): Promise<void> {
     try {
       if (isNativeRuntime()) {
-        if (!this.options.canUseNativeSecrets()) throw new Error("请先设置或输入原生凭据密码");
         await deleteSecret("mimo-api-key");
       } else {
         localStorage.removeItem(HTML_MIMO_KEY);

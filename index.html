@@ -189,6 +189,29 @@
     .sync-actions button { background: #2768d6; color: #fff; }
     .sync-status { flex: 1 1 260px; min-width: 0; min-height: 22px; overflow-wrap: anywhere; color: #52647f; font-size: 13px; white-space: pre-line; }
     .sync-status.good { color: #176a40; } .sync-status.bad { color: #ac3434; }
+    .data-sync-picker { position: fixed; inset: 0; z-index: 260; display: grid; place-items: center; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: #101a2cb8; }
+    .data-sync-picker[hidden] { display: none !important; }
+    .data-sync-picker-dialog { width: min(1120px, 100%); max-height: calc(100dvh - 36px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid #dfe6f0; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px #07132970; }
+    .data-sync-picker-head, .data-sync-picker-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #e7ebf2; }
+    .data-sync-picker-head h2 { margin: 0; font-size: 19px; }
+    .data-sync-picker-head p { margin: 3px 0 0; color: #718099; font-size: 12px; }
+    .data-sync-picker-head button { width: 40px; min-width: 40px; padding: 0; background: #eef2f8; color: #3b4c67; }
+    .data-sync-picker-grid { min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; overflow: auto; padding: 16px 18px; }
+    .data-sync-column { min-width: 0; padding: 13px; border: 1px solid #e1e7f0; border-radius: 13px; background: #fafbfd; }
+    .data-sync-column h3 { margin: 0 0 4px; font-size: 15px; }
+    .data-sync-column-note { margin: 0 0 10px; color: #718099; font-size: 12px; }
+    .data-sync-file-list { display: grid; gap: 8px; }
+    .data-sync-file-empty { padding: 18px 10px; color: #7b899e; text-align: center; }
+    .data-sync-file-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; align-items: start; padding: 10px; border: 1px solid #dfe6f0; border-radius: 10px; background: #fff; }
+    .data-sync-file-item input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: #2768d6; }
+    .data-sync-file-title { color: #2e4361; font-weight: 700; overflow-wrap: anywhere; }
+    .data-sync-file-meta { margin-top: 3px; color: #718099; font-size: 12px; overflow-wrap: anywhere; }
+    .data-sync-file-state { display: inline-block; margin-top: 5px; padding: 2px 7px; border-radius: 999px; background: #eef2f8; color: #52647f; font-size: 11px; }
+    .data-sync-file-state.warn { background: #fff1cf; color: #825500; }
+    .data-sync-file-state.good { background: #e3f5eb; color: #176a40; }
+    .data-sync-picker-actions { justify-content: flex-end; border-top: 1px solid #e7ebf2; border-bottom: 0; }
+    .data-sync-picker-actions .sync-status { margin-right: auto; }
+    .data-sync-picker-actions .primary { background: #2768d6; color: #fff; }
     .library-manager { margin-top: 14px; padding: 18px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
     .library-manager[hidden], .library-input-mode[hidden] { display: none !important; }
     .library-manager-head, .library-editor-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -316,7 +339,8 @@
     html[data-theme="dark"] body { background: #0e1625; color: #e6edf8; }
     html[data-theme="dark"] .app-topbar { border-color: #2c3a50; background: #111c2deb; }
     html[data-theme="dark"] .stat, html[data-theme="dark"] .card, html[data-theme="dark"] .toolbar, html[data-theme="dark"] .mistakes, html[data-theme="dark"] .review-panel, html[data-theme="dark"] .sync-panel, html[data-theme="dark"] .library-manager, html[data-theme="dark"] .archives, html[data-theme="dark"] .intensive, html[data-theme="dark"] .root-sidebar { border-color: #28374d; background: #151f30; box-shadow: 0 8px 28px #0005; }
-    html[data-theme="dark"] .top-mode-menu, html[data-theme="dark"] .settings-dialog, html[data-theme="dark"] .settings-file-item, html[data-theme="dark"] .shortcut-binding { border-color: #334158; background: #182335; color: #dbe6f5; }
+    html[data-theme="dark"] .top-mode-menu, html[data-theme="dark"] .settings-dialog, html[data-theme="dark"] .settings-file-item, html[data-theme="dark"] .shortcut-binding, html[data-theme="dark"] .data-sync-picker-dialog, html[data-theme="dark"] .data-sync-file-item { border-color: #334158; background: #182335; color: #dbe6f5; }
+    html[data-theme="dark"] .data-sync-column { border-color: #2d3c52; background: #121d2d; }
     html[data-theme="dark"] .settings-head, html[data-theme="dark"] .settings-search-row, html[data-theme="dark"] .settings-foot { border-color: #2c3a50; background: #121d2d; }
     html[data-theme="dark"] .settings-nav, html[data-theme="dark"] .settings-group, html[data-theme="dark"] .shortcut-group h4 { border-color: #2c3a50; background: #111b2a; }
     html[data-theme="dark"] .settings-content, html[data-theme="dark"] .settings-group, html[data-theme="dark"] .shortcut-group, html[data-theme="dark"] .setting-row, html[data-theme="dark"] .shortcut-binding-row { border-color: #2c3a50; }
@@ -337,9 +361,9 @@
     html[data-theme="dark"] .settings-isolation-note { background: #152c4d; color: #b8d3f9; }
     body.read-only main button:not(#exportV4Btn):not(#syncManageBtn):not(#settingsOpenBtn), body.read-only main input { pointer-events: none; opacity: .45; }
     @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .root-sidebar { position: static; margin: 0 0 30px; } }
-    @media (max-width: 720px) { .settings-dialog { height: calc(100dvh - 20px); } .settings-search-row { display: grid; grid-template-columns: 1fr; padding: 10px 14px; } .settings-mobile-section { display: block; } .settings-body { grid-template-columns: 1fr; } .settings-nav { display: none; } .settings-content { padding: 15px 14px 24px; } .setting-row { grid-template-columns: 1fr; gap: 7px; } .settings-foot { padding: 10px 14px; } }
+    @media (max-width: 720px) { .settings-dialog { height: calc(100dvh - 20px); } .settings-search-row { display: grid; grid-template-columns: 1fr; padding: 10px 14px; } .settings-mobile-section { display: block; } .settings-body { grid-template-columns: 1fr; } .settings-nav { display: none; } .settings-content { padding: 15px 14px 24px; } .setting-row { grid-template-columns: 1fr; gap: 7px; } .settings-foot { padding: 10px 14px; } .data-sync-picker-grid { grid-template-columns: 1fr; } }
     @media (max-width: 600px) { button { min-width: 44px; min-height: 44px; } .suggestion-chip, .managed-word-row button { min-height: 44px; } .selection-list, .sync-grid, .library-form-grid, .review-choice-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } .word-check-table { display: block; overflow-x: auto; } .managed-word-row { grid-template-columns: 1fr auto; } .managed-word-row .managed-word-meaning { grid-column: 1 / -1; } .app-topbar { min-height: 58px; gap: 8px; padding: 8px; } .app-brand h1 { font-size: 20px; } .top-mode-button { min-width: 0; max-width: 190px; } .shortcut-binding-row, .shortcut-legend { grid-template-columns: minmax(110px, 1fr) minmax(76px, .6fr) minmax(76px, .6fr) 36px; } }
-    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell, body.focus-mode .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card, body.focus-mode .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal { padding: 0; } .settings-dialog { height: 100dvh; border: 0; border-radius: 0; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } }
+    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell, body.focus-mode .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card, body.focus-mode .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal, .data-sync-picker { padding: 0; } .settings-dialog, .data-sync-picker-dialog { height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } .data-sync-picker-actions { flex-wrap: wrap; } .data-sync-picker-actions .sync-status { flex-basis: 100%; } }
   </style>
 </head>
 <body>
@@ -405,7 +429,7 @@
       <button id="currentBtn">当前词库</button>
       <button id="wrongModeBtn" data-shortcut-action="toggleWrongOnly">仅复习错词</button>
       <button id="exportBtn">导出 v7.4.5 兼容版</button>
-      <button id="exportV4Btn">导出完整 8.2</button>
+      <button id="exportV4Btn">导出完整 8.3.0</button>
       <button id="importBtn">导入旧版</button>
       <button id="importV4Btn">导入完整快照</button>
       <button id="libraryManageBtn">管理手动词库</button>
@@ -787,10 +811,10 @@
 
           <section class="settings-section" id="settingsSectionDataSync" data-settings-section-panel="data-sync" data-settings-search="数据 同步 GitHub WebDAV 凭据 词库 进度" hidden>
             <h3>数据同步</h3>
-            <p class="settings-section-note">学习进度按事件合并；词库内容严格采用最新完整快照。个性化设置使用独立目录，不参与这里的普通同步检查。</p>
+            <p class="settings-section-note">只在点击同步后访问云端。词库拆分为独立文件，学习进度单独合并；不会再用一份云端快照自动覆盖全部本地词库。</p>
             <section class="sync-panel settings-embedded-sync" id="syncPanel" aria-labelledby="syncTitle">
-              <h2 id="syncTitle">学习进度与内容镜像同步</h2>
-              <p class="sync-note">本机、GitHub 和全部启用的 WebDAV 均为对等镜像。保存配置不会更改学习算法。</p>
+              <h2 id="syncTitle">学习进度与词库文件同步</h2>
+              <p class="sync-note">同步文件按“设备编码、设备名称、地点、分钟”命名。点击同步后，可分别勾选本机上传项和云端下载项。</p>
               <div class="sync-grid">
                 <div class="sync-group">
                   <h3>GitHub Contents API</h3>
@@ -799,7 +823,7 @@
                     <label>仓库所有者<input id="githubOwner" value="121103qwq" autocomplete="off"></label>
                     <label>私有数据仓库名<input id="githubRepo" value="english-word-review-data" autocomplete="off"></label>
                     <label>分支<input id="githubBranch" value="main" autocomplete="off"></label>
-                    <label>学习快照路径<input id="githubPath" value="progress/snapshot-v4.json" autocomplete="off"></label>
+                    <label>旧版快照路径（只读兼容）<input id="githubPath" value="progress/snapshot-v4.json" autocomplete="off"></label>
                     <label>细粒度令牌<input id="githubToken" type="password" autocomplete="off" placeholder="只需 Contents 读写权限"></label>
                   </div>
                 </div>
@@ -817,21 +841,16 @@
                 </div>
               </div>
               <div class="sync-group" id="nativeCredentialGroup" hidden>
-                <h3 id="nativeCredentialTitle">首次设置凭据密码</h3>
-                <p class="sync-note" id="nativeCredentialNote">首次使用原生安全存储前必须设置密码。</p>
-                <div class="sync-fields">
-                  <label id="nativeCredentialPasswordLabel"><span id="nativeCredentialPasswordLabelText">设置密码</span><input id="nativeCredentialPassword" type="password" autocomplete="new-password"></label>
-                  <label id="nativeCredentialConfirmLabel">确认密码<input id="nativeCredentialPasswordConfirm" type="password" autocomplete="new-password"></label>
-                </div>
+                <h3>原生安全存储</h3>
+                <p class="sync-note">不再设置或输入应用密码。GitHub Token 与 WebDAV 服务凭据由 Windows 凭据管理器或 Android Keystore 直接保存。</p>
                 <div class="sync-actions">
-                  <button id="nativeCredentialActionBtn" type="button">设置密码并解锁</button>
-                  <button id="clearNativeCredentialsBtn" type="button">忘记密码：清除原生同步凭据</button>
+                  <button id="clearNativeCredentialsBtn" type="button">清除原生同步凭据</button>
                 </div>
               </div>
               <div class="sync-actions">
                 <button id="saveSyncBtn" type="button">保存同步设置</button>
-                <button id="syncNowBtn" type="button">立即同步</button>
-                <span class="version-chip" id="versionChip">8.2.4 · weighted-random-v1</span>
+                <button id="syncNowBtn" type="button">选择上传 / 下载</button>
+                <span class="version-chip" id="versionChip">8.3.0 · weighted-random-v1</span>
                 <span class="sync-status" id="syncStatus" role="status"></span>
               </div>
             </section>
@@ -839,6 +858,33 @@
         </div>
       </div>
       <footer class="settings-foot"><span class="settings-status" id="settingsGeneralStatus" role="status"></span><button id="settingsCancelBtn" type="button">取消</button><button class="settings-apply-button" id="settingsApplyBtn" type="button">应用</button><button class="settings-save-button" id="settingsSaveBtn" type="button">保存</button></footer>
+    </div>
+  </div>
+
+  <div class="data-sync-picker" id="dataSyncSelectionModal" hidden>
+    <div class="data-sync-picker-dialog" id="dataSyncSelectionDialog" role="dialog" aria-modal="true" aria-labelledby="dataSyncSelectionTitle" tabindex="-1">
+      <header class="data-sync-picker-head">
+        <div><h2 id="dataSyncSelectionTitle">选择词库与进度同步文件</h2><p id="dataSyncSelectionIdentity">正在读取设备编码与地点……</p></div>
+        <button id="dataSyncSelectionCloseBtn" type="button" aria-label="关闭同步选择">×</button>
+      </header>
+      <div class="data-sync-picker-grid">
+        <section class="data-sync-column" aria-labelledby="dataSyncLocalTitle">
+          <h3 id="dataSyncLocalTitle">本机文件 · 勾选后上传</h3>
+          <p class="data-sync-column-note">每个词库独立上传；学习进度使用单独事件文件，不会覆盖词库。</p>
+          <div class="data-sync-file-list" id="dataSyncLocalList"><div class="data-sync-file-empty">正在整理本机词库……</div></div>
+        </section>
+        <section class="data-sync-column" aria-labelledby="dataSyncCloudTitle">
+          <h3 id="dataSyncCloudTitle">云端文件 · 勾选后下载</h3>
+          <p class="data-sync-column-note">同一分钟存在本机副本时会比较内容，并标出“单词相同、进度不同”。</p>
+          <div class="data-sync-file-list" id="dataSyncCloudList"><div class="data-sync-file-empty">点击刷新后读取 GitHub 与全部启用的 WebDAV。</div></div>
+        </section>
+      </div>
+      <footer class="data-sync-picker-actions">
+        <span class="sync-status" id="dataSyncSelectionStatus" role="status"></span>
+        <label class="setting-check"><input id="dataSyncIncludeAssets" type="checkbox">同时传输 MP3（默认关闭）</label>
+        <button id="dataSyncSelectionRefreshBtn" type="button">刷新列表</button>
+        <button class="primary" id="dataSyncSelectionApplyBtn" type="button">执行已选同步</button>
+      </footer>
     </div>
   </div>
 

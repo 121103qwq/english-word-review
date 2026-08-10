@@ -25,14 +25,15 @@ describe("native credential password verifier", () => {
     await expect(verifyNativePassword({ ...verifier, salt: "bad" }, "secret")).rejects.toThrow("密码记录无效");
   });
 
-  it("shows setup confirmation before the first native unlock and password-only input later", () => {
+  it("does not gate native secure storage behind an application password", () => {
     const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
     const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    const settingsController = readFileSync(new URL("../src/settings/controller.ts", import.meta.url), "utf8");
 
-    expect(html).toContain('id="nativeCredentialPasswordConfirm"');
-    expect(html).toContain("首次设置凭据密码");
-    expect(main).toContain('hasPassword ? "输入凭据密码" : "首次设置凭据密码"');
-    expect(main).toContain("confirmLabel.hidden = hasPassword");
-    expect(main).toContain("requireNativeCredentialsUnlocked()");
+    expect(html).not.toContain('id="nativeCredentialPassword"');
+    expect(html).not.toContain('id="nativeCredentialPasswordConfirm"');
+    expect(main).not.toContain("requireNativeCredentialsUnlocked");
+    expect(main).not.toContain("verifyNativePassword");
+    expect(settingsController).not.toContain("canUseNativeSecrets");
   });
 });

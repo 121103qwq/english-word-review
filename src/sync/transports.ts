@@ -112,11 +112,11 @@ export class WebDavTransport implements SyncTransport {
   constructor(private readonly config: WebDavConfig) {}
 
   private headers(): Record<string, string> {
-    const credentials = utf8ToBase64(`${this.config.username}:${this.config.password}`);
-    return {
-      Authorization: `Basic ${credentials}`,
-      "Content-Type": "application/json; charset=utf-8",
-    };
+    const headers: Record<string, string> = { "Content-Type": "application/json; charset=utf-8" };
+    if (this.config.username || this.config.password) {
+      headers.Authorization = `Basic ${utf8ToBase64(`${this.config.username}:${this.config.password}`)}`;
+    }
+    return headers;
   }
 
   async read(): Promise<RemoteDocument> {

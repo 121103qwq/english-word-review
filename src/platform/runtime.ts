@@ -147,6 +147,17 @@ export interface SpeakEnglishOptions {
 
 export async function speakEnglish(text: string, options: SpeakEnglishOptions = {}): Promise<void> {
   const rate = Math.max(0.5, Math.min(2, options.rate ?? 0.85));
+  // Android WebView may expose the Web Speech API even when it has no usable
+  // synthesis service. Prefer the platform bridges so a present-but-inert web
+  // implementation cannot swallow the request.
+  if (isCapacitorNative()) {
+    await NativeBridge.speak({ text, locale: "en-US", rate });
+    return;
+  }
+  if (isTauri()) {
+    await invoke("speak_text", { text, locale: "en-US", rate });
+    return;
+  }
   if ("speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined") {
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
@@ -159,7 +170,5 @@ export async function speakEnglish(text: string, options: SpeakEnglishOptions = 
     speechSynthesis.speak(utterance);
     return;
   }
-  if (isTauri()) await invoke("speak_text", { text, locale: "en-US", rate });
-  else if (isCapacitorNative()) await NativeBridge.speak({ text, locale: "en-US", rate });
-  else throw new Error("当前环境不支持语音朗读");
+  throw new Error("当前环境不支持语音朗读");
 }

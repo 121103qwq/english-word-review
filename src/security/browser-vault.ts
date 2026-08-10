@@ -20,7 +20,6 @@ export class BrowserCredentialStore<T> {
 
   save(credentials: T): void {
     this.storage.setItem(this.storageKey, JSON.stringify(credentials));
-    this.storage.removeItem(this.legacyStorageKey);
   }
 
   load(): T | undefined {

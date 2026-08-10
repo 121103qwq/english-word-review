@@ -377,10 +377,11 @@ export class ContentWebDavTransport implements ContentTransport {
   }
 
   private headers(): Record<string, string> {
-    return {
-      Authorization: `Basic ${utf8ToBase64(`${this.config.username}:${this.config.password}`)}`,
-      "Content-Type": "application/json; charset=utf-8",
-    };
+    const headers: Record<string, string> = { "Content-Type": "application/json; charset=utf-8" };
+    if (this.config.username || this.config.password) {
+      headers.Authorization = `Basic ${utf8ToBase64(`${this.config.username}:${this.config.password}`)}`;
+    }
+    return headers;
   }
 
   private async ensureCollection(path = this.backupsPath): Promise<void> {

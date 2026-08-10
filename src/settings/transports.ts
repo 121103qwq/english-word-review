@@ -370,10 +370,11 @@ export class SettingsWebDavTransport implements SettingsTransport {
   }
 
   private headers(contentType = "application/json; charset=utf-8"): Record<string, string> {
-    return {
-      Authorization: `Basic ${utf8ToBase64(`${this.config.username}:${this.config.password}`)}`,
-      "Content-Type": contentType,
-    };
+    const headers: Record<string, string> = { "Content-Type": contentType };
+    if (this.config.username || this.config.password) {
+      headers.Authorization = `Basic ${utf8ToBase64(`${this.config.username}:${this.config.password}`)}`;
+    }
+    return headers;
   }
 
   private async ensureCollection(path: string): Promise<void> {

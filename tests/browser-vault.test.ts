@@ -32,7 +32,7 @@ describe("browser credential storage", () => {
     expect(store.load()).toEqual(credentials);
   });
 
-  it("keeps an old encrypted envelope separate until credentials are saved again", () => {
+  it("keeps an old encrypted envelope as a non-destructive compatibility backup", () => {
     const storage = new MemoryStorage();
     storage.setItem(LEGACY_BROWSER_VAULT_STORAGE_KEY, "legacy-ciphertext");
     const store = new BrowserCredentialStore<typeof credentials>(storage);
@@ -40,7 +40,8 @@ describe("browser credential storage", () => {
     expect(store.load()).toBeUndefined();
     expect(store.hasLegacyEncryptedCredentials()).toBe(true);
     store.save(credentials);
-    expect(store.hasLegacyEncryptedCredentials()).toBe(false);
+    expect(store.hasLegacyEncryptedCredentials()).toBe(true);
+    expect(store.load()).toEqual(credentials);
   });
 
   it("clears current and legacy credentials without touching unrelated local data", () => {
