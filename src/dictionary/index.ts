@@ -15,9 +15,12 @@ export async function lookupWord(word: string) {
 
 export async function checkWord(word: string) {
   const result = await offlineDictionary.check(word);
+  const entry = result.entry
+    ? { ...result.entry, roots: await offlineDictionary.rootsFor(result.entry) }
+    : undefined;
   return {
     normalized: result.normalized,
-    entry: result.entry ?? undefined,
+    entry,
     suggestions: result.suggestions.map((entry) => entry.word),
   };
 }

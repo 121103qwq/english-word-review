@@ -10,6 +10,93 @@ import type {
 
 const rootGlosses: Record<string, string> = rootGlossZh;
 
+interface ProductiveAffix {
+  form: string;
+  meaningZh: string;
+}
+
+interface ProductiveDerivation {
+  prefix?: ProductiveAffix;
+  suffix?: ProductiveAffix;
+  base: DictionaryEntry;
+  baseMeaningZh: string;
+  affixLength: number;
+  exactStem: boolean;
+}
+
+const PRODUCTIVE_PREFIXES: readonly ProductiveAffix[] = [
+  { form: "under", meaningZh: "在下；不足" },
+  { form: "super", meaningZh: "在上；超过" },
+  { form: "inter", meaningZh: "在……之间；相互" },
+  { form: "micro", meaningZh: "微小" },
+  { form: "multi", meaningZh: "多；多个" },
+  { form: "post", meaningZh: "在后；之后" },
+  { form: "over", meaningZh: "在上；过度" },
+  { form: "anti", meaningZh: "反对；抵抗" },
+  { form: "auto", meaningZh: "自己；自动" },
+  { form: "semi", meaningZh: "半；部分" },
+  { form: "non", meaningZh: "非；不" },
+  { form: "mis", meaningZh: "错误；不当" },
+  { form: "pre", meaningZh: "预先；在前" },
+  { form: "sub", meaningZh: "在下；次级" },
+  { form: "dis", meaningZh: "不；相反；分开" },
+  { form: "un", meaningZh: "不；相反" },
+  { form: "re", meaningZh: "再；重新" },
+  { form: "co", meaningZh: "共同；一起" },
+];
+
+const PRODUCTIVE_SUFFIXES: readonly ProductiveAffix[] = [
+  { form: "ation", meaningZh: "行为；过程；结果" },
+  { form: "ical", meaningZh: "与……有关的；具有……特征的" },
+  { form: "less", meaningZh: "没有……的" },
+  { form: "ness", meaningZh: "性质；状态" },
+  { form: "ment", meaningZh: "行为；过程；结果" },
+  { form: "able", meaningZh: "能够……的；可……的" },
+  { form: "ible", meaningZh: "能够……的；可……的" },
+  { form: "ship", meaningZh: "身份；关系；状态" },
+  { form: "hood", meaningZh: "时期；身份；状态" },
+  { form: "ward", meaningZh: "朝向……" },
+  { form: "tion", meaningZh: "行为；过程；结果" },
+  { form: "sion", meaningZh: "行为；过程；结果" },
+  { form: "ful", meaningZh: "充满……的；具有……的" },
+  { form: "ous", meaningZh: "具有……性质的" },
+  { form: "ive", meaningZh: "具有……性质的" },
+  { form: "ity", meaningZh: "性质；状态" },
+  { form: "ize", meaningZh: "使成为；使……化" },
+  { form: "ise", meaningZh: "使成为；使……化" },
+  { form: "ify", meaningZh: "使成为" },
+  { form: "ism", meaningZh: "主义；体系；现象" },
+  { form: "ist", meaningZh: "从事……的人；……者" },
+  { form: "ial", meaningZh: "与……有关的" },
+  { form: "al", meaningZh: "与……有关的；行为或结果" },
+  { form: "ic", meaningZh: "与……有关的；具有……特征的" },
+  { form: "ly", meaningZh: "以……方式；具有……性质" },
+  { form: "er", meaningZh: "做……的人或事物" },
+  { form: "or", meaningZh: "做……的人或事物" },
+  { form: "ed", meaningZh: "处于……状态的；已经……的" },
+  { form: "ing", meaningZh: "正在……的；与……有关的" },
+  { form: "en", meaningZh: "使成为；变得" },
+  { form: "y", meaningZh: "具有……特征的" },
+];
+
+function briefChineseMeaning(translation: string): string {
+  const line = translation.split("\n").find((item) => /[\u3400-\u9fff]/u.test(item)) ?? "";
+  const cleaned = line.replace(/^[a-z]+\.\s*/iu, "").replace(/\[[^\]]+\]/gu, "").trim();
+  return cleaned.split(/[,，;；]/u).map((item) => item.trim())
+    .filter((item) => /[\u3400-\u9fff]/u.test(item)).slice(0, 2).join("；");
+}
+
+function restoredBaseForms(stem: string, suffix?: string): string[] {
+  const forms = new Set([stem]);
+  if (stem.endsWith("i")) forms.add(`${stem.slice(0, -1)}y`);
+  if (/([^aeiou])\1$/u.test(stem)) forms.add(stem.slice(0, -1));
+  if (!stem.endsWith("e")) forms.add(`${stem}e`);
+  if (suffix === "ation") forms.add(`${stem}ate`);
+  if (stem.endsWith("abil")) forms.add(`${stem.slice(0, -4)}able`);
+  if (stem.endsWith("ibil")) forms.add(`${stem.slice(0, -4)}ible`);
+  return [...forms].filter((form) => form.length >= 3 && /^[a-z]+$/u.test(form));
+}
+
 function applyRootGloss<T extends { meaningEn: string; meaningZh: string }>(root: T): T {
   const meaningZh = rootGlosses[root.meaningEn.trim()]?.trim() ?? "";
   // Generated dictionaries before the gloss mapping used an ECDICT definition
@@ -145,6 +232,90 @@ export class OfflineDictionary {
     };
   }
 
+  private async inferProductiveDerivation(entry: DictionaryEntry): Promise<DictionaryRoot[]> {
+    const word = entry.word.replace(/[^a-z]/gu, "");
+    if (word.length < 5) return [];
+
+    const prefixes: Array<ProductiveAffix | undefined> = [
+      undefined,
+      ...PRODUCTIVE_PREFIXES.filter((prefix) => word.startsWith(prefix.form)),
+    ];
+    const suffixes: Array<ProductiveAffix | undefined> = [
+      undefined,
+      ...PRODUCTIVE_SUFFIXES.filter((suffix) => word.endsWith(suffix.form)),
+    ];
+    const candidates: ProductiveDerivation[] = [];
+
+    for (const prefix of prefixes) {
+      for (const suffix of suffixes) {
+        if (!prefix && !suffix) continue;
+        const prefixLength = prefix?.form.length ?? 0;
+        const suffixLength = suffix?.form.length ?? 0;
+        const stem = word.slice(prefixLength, word.length - suffixLength || undefined);
+        if (stem.length < 3 || (prefixLength + stem.length + suffixLength) / word.length < 0.6) continue;
+
+        for (const baseForm of restoredBaseForms(stem, suffix?.form)) {
+          if (baseForm === word) continue;
+          const base = await this.lookup(baseForm);
+          // ECDICT uses the maximum rank for obscure names, abbreviations and
+          // cross-reference-only spellings. They are unsafe decomposition
+          // bases (for example happi, kinde and stope).
+          if (!base || base.frequencyRank >= 9_999_999 || /^\s*(?:abbr\.|\[=)/iu.test(base.translation)) continue;
+          const baseMeaningZh = briefChineseMeaning(base.translation);
+          if (!baseMeaningZh) continue;
+          candidates.push({
+            prefix,
+            suffix,
+            base,
+            baseMeaningZh,
+            affixLength: prefixLength + suffixLength,
+            exactStem: baseForm === stem,
+          });
+        }
+      }
+    }
+
+    candidates.sort((left, right) =>
+      right.base.word.length - left.base.word.length ||
+      right.affixLength - left.affixLength ||
+      Number(right.exactStem) - Number(left.exactStem) ||
+      left.base.frequencyRank - right.base.frequencyRank ||
+      left.base.word.localeCompare(right.base.word, "en"));
+    const best = candidates[0];
+    if (!best) return [];
+
+    const result: DictionaryRoot[] = [];
+    if (best.prefix) {
+      result.push({
+        form: `${best.prefix.form}-`,
+        meaningZh: best.prefix.meaningZh,
+        meaningEn: "",
+        kind: "prefix",
+        inferred: true,
+        source: "inferred",
+      });
+    }
+    result.push({
+      form: best.base.word,
+      meaningZh: best.baseMeaningZh,
+      meaningEn: "",
+      kind: "lemma",
+      inferred: true,
+      source: "inferred",
+    });
+    if (best.suffix) {
+      result.push({
+        form: `-${best.suffix.form}`,
+        meaningZh: best.suffix.meaningZh,
+        meaningEn: "",
+        kind: "suffix",
+        inferred: true,
+        source: "inferred",
+      });
+    }
+    return result;
+  }
+
   async rootsFor(entry: DictionaryEntry): Promise<DictionaryRoot[]> {
     const reliable = entry.roots.filter((root) => root.meaningZh.trim());
     if (reliable.length) return reliable;
@@ -196,14 +367,16 @@ export class OfflineDictionary {
       selected.push(match);
       positions.forEach((position) => covered.add(position));
     }
-    if (!selected.some((root) => root.form.length >= 3) || covered.size / Math.max(1, letters.length) < 0.6) return [];
-    return selected
-      .sort((left, right) => left.start - right.start)
-      .map(({ start: _start, end: _end, position: _position, ...root }) => ({
-        ...root,
-        inferred: true,
-        source: "inferred" as const,
-      }));
+    if (selected.some((root) => root.form.length >= 3) && covered.size / Math.max(1, letters.length) >= 0.6) {
+      return selected
+        .sort((left, right) => left.start - right.start)
+        .map(({ start: _start, end: _end, position: _position, ...root }) => ({
+          ...root,
+          inferred: true,
+          source: "inferred" as const,
+        }));
+    }
+    return this.inferProductiveDerivation(entry);
   }
 
   clearCache(): void {

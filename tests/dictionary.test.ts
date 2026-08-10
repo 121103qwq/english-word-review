@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { offlineDictionary } from "../src/dictionary";
+import { checkWord, lookupWord, offlineDictionary } from "../src/dictionary";
 import { decodeGzipJson } from "../src/dictionary/codec";
 import { GENERATED_DICTIONARY } from "../src/dictionary/generated/data";
 import rootGlossZh from "../src/dictionary/root-gloss-zh.json";
@@ -46,6 +46,47 @@ describe("offline dictionary", () => {
     const roots = await offlineDictionary.rootsFor(built!);
     expect(roots.length).toBeGreaterThan(0);
     expect(roots.every((root) => root.source === "engra" || root.inferred)).toBe(true);
+  });
+
+  it("uses the productive-affix fallback for unusual instead of the bad upstream us root", async () => {
+    const unusual = await offlineDictionary.lookup("unusual");
+    expect(unusual).not.toBeNull();
+    const roots = await offlineDictionary.rootsFor(unusual!);
+    expect(roots.map(({ form, meaningZh }) => ({ form, meaningZh }))).toEqual([
+      { form: "un-", meaningZh: "不；相反" },
+      { form: "usual", meaningZh: "平常的；通常的" },
+    ]);
+    expect(roots.every((root) => root.inferred && root.source === "inferred")).toBe(true);
+    expect(roots.some((root) => root.form === "us" || root.meaningZh === "我们")).toBe(false);
+  });
+
+  it.each([
+    "unusual",
+    "unhappy",
+    "happiness",
+    "kindness",
+    "careless",
+    "helpful",
+    "preview",
+    "rewrite",
+    "misprint",
+    "nonstop",
+    "teacher",
+    "quickly",
+  ])("provides a Chinese construction hint for derived word %s", async (word) => {
+    const entry = await offlineDictionary.lookup(word);
+    expect(entry).not.toBeNull();
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.length).toBeGreaterThan(0);
+    expect(roots.every((root) => /[\u3400-\u9fff]/u.test(root.meaningZh))).toBe(true);
+    expect(roots.every((root) => root.source === "engra" || root.inferred)).toBe(true);
+  });
+
+  it("passes inferred construction hints through lookup and manual-library checking", async () => {
+    const lookup = await lookupWord("unusual");
+    const checked = await checkWord("unusual");
+    expect(lookup?.roots.map((root) => root.form)).toEqual(["un-", "usual"]);
+    expect(checked.entry?.roots.map((root) => root.form)).toEqual(["un-", "usual"]);
   });
 
   it("covers every generated root gloss with a fixed Chinese construction meaning", async () => {
