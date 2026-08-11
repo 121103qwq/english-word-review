@@ -7,6 +7,11 @@ import type {
   RootLexiconEntry,
 } from "./types";
 
+const SHORT_AFFIXES: RootLexiconEntry[] = [
+  { form: "re", meaningZh: "再；重新", meaningEn: "again", kind: "prefix", position: "prefix" },
+  { form: "un", meaningZh: "不；相反", meaningEn: "not; opposite", kind: "prefix", position: "prefix" },
+];
+
 export function normalizeDictionaryWord(value: string): string {
   return value.trim().replaceAll("’", "'").toLocaleLowerCase("en-US");
 }
@@ -133,7 +138,49 @@ export class OfflineDictionary {
 
   async rootsFor(entry: DictionaryEntry): Promise<DictionaryRoot[]> {
     const reliable = entry.roots.filter((root) => root.meaningZh.trim());
-    if (reliable.length) return reliable;
+    const roots = await this.loadRoots();
+    const letters = entry.word.replace(/[^a-z]/gu, "");
+
+    // ENGRa decompositions often contain only the central root (for example,
+    // `hap` in unhappy). Add only position-constrained affixes here: matching
+    // arbitrary roots by substring would produce much noisier hints.
+    if (reliable.length) {
+      const reliableRanges = reliable.flatMap((root) => {
+        const ranges: Array<{ start: number; end: number }> = [];
+        let start = letters.indexOf(root.form);
+        while (start >= 0) {
+          ranges.push({ start, end: start + root.form.length });
+          start = letters.indexOf(root.form, start + 1);
+        }
+        return ranges;
+      });
+      const boundaryAffixes = [...SHORT_AFFIXES, ...roots].filter((root) => root.form.length >= 2 && root.meaningZh.trim() && (
+        (root.position === "prefix" && letters.startsWith(root.form)) ||
+        (root.position === "suffix" && letters.endsWith(root.form))
+      ) && !reliable.some((item) => item.form === root.form));
+      const affixes = boundaryAffixes.filter((root) => {
+        const start = root.position === "prefix" ? 0 : letters.length - root.form.length;
+        return reliableRanges.every((range) => start + root.form.length <= range.start || start >= range.end);
+      });
+      affixes.sort((left, right) => right.form.length - left.form.length);
+      const prefix = affixes.find((root) => root.position === "prefix");
+      const suffix = affixes.find((root) => root.position === "suffix");
+      const primaryAffixes = new Set([prefix, suffix].filter(Boolean));
+      const alternatives = boundaryAffixes.filter((root) => !primaryAffixes.has(root))
+        .filter((root, index, list) => list.findIndex((item) => item.form === root.form && item.position === root.position) === index)
+        .slice(0, 6);
+      return [prefix, ...reliable, suffix, ...alternatives]
+        .filter((root): root is DictionaryRoot | RootLexiconEntry => Boolean(root))
+        .map((root) => "position" in root ? {
+          form: root.form,
+          meaningZh: root.meaningZh,
+          meaningEn: root.meaningEn,
+          kind: root.kind,
+          inferred: true,
+          source: "inferred" as const,
+          ...(alternatives.includes(root) ? { alternative: true } : {}),
+        } : root);
+    }
 
     // ECDICT records irregular forms with `0:<lemma>` in `exchange`.  They do
     // not necessarily have an ENGRa decomposition and cannot be discovered by
@@ -160,11 +207,9 @@ export class OfflineDictionary {
       }
     }
 
-    const roots = await this.loadRoots();
-    const letters = entry.word.replace(/[^a-z]/gu, "");
     const matches: Array<RootLexiconEntry & { start: number; end: number }> = [];
-    for (const root of roots) {
-      if (root.form.length < 3 || !root.meaningZh.trim()) continue;
+    for (const root of [...SHORT_AFFIXES, ...roots]) {
+      if ((root.form.length < 3 && root.position === "any") || !root.meaningZh.trim()) continue;
       let start = letters.indexOf(root.form);
       while (start >= 0) {
         const allowed = root.position === "any" || (root.position === "prefix" && start === 0) ||
@@ -182,14 +227,27 @@ export class OfflineDictionary {
       selected.push(match);
       positions.forEach((position) => covered.add(position));
     }
-    if (!selected.some((root) => root.form.length >= 3) || covered.size / Math.max(1, letters.length) < 0.6) return [];
-    return selected
+    const hasBoundaryAffix = selected.some((root) => root.position !== "any");
+    if (!selected.some((root) => root.form.length >= 3) ||
+      (!hasBoundaryAffix && covered.size / Math.max(1, letters.length) < 0.6)) return [];
+    const selectedKeys = new Set(selected.map((root) => `${root.form}:${root.start}:${root.end}`));
+    const alternatives = matches.filter((root) =>
+      !selectedKeys.has(`${root.form}:${root.start}:${root.end}`)
+    ).filter((root, index, list) =>
+      list.findIndex((item) => item.form === root.form && item.start === root.start) === index
+    ).slice(0, 6);
+    return [...selected, ...alternatives]
       .sort((left, right) => left.start - right.start)
-      .map(({ start: _start, end: _end, position: _position, ...root }) => ({
-        ...root,
-        inferred: true,
-        source: "inferred" as const,
-      }));
+      .map((match) => {
+        const alternative = alternatives.includes(match);
+        const { start: _start, end: _end, position: _position, ...root } = match;
+        return {
+          ...root,
+          inferred: true,
+          source: "inferred" as const,
+          ...(alternative ? { alternative: true } : {}),
+        };
+      });
   }
 
   clearCache(): void {

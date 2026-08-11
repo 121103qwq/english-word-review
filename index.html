@@ -26,13 +26,17 @@
     .show { margin-top: 17px; color: #fff; background: #2768d6; }
     .answers { display: flex; justify-content: center; gap: 12px; margin-top: 17px; }
     .forward-actions { display: flex; justify-content: center; gap: 10px; margin-top: 17px; flex-wrap: wrap; }
-    .forward-actions[hidden], .recall-box[hidden] { display: none !important; }
+    .forward-actions[hidden], .recall-box[hidden], .recall-help[hidden] { display: none !important; }
     .forward-actions .show { margin-top: 0; }
     .unsure { background: #fff1cf; color: #8a5a00; }
     .recall-box { width: min(520px, 100%); display: flex; flex-direction: column; align-items: center; margin-top: 17px; }
     .recall-input { width: 100%; padding: 12px 14px; border: 1px solid #ccd5e2; border-radius: 10px; outline: none; background: #fff; color: #203654; font: inherit; }
     .recall-input:focus { border-color: #6e9de8; box-shadow: 0 0 0 3px #2768d619; }
     .recall-submit { margin-top: 10px; background: #2768d6; color: #fff; }
+    .recall-help { display: flex; justify-content: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .recall-help button { padding: 8px 11px; background: #eef2f8; color: #3b4c67; font-size: 13px; }
+    .recall-help .recall-give-up { background: #fff1cf; color: #8a5a00; }
+    .recall-cue { min-height: 21px; margin-top: 9px; color: #6c7890; font-size: 14px; }
     .recall-feedback { min-height: 23px; margin-top: 10px; color: #3e5777; font-size: 14px; white-space: pre-line; }
     .recall-feedback.good { padding: 8px 11px; border-radius: 9px; background: #e4f7eb; color: #176a40; font-weight: 700; }
     .recall-feedback.bad { padding: 8px 11px; border-radius: 9px; background: #ffe4e3; color: #ac3434; font-weight: 700; }
@@ -99,6 +103,9 @@
     .root-count { color: #a63c38; font-size: 12px; font-weight: 700; white-space: nowrap; }
     .root-meaning { margin-top: 2px; color: #334966; font-size: 13px; }
     .root-words { margin-top: 5px; color: #75839a; font-size: 12px; word-break: break-word; }
+    .root-alternatives { margin-top: 9px; color: #64748b; font-size: 12px; text-align: left; }
+    .root-alternatives summary { cursor: pointer; color: #52647e; font-weight: 700; }
+    .root-alternatives-list { display: grid; gap: 6px; margin-top: 7px; }
 
     .intensive { margin-top: 14px; padding: 17px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
     .intensive[hidden] { display: none !important; }
@@ -248,6 +255,11 @@
       <div class="recall-box" id="recallBox" hidden>
         <input class="recall-input" id="recallInput" type="text" autocomplete="off" spellcheck="false" placeholder="根据构词提示输入中文意思">
         <button class="recall-submit" id="recallSubmitBtn">判断正误（Enter）</button>
+        <div class="recall-help" id="recallHelp">
+          <button id="recallHintBtn" type="button">再提示一点：释义首字</button>
+          <button class="recall-give-up" id="recallGiveUpBtn" type="button">还是想不起：看答案</button>
+        </div>
+        <div class="recall-cue" id="recallCue" aria-live="polite"></div>
         <div class="recall-feedback" id="recallFeedback"></div>
       </div>
       <div class="answers" id="answers" hidden>
@@ -870,8 +882,9 @@
         add(word, root, meaning);
       });
       [store.current, ...store.archives].forEach(library => library.words.forEach(word => {
-        (Array.isArray(word.roots) ? word.roots : []).forEach(root =>
-          add(word.en, root.root || root.form, root.meaning || root.meaningZh || root.zh));
+        (Array.isArray(word.roots) ? word.roots : []).forEach(root => {
+          if (!root.alternative) add(word.en, root.root || root.form, root.meaning || root.meaningZh || root.zh);
+        });
       }));
       // 已保存的词根统计可能来自当前未加载的旧词库或同步设备。
       // 保留这些项目，避免重建列表时丢失统计并触发 v4/旧界面之间的重复重载。
@@ -1105,6 +1118,9 @@
       $('recallFeedback').textContent = '';
       $('recallFeedback').className = 'recall-feedback';
       $('recallSubmitBtn').textContent = '判断正误（Enter）';
+      $('recallHelp').hidden = false;
+      $('recallCue').textContent = '';
+      $('recallHintBtn').disabled = false;
 
       if (studyMode === 'forward') {
         $('word').textContent = current.en;
@@ -1156,9 +1172,11 @@
       const rootInfo = ROOT_DATA[current.en.toLowerCase()];
       const customRoots = Array.isArray(current.roots) ? current.roots.filter(item =>
         (item.root || item.form) && (item.meaning || item.meaningZh || item.zh)) : [];
-      const customHint = customRoots.map(item =>
+      const primaryRoots = customRoots.filter(item => !item.alternative);
+      const alternativeCount = customRoots.length - primaryRoots.length;
+      const customHint = primaryRoots.map(item =>
         `${item.root || item.form}（${item.meaning || item.meaningZh || item.zh}${item.source === 'inferred' ? '，推测' : ''}）`).join(' + ');
-      $('meaning').textContent = customHint || rootHint || (rootInfo
+      $('meaning').textContent = (customHint ? `${customHint}${alternativeCount ? ` · 另有 ${alternativeCount} 个推测可在右侧展开` : ''}` : '') || rootHint || (rootInfo
         ? `${rootInfo[0]}（${rootInfo[1]}）→根据这个词根关系回想完整意思`
         : '这个词暂未收录构词拆解，请结合拼写结构回想它的意思。');
       $('hint').textContent = '构词提示不会直接显示释义，请输入你想到的中文意思';
@@ -1170,7 +1188,48 @@
       $('recallFeedback').textContent = '';
       $('recallFeedback').className = 'recall-feedback';
       $('recallSubmitBtn').textContent = '判断正误（Enter）';
+      $('recallHelp').hidden = false;
+      $('recallCue').textContent = '';
+      $('recallHintBtn').disabled = false;
       setTimeout(() => $('recallInput').focus(), 0);
+    }
+    function meaningInitialCue(meaning) {
+      const cues = String(meaning).split(/[\n；;]/u).map(part => {
+        const characters = part.match(/[\u3400-\u9fff]/gu) || [];
+        return characters.length ? `${characters[0]}${'＿'.repeat(Math.min(3, characters.length - 1))}` : '';
+      }).filter(Boolean);
+      return [...new Set(cues)].slice(0, 4).join('；');
+    }
+    function showUncertainCue() {
+      if (uncertainState !== 'input' || !current) return;
+      const cue = meaningInitialCue(current.zh);
+      $('recallCue').textContent = cue
+        ? `释义首字提示：${cue}（下划线不代表准确字数）`
+        : '暂无可用的释义首字提示，可以先猜一个最接近的意思。';
+      $('recallHintBtn').disabled = true;
+      $('recallInput').focus();
+    }
+    function finishUncertain(correct, typed, gaveUp = false) {
+      markUndo(current, false);
+      current[correct ? 'right' : 'wrong']++;
+      current.mastery = wordMastery(current, 'forward');
+      recordAnswerEvent({area: 'library', libraryId: activeLibrary.id, itemId: current.en, mode: 'forward', correct});
+      uncertainState = 'answered';
+      $('recallInput').readOnly = true;
+      $('recallHelp').hidden = true;
+      $('recallFeedback').className = `recall-feedback ${correct ? 'good' : 'bad'}`;
+      $('recallFeedback').textContent = correct
+        ? `✅ 正确（借助提示主动回忆）\n你的答案：${typed}`
+        : `❌ ${gaveUp ? '已按“不认识”记录' : '错误'}\n${typed ? `你的答案：${typed}\n` : ''}参考释义：${current.zh}`;
+      $('recallSubmitBtn').textContent = '下一题（Enter）';
+      $('hint').textContent = correct ? '回答正确，按 Enter 进入下一题' : '已显示参考释义，按 Enter 进入下一题';
+      save();
+      render();
+      setTimeout(() => $('recallInput').focus(), 0);
+    }
+    function giveUpUncertain() {
+      if (studyMode !== 'forward' || uncertainState !== 'input' || !current) return;
+      finishUncertain(false, $('recallInput').value.trim(), true);
     }
     function submitUncertain() {
       if (studyMode !== 'forward' || uncertainState === 'idle' || !current) return;
@@ -1186,24 +1245,7 @@
         return;
       }
       const correct = containsMeaningPartsMatch(typed, current.zh);
-      markUndo(current, false);
-      current[correct ? 'right' : 'wrong']++;
-      current.mastery = wordMastery(current, 'forward');
-      recordAnswerEvent({area: 'library', libraryId: activeLibrary.id, itemId: current.en, mode: 'forward', correct});
-      uncertainState = 'answered';
-      $('recallInput').readOnly = true;
-      $('recallFeedback').className = `recall-feedback ${correct ? 'good' : 'bad'}`;
-      $('recallFeedback').textContent = correct
-        ? `✅ 正确（借助构词提示）
-你的答案：${typed}`
-        : `❌ 错误
-你的答案：${typed}
-参考释义：${current.zh}`;
-      $('recallSubmitBtn').textContent = '下一题（Enter）';
-      $('hint').textContent = correct ? '回答正确，按 Enter 进入下一题' : '已显示参考释义，按 Enter 进入下一题';
-      save();
-      render();
-      setTimeout(() => $('recallInput').focus(), 0);
+      finishUncertain(correct, typed);
     }
     const SCORE_FIELDS = ['right','wrong','mastery','reverseRight','reverseWrong','reverseMastery','reverseReviewWeight','rareRight','rareWrong','rareMastery','spellRight','spellWrong','meaningRight','meaningWrong'];
     function snapshotWord(w) {
@@ -1940,7 +1982,8 @@
         ? customRoots.map(info => ({
             root: String(info.form || info.root || ''),
             meaning: String(info.meaningZh || info.zh || info.meaning || ''),
-            inferred: !!info.inferred || info.source === 'inferred'
+            inferred: !!info.inferred || info.source === 'inferred',
+            alternative: !!info.alternative
           })).filter(info => info.root)
         : legacyRoot ? [{root: legacyRoot[0], meaning: legacyRoot[1], inferred: false}] : [];
       if (!rootInfos.length) {
@@ -1950,7 +1993,9 @@
         rootList.append(empty);
         return;
       }
-      rootInfos.forEach(info => {
+      const primaryRootInfos = rootInfos.filter(info => !info.alternative);
+      const alternativeRootInfos = rootInfos.filter(info => info.alternative);
+      primaryRootInfos.forEach(info => {
         const card = document.createElement('div');
         card.className = 'root-item';
         const head = document.createElement('div');
@@ -1968,6 +2013,21 @@
         card.append(head, explanation);
         rootList.append(card);
       });
+      if (alternativeRootInfos.length) {
+        const details = document.createElement('details');
+        details.className = 'root-alternatives';
+        const summary = document.createElement('summary');
+        summary.textContent = `其余推测（${alternativeRootInfos.length}）`;
+        const list = document.createElement('div');
+        list.className = 'root-alternatives-list';
+        alternativeRootInfos.forEach(info => {
+          const item = document.createElement('div');
+          item.textContent = `${info.root}：${info.meaning || '中文释义待补充'}`;
+          list.append(item);
+        });
+        details.append(summary, list);
+        rootList.append(details);
+      }
     }
 
     function enableRootSidebarDrag() {
@@ -2094,6 +2154,8 @@
     $('showBtn').onclick = reveal;
     $('unsureBtn').onclick = beginUncertain;
     $('recallSubmitBtn').onclick = submitUncertain;
+    $('recallHintBtn').onclick = showUncertainCue;
+    $('recallGiveUpBtn').onclick = giveUpUncertain;
     $('recallInput').addEventListener('keydown', e => {
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key.toLowerCase() === 'u' && uncertainState === 'answered') {

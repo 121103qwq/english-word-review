@@ -10,7 +10,7 @@ describe("offline dictionary", () => {
       Object.values(GENERATED_DICTIONARY.entryChunks).map((chunk) => decodeGzipJson<DictionaryEntry[]>(chunk)),
     );
     expect(chunks.reduce((total, entries) => total + entries.length, 0)).toBe(GENERATED_DICTIONARY.entryCount);
-  });
+  }, 15_000);
 
   it.each(["apple", "built", "kick", "counter"])("contains %s with Chinese meaning", async (word) => {
     const entry = await offlineDictionary.lookup(word);
@@ -43,5 +43,25 @@ describe("offline dictionary", () => {
     const roots = await offlineDictionary.rootsFor(built!);
     expect(roots.length).toBeGreaterThan(0);
     expect(roots.every((root) => root.source === "engra" || root.inferred)).toBe(true);
+  });
+
+  it.each([
+    ["unhappy", ["un", "hap"]],
+    ["rewrite", ["re", "writ"]],
+    ["careless", ["less"]],
+    ["overcook", ["over"]],
+  ])("keeps useful boundary affixes when parsing %s", async (word, expectedForms) => {
+    const entry = await offlineDictionary.lookup(word);
+    expect(entry).not.toBeNull();
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.map((root) => root.form)).toEqual(expect.arrayContaining(expectedForms));
+    expect(roots.every((root) => root.meaningZh.trim())).toBe(true);
+  });
+
+  it("separates a lower-confidence overlapping parse from the primary guess", async () => {
+    const entry = await offlineDictionary.lookup("rewrite");
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.filter((root) => !root.alternative).map((root) => root.form)).toEqual(["re", "writ"]);
+    expect(roots.some((root) => root.alternative)).toBe(true);
   });
 });

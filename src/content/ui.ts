@@ -47,6 +47,7 @@ function rootsFromDictionary(entry?: DictionaryEntry): RootComponent[] | undefin
     root: root.form,
     meaning: root.meaningZh,
     source: root.inferred ? "inferred" : "engra",
+    ...(root.alternative ? { alternative: true } : {}),
     ...(root.meaningEn ? { note: root.meaningEn } : {}),
   }));
 }
