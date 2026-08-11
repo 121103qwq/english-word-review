@@ -1,5 +1,5 @@
 import { checkWord, lookupWord, type DictionaryEntry } from "../dictionary";
-import type { LegacyBundle, LegacyLibrary, LegacyRuntimeApi, LegacyWord, RootStudyStore } from "../core/types";
+import type { LegacyLibrary, LegacyRuntimeApi, LegacyWord } from "../core/types";
 import {
   applyWordOverride,
   createLibrary,
@@ -8,9 +8,12 @@ import {
   parseWordInput,
   resolveWord,
 } from "./model";
+import { migrateV820BundledLibrary, V820_BUNDLED_LIBRARY_ID } from "./bundled-library";
 import { ContentRepository, IndexedDbContentBackend } from "./storage";
 import { commitContentMutation, type ContentSyncResult } from "../sync/content-sync";
 import type { ContentTransport } from "../sync/content-transports";
+import { getRuntimePlatform } from "../platform/runtime";
+import { LibraryDraftStorage } from "../settings/drafts";
 import type {
   ContentSnapshotV1,
   CustomLibrary,
@@ -25,6 +28,7 @@ interface ContentUiOptions {
   legacyRuntime: LegacyRuntimeApi;
   getTransports?: () => ContentTransport[];
   onCommitted?: (snapshot: ContentSnapshotV1, result?: ContentSyncResult) => Promise<void> | void;
+  onLegacyProjectionReady?: () => Promise<void> | void;
 }
 
 interface CheckedRow {
@@ -43,13 +47,14 @@ const byId = <T extends HTMLElement>(id: string): T => {
 
 function rootsFromDictionary(entry?: DictionaryEntry): RootComponent[] | undefined {
   if (!entry?.roots?.length) return undefined;
-  return entry.roots.map((root) => ({
+  const roots = entry.roots.filter((root) => root.meaningZh.trim()).map((root): RootComponent => ({
     root: root.form,
     meaning: root.meaningZh,
     source: root.inferred ? "inferred" : "engra",
     ...(root.alternative ? { alternative: true } : {}),
     ...(root.meaningEn ? { note: root.meaningEn } : {}),
   }));
+  return roots.length ? roots : undefined;
 }
 
 function dictionaryOverride(entry?: DictionaryEntry): WordOverride | undefined {
@@ -68,8 +73,11 @@ function rootsFromText(value: string, source: RootComponent["source"] = "manual"
   }).filter((root) => root.root && root.meaning);
 }
 
-function rootsToText(roots?: RootComponent[]): string {
-  return (roots ?? []).map((root) => `${root.root} = ${root.meaning}`).join("\n");
+export function rootsToText(roots?: RootComponent[]): string {
+  return (roots ?? [])
+    .filter((root) => root.alternative !== true)
+    .map((root) => `${root.root} = ${root.meaning}`)
+    .join("\n");
 }
 
 function cloneScores(word?: LegacyWord): LegacyWord {
@@ -93,27 +101,6 @@ function cloneScores(word?: LegacyWord): LegacyWord {
   };
 }
 
-function materializeRootStudy(base: RootStudyStore, libraries: LegacyLibrary[]): RootStudyStore {
-  const items = new Map(base.items.map((item) => [item.id, structuredClone(item)]));
-  for (const library of libraries) {
-    for (const word of library.words) {
-      const roots = Array.isArray(word.roots) ? word.roots as Array<Record<string, unknown>> : [];
-      for (const value of roots) {
-        const root = String(value.root ?? value.form ?? "").trim();
-        const meaning = String(value.meaning ?? value.meaningZh ?? value.zh ?? "").trim();
-        if (!root || !meaning) continue;
-        const id = `${root}\u0000${meaning}`;
-        const item = items.get(id) ?? {
-          id, root, meaning, words: [], choiceRight: 0, choiceWrong: 0, writeRight: 0, writeWrong: 0,
-        };
-        if (!item.words.includes(word.en)) item.words.push(word.en);
-        items.set(id, item);
-      }
-    }
-  }
-  return { items: [...items.values()] };
-}
-
 export class ContentManagerUi {
   readonly backend = new IndexedDbContentBackend();
   readonly repository: ContentRepository;
@@ -121,6 +108,8 @@ export class ContentManagerUi {
   private rows: CheckedRow[] = [];
   private inputMode: "paste" | "table" = "paste";
   private editor?: { libraryId: string; word: string; audioIds: string[]; primaryAudioId?: string | null };
+  private readonly draftStorage = new LibraryDraftStorage(getRuntimePlatform());
+  private restoringDraft = false;
 
   constructor(private readonly options: ContentUiOptions) {
     this.repository = new ContentRepository(this.backend, options.deviceId);
@@ -133,10 +122,12 @@ export class ContentManagerUi {
       this.snapshot = migrateLegacyBundle(this.options.legacyRuntime.getBundle(), this.options.deviceId);
       await this.backend.putCurrent(this.snapshot);
     }
+    await this.migrateBundledLibraryIfNeeded();
     this.bind();
     this.setToday();
     this.ensureTableRows(4);
     this.render();
+    await this.restoreDraft();
     await this.materialize(false);
   }
 
@@ -145,6 +136,7 @@ export class ContentManagerUi {
   async acceptSynchronizedSnapshot(snapshot: ContentSnapshotV1): Promise<void> {
     await this.backend.putCurrent(snapshot);
     this.snapshot = structuredClone(snapshot);
+    await this.migrateBundledLibraryIfNeeded();
     this.render();
     await this.materialize(true);
   }
@@ -152,6 +144,7 @@ export class ContentManagerUi {
   async replaceFromRemote(snapshot: ContentSnapshotV1): Promise<void> {
     await this.repository.replaceFromRemote(snapshot);
     this.snapshot = structuredClone(snapshot);
+    await this.migrateBundledLibraryIfNeeded();
     this.render();
     await this.materialize(true);
   }
@@ -168,7 +161,10 @@ export class ContentManagerUi {
     byId<HTMLButtonElement>("pasteInputModeBtn").onclick = () => this.setInputMode("paste");
     byId<HTMLButtonElement>("tableInputModeBtn").onclick = () => this.setInputMode("table");
     byId<HTMLButtonElement>("checkAndAddWordsBtn").onclick = () => void this.checkAndAdd();
-    byId<HTMLSelectElement>("libraryTarget").onchange = () => this.applyTargetState();
+    byId<HTMLSelectElement>("libraryTarget").onchange = () => { this.applyTargetState(); this.persistDraft(); };
+    for (const id of ["libraryDate", "libraryName", "libraryPasteInput"]) {
+      byId<HTMLInputElement | HTMLTextAreaElement>(id).addEventListener("input", () => this.persistDraft());
+    }
     byId<HTMLButtonElement>("closeLibraryEditorBtn").onclick = () => this.closeEditor();
     byId<HTMLButtonElement>("saveWordEditBtn").onclick = () => void this.saveEditor();
     byId<HTMLInputElement>("editorAudioFiles").onchange = (event) => void this.addAudioFiles(event);
@@ -189,6 +185,7 @@ export class ContentManagerUi {
     byId("tableInputMode").hidden = mode !== "table";
     byId("pasteInputModeBtn").classList.toggle("active", mode === "paste");
     byId("tableInputModeBtn").classList.toggle("active", mode === "table");
+    this.persistDraft();
     (mode === "paste" ? byId<HTMLTextAreaElement>("libraryPasteInput") : byId<HTMLInputElement>("wordEntryRows").querySelector("input"))?.focus();
   }
 
@@ -208,12 +205,13 @@ export class ContentManagerUi {
         this.ensureTableRows(index + 2);
         body.querySelectorAll<HTMLInputElement>("input")[index + 1]?.focus();
       });
+      input.addEventListener("input", () => this.persistDraft());
       cell.append(input);
       const action = document.createElement("td");
       const clear = document.createElement("button");
       clear.type = "button";
       clear.textContent = "清空";
-      clear.onclick = () => { input.value = ""; input.focus(); };
+      clear.onclick = () => { input.value = ""; this.persistDraft(); input.focus(); };
       action.append(clear);
       row.append(cell, action);
       body.append(row);
@@ -223,6 +221,80 @@ export class ContentManagerUi {
   private inputWords(): string[] {
     if (this.inputMode === "paste") return parseWordInput(byId<HTMLTextAreaElement>("libraryPasteInput").value);
     return parseWordInput([...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].map((input) => input.value).join("\n"));
+  }
+
+  private async migrateBundledLibraryIfNeeded(): Promise<void> {
+    if (this.snapshot.activeLibraryId !== V820_BUNDLED_LIBRARY_ID) return;
+    const result = await commitContentMutation({
+      persistence: this.backend,
+      transports: this.options.getTransports?.() ?? [],
+      deviceId: this.options.deviceId,
+      mutate: (draft) => {
+        migrateV820BundledLibrary(draft);
+      },
+    });
+    this.snapshot = result.snapshot;
+  }
+
+  private persistDraft(): void {
+    if (this.restoringDraft) return;
+    try {
+      this.draftStorage.update((draft) => {
+        draft.date = byId<HTMLInputElement>("libraryDate").value;
+        draft.name = byId<HTMLInputElement>("libraryName").value;
+        draft.targetLibraryId = byId<HTMLSelectElement>("libraryTarget").value || "new";
+        draft.inputMode = this.inputMode;
+        draft.pasteInput = byId<HTMLTextAreaElement>("libraryPasteInput").value;
+        draft.tableWords = [...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].map((input) => input.value);
+        draft.checkedRows = this.rows.map((row) => ({ word: row.word, meaning: row.meaning, rootText: row.rootText }));
+      });
+    } catch {
+      // A full or disabled localStorage must not block word-library operations.
+    }
+  }
+
+  private async restoreDraft(): Promise<void> {
+    let draft;
+    try {
+      draft = this.draftStorage.load();
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : String(error), true);
+      return;
+    }
+    if (!draft) return;
+    this.restoringDraft = true;
+    try {
+      byId<HTMLInputElement>("libraryDate").value = draft.date;
+      byId<HTMLInputElement>("libraryName").value = draft.name;
+      const target = byId<HTMLSelectElement>("libraryTarget");
+      target.value = [...target.options].some((option) => option.value === draft.targetLibraryId)
+        ? draft.targetLibraryId
+        : "new";
+      this.applyTargetState();
+      byId<HTMLTextAreaElement>("libraryPasteInput").value = draft.pasteInput;
+      this.ensureTableRows(Math.max(4, draft.tableWords.length));
+      [...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")]
+        .forEach((input, index) => { input.value = draft.tableWords[index] ?? ""; });
+      this.inputMode = draft.inputMode;
+      byId("pasteInputMode").hidden = draft.inputMode !== "paste";
+      byId("tableInputMode").hidden = draft.inputMode !== "table";
+      byId("pasteInputModeBtn").classList.toggle("active", draft.inputMode === "paste");
+      byId("tableInputModeBtn").classList.toggle("active", draft.inputMode === "table");
+      this.rows = await Promise.all(draft.checkedRows.map(async (saved): Promise<CheckedRow> => {
+        const checked = await checkWord(saved.word);
+        return {
+          word: checked.normalized,
+          entry: checked.entry,
+          suggestions: checked.suggestions,
+          meaning: saved.meaning || checked.entry?.translation || "",
+          rootText: saved.rootText || (checked.entry ? rootsToText(rootsFromDictionary(checked.entry)) : ""),
+        };
+      }));
+      this.renderCheckRows();
+      this.setStatus("已恢复本机尚未提交的词库草稿。");
+    } finally {
+      this.restoringDraft = false;
+    }
   }
 
   private setStatus(message: string, bad = false): void {
@@ -251,6 +323,7 @@ export class ContentManagerUi {
         };
       }));
       this.renderCheckRows();
+      this.persistDraft();
       if (this.rows.every((row) => row.entry || row.meaning.trim())) await this.commitRows();
       else this.setStatus("请修正错误单词，或为用户词条填写中文释义。", true);
     } catch (error) {
@@ -290,13 +363,13 @@ export class ContentManagerUi {
       const meaning = document.createElement("input");
       meaning.value = row.meaning;
       meaning.placeholder = "未知词必须填写中文";
-      meaning.oninput = () => { row.meaning = meaning.value; };
+      meaning.oninput = () => { row.meaning = meaning.value; this.persistDraft(); };
       meaningCell.append(meaning);
       const rootCell = document.createElement("td");
       const roots = document.createElement("input");
       roots.value = row.rootText.replace(/\n/g, "; ");
       roots.placeholder = "root = 中文义";
-      roots.oninput = () => { row.rootText = roots.value.replace(/;\s*/g, "\n"); };
+      roots.oninput = () => { row.rootText = roots.value.replace(/;\s*/g, "\n"); this.persistDraft(); };
       rootCell.append(roots);
       tr.append(word, status, meaningCell, rootCell);
       body.append(tr);
@@ -313,6 +386,7 @@ export class ContentManagerUi {
     row.meaning = result.entry?.translation ?? "";
     row.rootText = rootsToText(rootsFromDictionary(result.entry));
     this.renderCheckRows();
+    this.persistDraft();
     if (this.rows.every((item) => item.entry || item.meaning.trim())) await this.commitRows();
   }
 
@@ -340,9 +414,17 @@ export class ContentManagerUi {
       library.modifiedAt = new Date().toISOString();
       draft.activeLibraryId = library.id;
     });
-    this.setStatus(`已在本地保存 ${additions.length} 个单词，正在同步……`);
-    sessionStorage.setItem("english-review:content-status", "词库已保存并进入同步队列。");
+    this.setStatus(`已在本地保存 ${additions.length} 个单词；需要上传时请打开同步选择。`);
+    sessionStorage.setItem("english-review:content-status", "词库已保存本地，尚未主动上传。");
     this.rows = [];
+    byId<HTMLTextAreaElement>("libraryPasteInput").value = "";
+    [...byId("wordEntryRows").querySelectorAll<HTMLInputElement>("input")].forEach((input) => { input.value = ""; });
+    byId<HTMLInputElement>("libraryName").value = "";
+    byId<HTMLSelectElement>("libraryTarget").value = "new";
+    this.setToday();
+    this.applyTargetState();
+    this.renderCheckRows();
+    this.draftStorage.clear();
     await this.materialize(true);
   }
 
@@ -452,7 +534,7 @@ export class ContentManagerUi {
         if (!this.editor.audioIds.includes(asset.meta.id)) this.editor.audioIds.push(asset.meta.id);
         this.editor.primaryAudioId ??= asset.meta.id;
       }
-      status.textContent = "MP3 已保存到本地，保存单词后同步。";
+      status.textContent = "MP3 已保存到本地；保存单词后可在同步选择中上传。";
       status.className = "sync-status good";
       await this.renderAudioList();
     } catch (error) {
@@ -539,7 +621,7 @@ export class ContentManagerUi {
         for (const asset of pendingAssets) if (asset) changed.assets[asset.meta.id] = asset.meta;
         return changed;
       });
-      status.textContent = "已保存本地，正在同步……";
+      status.textContent = "已保存本地；需要上传时请打开同步选择。";
       status.className = "sync-status good";
       this.closeEditor();
       await this.materialize(true);
@@ -564,7 +646,7 @@ export class ContentManagerUi {
     return result.snapshot;
   }
 
-  private async materialize(reload: boolean): Promise<void> {
+  private async materialize(notifyLegacyProjection: boolean): Promise<void> {
     const live = this.options.legacyRuntime.getBundle();
     const liveLibraries = new Map([live.store.current, ...live.store.archives].map((library) => [library.id, library]));
     const libraries: LegacyLibrary[] = [];
@@ -590,14 +672,7 @@ export class ContentManagerUi {
     if (!libraries.length) return;
     const activeId = this.snapshot.activeLibraryId ?? libraries[0].id;
     window.__v8Bridge?.replaceLibraries(libraries, activeId);
-    if (!reload) return;
-    const current = libraries.find((library) => library.id === activeId) ?? libraries[0];
-    const bundle: LegacyBundle = {
-      ...live,
-      store: { current, archives: libraries.filter((library) => library.id !== current.id) },
-      rootStudyStore: materializeRootStudy(live.rootStudyStore, libraries),
-    };
-    this.options.legacyRuntime.applyBundle(bundle);
+    if (notifyLegacyProjection) await this.options.onLegacyProjectionReady?.();
   }
 
   async playPrimaryForWord(word: string): Promise<boolean> {

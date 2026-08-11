@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEVICE_ID_KEY, MIGRATION_BACKUP_KEY } from "../src/core/config";
-import { compactSnapshot, EventStore, projectSnapshot } from "../src/core/events";
+import { compactSnapshot, EventStore, projectSnapshot, rebuildRootStudyStore } from "../src/core/events";
 import { mergeSnapshots } from "../src/core/merge";
 import { legacyBundle, MemoryStorage } from "./fixtures";
 
@@ -60,5 +60,52 @@ describe("v4 migration and learning event replay", () => {
     expect(compacted.events).toHaveLength(0);
     expect(projectSnapshot(compacted)).toEqual(before);
     expect(compacted.checkpoint.vector).toEqual({ a: 1, b: 1 });
+  });
+
+  it("rebuilds root cards from current definitions, retaining stats only for identical root and meaning", () => {
+    const legacy = legacyBundle();
+    legacy.rootStudyStore.items[0] = {
+      ...legacy.rootStudyStore.items[0],
+      id: "cap\u0000old",
+      root: "cap",
+      meaning: "old",
+      choiceRight: 5,
+      writeWrong: 3,
+      words: ["stale"],
+    };
+    const libraries = [{
+      id: "daily-a",
+      date: "2026-08-06",
+      words: [{ en: "accept", zh: "accept", roots: [{ root: "cap", meaning: "new" }] }],
+    }];
+    const corrected = rebuildRootStudyStore(legacy.rootStudyStore, libraries);
+    expect(corrected.items).toEqual([expect.objectContaining({
+      id: "cap\u0000new", words: ["accept"], choiceRight: 0, writeWrong: 0,
+    })]);
+
+    const unchanged = rebuildRootStudyStore(legacy.rootStudyStore, [{
+      ...libraries[0],
+      words: [{ en: "accept", zh: "accept", roots: [{ root: "cap", meaning: "old" }] }],
+    }]);
+    expect(unchanged.items).toEqual([expect.objectContaining({
+      id: "cap\u0000old", words: ["accept"], choiceRight: 5, writeWrong: 3,
+    })]);
+  });
+
+  it("excludes lower-confidence alternative guesses from independent root study", () => {
+    const rebuilt = rebuildRootStudyStore({ items: [] }, [{
+      id: "daily-a",
+      date: "2026-08-06",
+      words: [{
+        en: "rewrite",
+        zh: "重写",
+        roots: [
+          { root: "re", meaning: "再；重新" },
+          { root: "rite", meaning: "仪式", alternative: true },
+        ],
+      }],
+    }]);
+
+    expect(rebuilt.items.map((item) => item.root)).toEqual(["re"]);
   });
 });

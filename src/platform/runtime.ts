@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export interface HttpRequest {
   url: string;
-  method: "GET" | "PUT" | "DELETE" | "HEAD" | "MKCOL" | "PROPFIND";
+  method: "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "MKCOL" | "PROPFIND";
   headers?: Record<string, string>;
   body?: string;
   bodyBase64?: string;
@@ -37,8 +37,9 @@ interface NativeBridgePlugin {
   loadSecret(options: { key: string }): Promise<{ value: string | null }>;
   deleteSecret(options: { key: string }): Promise<void>;
   saveTextFile(options: { filename: string; content: string; mimeType: string }): Promise<SaveTextFileResult>;
-  speak(options: { text: string; locale: string; rate: number }): Promise<void>;
+  speak(options: { text: string; locale: string; rate: number; voice?: string }): Promise<void>;
   httpRequest(options: { request: HttpRequest }): Promise<HttpResponse>;
+  openExternalUrl(options: { url: string }): Promise<void>;
 }
 
 const NativeBridge = registerPlugin<NativeBridgePlugin>("EnglishReviewNative");
@@ -53,6 +54,14 @@ function isCapacitorNative(): boolean {
 
 export function isNativeRuntime(): boolean {
   return isTauri() || isCapacitorNative();
+}
+
+export type RuntimePlatform = "windows" | "android" | "html";
+
+export function getRuntimePlatform(): RuntimePlatform {
+  if (isTauri()) return "windows";
+  if (isCapacitorNative()) return "android";
+  return "html";
 }
 
 export async function saveTextFile(
@@ -132,16 +141,56 @@ export async function deleteSecret(key: string): Promise<void> {
   else sessionStorage.removeItem(`english-review:${key}`);
 }
 
-export async function speakEnglish(text: string): Promise<void> {
+export interface SpeakEnglishOptions {
+  rate?: number;
+  voice?: string;
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") throw new Error("只允许打开 HTTPS 更新地址");
+  if (isTauri()) {
+    await invoke("open_external_url", { url: parsed.href });
+    return;
+  }
+  if (isCapacitorNative()) {
+    await NativeBridge.openExternalUrl({ url: parsed.href });
+    return;
+  }
+  const opened = window.open(parsed.href, "_blank", "noopener,noreferrer");
+  if (!opened) {
+    const link = document.createElement("a");
+    link.href = parsed.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.click();
+  }
+}
+
+export async function speakEnglish(text: string, options: SpeakEnglishOptions = {}): Promise<void> {
+  const rate = Math.max(0.5, Math.min(2, options.rate ?? 0.85));
+  // Android WebView may expose the Web Speech API even when it has no usable
+  // synthesis service. Prefer the platform bridges so a present-but-inert web
+  // implementation cannot swallow the request.
+  if (isCapacitorNative()) {
+    await NativeBridge.speak({ text, locale: "en-US", rate, ...(options.voice ? { voice: options.voice } : {}) });
+    return;
+  }
+  if (isTauri()) {
+    await invoke("speak_text", { text, locale: "en-US", rate, voice: options.voice ?? null });
+    return;
+  }
   if ("speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined") {
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
-    utterance.rate = 0.85;
+    utterance.rate = rate;
+    if (options.voice) {
+      const voice = speechSynthesis.getVoices().find((candidate) => candidate.name === options.voice);
+      if (voice) utterance.voice = voice;
+    }
     speechSynthesis.speak(utterance);
     return;
   }
-  if (isTauri()) await invoke("speak_text", { text, locale: "en-US", rate: 0.85 });
-  else if (isCapacitorNative()) await NativeBridge.speak({ text, locale: "en-US", rate: 0.85 });
-  else throw new Error("当前环境不支持语音朗读");
+  throw new Error("当前环境不支持语音朗读");
 }

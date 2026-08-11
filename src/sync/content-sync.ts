@@ -1,4 +1,4 @@
-import { compareContentRevision, nextHybridClock } from "../content/model";
+import { compareContentRevision, CONTENT_APP_VERSION, nextHybridClock } from "../content/model";
 import { CONTENT_BACKUP_LIMIT, OUTBOX_RETRY_DELAYS_MS } from "../content/storage";
 import type { ContentPersistence, ContentStorageBackend } from "../content/storage";
 import type { ContentBackup, ContentOutboxItem, ContentSnapshotV1, StoredAudioAsset } from "../content/types";
@@ -380,7 +380,7 @@ export async function commitContentMutation(options: CommitContentMutationOption
   const mutationResult = await options.mutate(draft);
   let changed = mutationResult ?? draft;
   pruneSnapshotAssetManifest(changed);
-  changed.appVersion = "8.1.0";
+  changed.appVersion = CONTENT_APP_VERSION;
   changed.revision = nextHybridClock(latest.snapshot.revision, options.deviceId, now.getTime());
   changed.revisionId = uuid();
   changed.modifiedAt = now.toISOString();

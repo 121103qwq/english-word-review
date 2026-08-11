@@ -1,4 +1,5 @@
 import { decodeGzipJson } from "./codec";
+import rootGlossZh from "./root-gloss-zh.json";
 import type {
   DictionaryCheckResult,
   DictionaryEntry,
@@ -6,6 +7,139 @@ import type {
   EncodedDictionarySource,
   RootLexiconEntry,
 } from "./types";
+
+const rootGlosses: Record<string, string> = rootGlossZh;
+
+interface ProductiveAffix {
+  form: string;
+  meaningZh: string;
+}
+
+interface ProductiveDerivation {
+  prefix?: ProductiveAffix;
+  suffix?: ProductiveAffix;
+  base: DictionaryEntry;
+  baseMeaningZh: string;
+  affixLength: number;
+  exactStem: boolean;
+}
+
+const PRODUCTIVE_PREFIXES: readonly ProductiveAffix[] = [
+  { form: "under", meaningZh: "在下；不足" },
+  { form: "super", meaningZh: "在上；超过" },
+  { form: "inter", meaningZh: "在……之间；相互" },
+  { form: "micro", meaningZh: "微小" },
+  { form: "multi", meaningZh: "多；多个" },
+  { form: "post", meaningZh: "在后；之后" },
+  { form: "over", meaningZh: "在上；过度" },
+  { form: "anti", meaningZh: "反对；抵抗" },
+  { form: "auto", meaningZh: "自己；自动" },
+  { form: "semi", meaningZh: "半；部分" },
+  { form: "non", meaningZh: "非；不" },
+  { form: "mis", meaningZh: "错误；不当" },
+  { form: "pre", meaningZh: "预先；在前" },
+  { form: "sub", meaningZh: "在下；次级" },
+  { form: "dis", meaningZh: "不；相反；分开" },
+  { form: "un", meaningZh: "不；相反" },
+  { form: "re", meaningZh: "再；重新" },
+  { form: "co", meaningZh: "共同；一起" },
+];
+
+const PRODUCTIVE_SUFFIXES: readonly ProductiveAffix[] = [
+  { form: "ation", meaningZh: "行为；过程；结果" },
+  { form: "ular", meaningZh: "与……有关的；具有……特征的" },
+  { form: "ical", meaningZh: "与……有关的；具有……特征的" },
+  { form: "less", meaningZh: "没有……的" },
+  { form: "ness", meaningZh: "性质；状态" },
+  { form: "ment", meaningZh: "行为；过程；结果" },
+  { form: "able", meaningZh: "能够……的；可……的" },
+  { form: "ible", meaningZh: "能够……的；可……的" },
+  { form: "ship", meaningZh: "身份；关系；状态" },
+  { form: "hood", meaningZh: "时期；身份；状态" },
+  { form: "ward", meaningZh: "朝向……" },
+  { form: "tion", meaningZh: "行为；过程；结果" },
+  { form: "sion", meaningZh: "行为；过程；结果" },
+  { form: "ful", meaningZh: "充满……的；具有……的" },
+  { form: "ous", meaningZh: "具有……性质的" },
+  { form: "ive", meaningZh: "具有……性质的" },
+  { form: "ity", meaningZh: "性质；状态" },
+  { form: "ize", meaningZh: "使成为；使……化" },
+  { form: "ise", meaningZh: "使成为；使……化" },
+  { form: "ify", meaningZh: "使成为" },
+  { form: "ism", meaningZh: "主义；体系；现象" },
+  { form: "ist", meaningZh: "从事……的人；……者" },
+  { form: "ial", meaningZh: "与……有关的" },
+  { form: "ar", meaningZh: "与……有关的；具有……特征的" },
+  { form: "al", meaningZh: "与……有关的；行为或结果" },
+  { form: "ic", meaningZh: "与……有关的；具有……特征的" },
+  { form: "ly", meaningZh: "以……方式；具有……性质" },
+  { form: "er", meaningZh: "做……的人或事物" },
+  { form: "or", meaningZh: "做……的人或事物" },
+  { form: "ed", meaningZh: "处于……状态的；已经……的" },
+  { form: "ing", meaningZh: "正在……的；与……有关的" },
+  { form: "en", meaningZh: "使成为；变得" },
+  { form: "y", meaningZh: "具有……特征的" },
+];
+
+function preferredBaseParts(suffix?: string): readonly string[] {
+  if (["ness", "ly", "ity"].includes(suffix ?? "")) return ["a", "adj"];
+  if (["er", "or", "ment", "tion", "sion", "ation", "able", "ible", "ed", "ing"].includes(suffix ?? "")) {
+    return ["v", "vi", "vt"];
+  }
+  if (["ful", "less", "ship", "hood", "ar", "ular"].includes(suffix ?? "")) return ["n"];
+  return [];
+}
+
+function briefChineseMeaning(translation: string, preferredParts: readonly string[] = []): string {
+  const lines = translation.split("\n").filter((item) => /[\u3400-\u9fff]/u.test(item));
+  const preferred = lines.find((line) => preferredParts.some((part) =>
+    new RegExp(`^\\s*${part}\\.`, "iu").test(line)));
+  const line = preferred ?? lines[0] ?? "";
+  const cleaned = line.replace(/^[a-z]+\.\s*/iu, "").replace(/\[[^\]]+\]/gu, "").trim();
+  return cleaned.split(/[,，;；]/u).map((item) => item.trim())
+    .filter((item) => /[\u3400-\u9fff]/u.test(item)).slice(0, 2).join("；");
+}
+
+function restoredBaseForms(stem: string, suffix?: string): string[] {
+  const forms = new Set([stem]);
+  if (stem.endsWith("i")) forms.add(`${stem.slice(0, -1)}y`);
+  if (/([^aeiou])\1$/u.test(stem)) forms.add(stem.slice(0, -1));
+  if (suffix && !stem.endsWith("e")) forms.add(`${stem}e`);
+  if (suffix === "ation") forms.add(`${stem}ate`);
+  // Latin-derived adjectives commonly restore a noun that loses letters at
+  // the boundary: nucle-ar -> nucleus, cellul-ar -> cell, muscul-ar -> muscle.
+  if (suffix === "ar") forms.add(`${stem}us`);
+  if (suffix === "ular") forms.add(`${stem}le`);
+  if (stem.endsWith("abil")) forms.add(`${stem.slice(0, -4)}able`);
+  if (stem.endsWith("ibil")) forms.add(`${stem.slice(0, -4)}ible`);
+  return [...forms].filter((form) => form.length >= 3 && /^[a-z]+$/u.test(form));
+}
+
+function isUnsafeDerivationBase(entry: DictionaryEntry): boolean {
+  const translation = entry.translation.trim();
+  if (entry.frequencyRank >= 9_999_999 || /^\s*(?:abbr\.|\[=)/iu.test(translation)) return true;
+  const properNameMarker = /(?:\[|（|\()(?:[^\]\n）)]*?)(?:人名|地名|姓氏)(?:[^\]\n）)]*?)(?:\]|）|\))/u;
+  const crossReferenceOnly = /(?:^|\n)\s*(?:\[[^\]]+\]\s*)+[^\n]*(?:的变体|简称|缩写)\s*$/iu;
+  return properNameMarker.test(translation) || crossReferenceOnly.test(translation);
+}
+
+function inflectionSuffixForLemma(word: string, lemma: string): ProductiveAffix | undefined {
+  return PRODUCTIVE_SUFFIXES
+    .filter((suffix) => suffix.form === "ed" || suffix.form === "ing")
+    .find((suffix) => {
+      if (!word.endsWith(suffix.form)) return false;
+      const stem = word.slice(0, -suffix.form.length);
+      return restoredBaseForms(stem, suffix.form).includes(lemma);
+    });
+}
+
+function applyRootGloss<T extends { meaningEn: string; meaningZh: string }>(root: T): T {
+  const meaningZh = rootGlosses[root.meaningEn.trim()]?.trim() ?? "";
+  // Generated dictionaries before the gloss mapping used an ECDICT definition
+  // of the root's spelling.  An unmapped automatic root must stay hidden,
+  // rather than falling back to that unrelated word definition or English.
+  return { ...root, meaningZh };
+}
 
 const SHORT_AFFIXES: RootLexiconEntry[] = [
   { form: "re", meaningZh: "再；重新", meaningEn: "again", kind: "prefix", position: "prefix" },
@@ -66,7 +200,10 @@ export class OfflineDictionary {
     if (!encoded) return Promise.resolve([]);
     let cached = this.entryCache.get(key);
     if (!cached) {
-      cached = decodeGzipJson<DictionaryEntry[]>(encoded);
+      cached = decodeGzipJson<DictionaryEntry[]>(encoded).then((entries) => entries.map((entry) => ({
+        ...entry,
+        roots: entry.roots.map(applyRootGloss),
+      })));
       this.entryCache.set(key, cached);
     }
     return cached;
@@ -84,7 +221,7 @@ export class OfflineDictionary {
   }
 
   private loadRoots(): Promise<RootLexiconEntry[]> {
-    this.rootsPromise ??= decodeGzipJson<RootLexiconEntry[]>(this.source.roots);
+    this.rootsPromise ??= decodeGzipJson<RootLexiconEntry[]>(this.source.roots).then((roots) => roots.map(applyRootGloss));
     return this.rootsPromise;
   }
 
@@ -136,6 +273,89 @@ export class OfflineDictionary {
     };
   }
 
+  private async inferProductiveDerivation(entry: DictionaryEntry): Promise<DictionaryRoot[]> {
+    const word = entry.word.replace(/[^a-z]/gu, "");
+    if (word.length < 5) return [];
+
+    const prefixes: Array<ProductiveAffix | undefined> = [
+      undefined,
+      ...PRODUCTIVE_PREFIXES.filter((prefix) => word.startsWith(prefix.form)),
+    ];
+    const suffixes: Array<ProductiveAffix | undefined> = [
+      undefined,
+      ...PRODUCTIVE_SUFFIXES.filter((suffix) => word.endsWith(suffix.form)),
+    ];
+    const candidates: ProductiveDerivation[] = [];
+
+    for (const prefix of prefixes) {
+      for (const suffix of suffixes) {
+        if (!prefix && !suffix) continue;
+        const prefixLength = prefix?.form.length ?? 0;
+        const suffixLength = suffix?.form.length ?? 0;
+        const stem = word.slice(prefixLength, word.length - suffixLength || undefined);
+        if (stem.length < 3 || (prefixLength + stem.length + suffixLength) / word.length < 0.6) continue;
+
+        for (const baseForm of restoredBaseForms(stem, suffix?.form)) {
+          if (baseForm === word) continue;
+          const base = await this.lookup(baseForm);
+          // Names, locations, abbreviations and cross-reference-only spellings
+          // are unsafe decomposition bases (for example wedd, kinde and usu).
+          if (!base || isUnsafeDerivationBase(base)) continue;
+          const baseMeaningZh = briefChineseMeaning(base.translation, preferredBaseParts(suffix?.form));
+          if (!baseMeaningZh) continue;
+          candidates.push({
+            prefix,
+            suffix,
+            base,
+            baseMeaningZh,
+            affixLength: prefixLength + suffixLength,
+            exactStem: baseForm === stem,
+          });
+        }
+      }
+    }
+
+    candidates.sort((left, right) =>
+      right.base.word.length - left.base.word.length ||
+      right.affixLength - left.affixLength ||
+      Number(right.exactStem) - Number(left.exactStem) ||
+      left.base.frequencyRank - right.base.frequencyRank ||
+      left.base.word.localeCompare(right.base.word, "en"));
+    const best = candidates[0];
+    if (!best) return [];
+
+    const result: DictionaryRoot[] = [];
+    if (best.prefix) {
+      result.push({
+        form: `${best.prefix.form}-`,
+        meaningZh: best.prefix.meaningZh,
+        meaningEn: "",
+        kind: "prefix",
+        inferred: true,
+        source: "inferred",
+      });
+    }
+    result.push({
+      form: best.base.word,
+      meaningZh: best.baseMeaningZh,
+      meaningEn: "",
+      kind: "lemma",
+      inferred: true,
+      source: "inferred",
+    });
+    if (best.suffix) {
+      result.push({
+        form: `-${best.suffix.form}`,
+        meaningZh: best.suffix.meaningZh,
+        meaningEn: "",
+        kind: "suffix",
+        inferred: true,
+        source: "inferred",
+      });
+    }
+    return result;
+  }
+
   async rootsFor(entry: DictionaryEntry): Promise<DictionaryRoot[]> {
     const reliable = entry.roots.filter((root) => root.meaningZh.trim());
     const roots = await this.loadRoots();
@@ -163,8 +383,19 @@ export class OfflineDictionary {
         return reliableRanges.every((range) => start + root.form.length <= range.start || start >= range.end);
       });
       affixes.sort((left, right) => right.form.length - left.form.length);
-      const prefix = affixes.find((root) => root.position === "prefix");
-      const suffix = affixes.find((root) => root.position === "suffix");
+      const candidatePrefix = affixes.find((root) => root.position === "prefix");
+      const candidateSuffix = affixes.find((root) => root.position === "suffix");
+      const covered = new Set<number>();
+      reliableRanges.forEach((range) => {
+        for (let index = range.start; index < range.end; index += 1) covered.add(index);
+      });
+      [candidatePrefix, candidateSuffix].filter((root): root is RootLexiconEntry => Boolean(root)).forEach((root) => {
+        const start = root.position === "prefix" ? 0 : letters.length - root.form.length;
+        for (let index = start; index < start + root.form.length; index += 1) covered.add(index);
+      });
+      const acceptsBoundaryAffixes = covered.size / Math.max(1, letters.length) >= 0.6;
+      const prefix = acceptsBoundaryAffixes ? candidatePrefix : undefined;
+      const suffix = acceptsBoundaryAffixes ? candidateSuffix : undefined;
       const primaryAffixes = new Set([prefix, suffix].filter(Boolean));
       const alternatives = boundaryAffixes.filter((root) => !primaryAffixes.has(root))
         .filter((root, index, list) => list.findIndex((item) => item.form === root.form && item.position === root.position) === index)
@@ -188,14 +419,11 @@ export class OfflineDictionary {
     const lemma = entry.forms["0"]?.trim().toLocaleLowerCase("en-US");
     if (lemma && lemma !== entry.word && /^[a-z]+$/u.test(lemma)) {
       const lemmaEntry = await this.lookup(lemma);
-      if (lemmaEntry) {
-        const meaningZh = lemmaEntry.translation
-          .split("\n")
-          .find((line) => /[\u3400-\u9fff]/u.test(line))
-          ?.replace(/^[a-z]+\.\s*/iu, "")
-          .trim() ?? "";
+      if (lemmaEntry && !isUnsafeDerivationBase(lemmaEntry)) {
+        const suffix = inflectionSuffixForLemma(entry.word, lemma);
+        const meaningZh = briefChineseMeaning(lemmaEntry.translation, preferredBaseParts(suffix?.form));
         if (meaningZh) {
-          return [{
+          const result: DictionaryRoot[] = [{
             form: lemma,
             meaningZh,
             meaningEn: "",
@@ -203,9 +431,22 @@ export class OfflineDictionary {
             inferred: true,
             source: "inferred",
           }];
+          if (suffix) result.push({
+            form: `-${suffix.form}`,
+            meaningZh: suffix.meaningZh,
+            meaningEn: "",
+            kind: "suffix",
+            inferred: true,
+            source: "inferred",
+          });
+          return result;
         }
       }
     }
+
+    // A verified dictionary base is safer than arbitrary substring roots.
+    // Keep lower-confidence lexicon matches only as optional alternatives.
+    const productive = await this.inferProductiveDerivation(entry);
 
     const matches: Array<RootLexiconEntry & { start: number; end: number }> = [];
     for (const root of [...SHORT_AFFIXES, ...roots]) {
@@ -227,27 +468,42 @@ export class OfflineDictionary {
       selected.push(match);
       positions.forEach((position) => covered.add(position));
     }
-    const hasBoundaryAffix = selected.some((root) => root.position !== "any");
-    if (!selected.some((root) => root.form.length >= 3) ||
-      (!hasBoundaryAffix && covered.size / Math.max(1, letters.length) < 0.6)) return [];
-    const selectedKeys = new Set(selected.map((root) => `${root.form}:${root.start}:${root.end}`));
-    const alternatives = matches.filter((root) =>
-      !selectedKeys.has(`${root.form}:${root.start}:${root.end}`)
-    ).filter((root, index, list) =>
-      list.findIndex((item) => item.form === root.form && item.start === root.start) === index
-    ).slice(0, 6);
-    return [...selected, ...alternatives]
-      .sort((left, right) => left.start - right.start)
-      .map((match) => {
-        const alternative = alternatives.includes(match);
-        const { start: _start, end: _end, position: _position, ...root } = match;
-        return {
+    if (productive.length) {
+      const primaryForms = new Set(productive.map((root) => root.form.replace(/^-|-$/gu, "")));
+      const alternatives = matches.filter((root) => !primaryForms.has(root.form))
+        .filter((root, index, list) =>
+          list.findIndex((item) => item.form === root.form && item.start === root.start) === index
+        )
+        .slice(0, 6)
+        .map(({ start: _start, end: _end, position: _position, ...root }) => ({
           ...root,
           inferred: true,
           source: "inferred" as const,
-          ...(alternative ? { alternative: true } : {}),
-        };
-      });
+          alternative: true,
+        }));
+      return [...productive, ...alternatives];
+    }
+    if (selected.some((root) => root.form.length >= 3) && covered.size / Math.max(1, letters.length) >= 0.6) {
+      const selectedKeys = new Set(selected.map((root) => `${root.form}:${root.start}:${root.end}`));
+      const alternatives = matches.filter((root) =>
+        !selectedKeys.has(`${root.form}:${root.start}:${root.end}`)
+      ).filter((root, index, list) =>
+        list.findIndex((item) => item.form === root.form && item.start === root.start) === index
+      ).slice(0, 6);
+      return [...selected, ...alternatives]
+        .sort((left, right) => left.start - right.start)
+        .map((match) => {
+          const alternative = alternatives.includes(match);
+          const { start: _start, end: _end, position: _position, ...root } = match;
+          return {
+            ...root,
+            inferred: true,
+            source: "inferred" as const,
+            ...(alternative ? { alternative: true } : {}),
+          };
+        });
+    }
+    return [];
   }
 
   clearCache(): void {

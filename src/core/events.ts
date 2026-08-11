@@ -31,6 +31,7 @@ import type {
   LegacySettings,
   LegacyWord,
   ResetEvent,
+  RootStudyStore,
   ReviewAnswerEvent,
   V4Snapshot,
 } from "./types";
@@ -184,6 +185,42 @@ function applySelection(data: LegacyBundle, event: IntensiveSelectionEvent): voi
     zh: selected.zh,
   }));
   data.intensiveStore.reviewedLibraryId = event.reviewedLibraryId;
+}
+
+/**
+ * Rebuild root cards from the current word definitions.  A card's learning
+ * history is meaningful only while both its root and its displayed meaning
+ * still match, so corrected meanings deliberately start with fresh stats.
+ */
+export function rebuildRootStudyStore(base: RootStudyStore, libraries: LegacyLibrary[]): RootStudyStore {
+  const previous = new Map(base.items.map((item) => [`${item.root}\u0000${item.meaning}`, item]));
+  const items = new Map<string, RootStudyStore["items"][number]>();
+  for (const library of libraries) {
+    for (const word of library.words) {
+      const roots = Array.isArray(word.roots) ? word.roots as Array<Record<string, unknown>> : [];
+      for (const value of roots) {
+        if (value.alternative === true) continue;
+        const root = String(value.root ?? value.form ?? "").trim();
+        const meaning = String(value.meaning ?? value.meaningZh ?? value.zh ?? "").trim();
+        if (!root || !meaning) continue;
+        const id = `${root}\u0000${meaning}`;
+        const old = previous.get(id);
+        const item = items.get(id) ?? {
+          id,
+          root,
+          meaning,
+          words: [],
+          choiceRight: old?.choiceRight ?? 0,
+          choiceWrong: old?.choiceWrong ?? 0,
+          writeRight: old?.writeRight ?? 0,
+          writeWrong: old?.writeWrong ?? 0,
+        };
+        if (!item.words.includes(word.en)) item.words.push(word.en);
+        items.set(id, item);
+      }
+    }
+  }
+  return { items: [...items.values()] };
 }
 
 export function projectSnapshot(snapshot: V4Snapshot): LegacyBundle {
@@ -541,24 +578,10 @@ export class EventStore {
         .filter((library) => library.id !== current.id)
         .sort((left, right) => right.date.localeCompare(left.date)),
     };
-    const rootItems = new Map(this.snapshot.checkpoint.data.rootStudyStore.items.map((item) => [item.id, structuredClone(item)]));
-    for (const library of materialized) {
-      for (const word of library.words) {
-        const roots = Array.isArray(word.roots) ? word.roots as Array<Record<string, unknown>> : [];
-        for (const value of roots) {
-          const root = String(value.root ?? value.form ?? "").trim();
-          const meaning = String(value.meaning ?? value.meaningZh ?? value.zh ?? "").trim();
-          if (!root || !meaning) continue;
-          const id = `${root}\u0000${meaning}`;
-          const item = rootItems.get(id) ?? {
-            id, root, meaning, words: [], choiceRight: 0, choiceWrong: 0, writeRight: 0, writeWrong: 0,
-          };
-          if (!item.words.includes(word.en)) item.words.push(word.en);
-          rootItems.set(id, item);
-        }
-      }
-    }
-    this.snapshot.checkpoint.data.rootStudyStore.items = [...rootItems.values()];
+    this.snapshot.checkpoint.data.rootStudyStore = rebuildRootStudyStore(
+      this.snapshot.checkpoint.data.rootStudyStore,
+      materialized,
+    );
     this.snapshot.updatedAt = new Date().toISOString();
     this.snapshot.appVersion = APP_VERSION;
     this.save();

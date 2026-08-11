@@ -1,8 +1,15 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::Path, process::Command, time::Duration};
+use std::{
+    collections::HashMap,
+    path::Path,
+    process::Command,
+    sync::{Mutex, OnceLock},
+    time::Duration,
+};
 
 const KEYRING_SERVICE: &str = "com.englishrebuilt.wordreview";
+static ACTIVE_SPEECH_PROCESS: OnceLock<Mutex<Option<u32>>> = OnceLock::new();
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,7 +40,7 @@ struct SaveTextFileResponse {
 #[tauri::command]
 async fn native_http_request(request: HttpRequest) -> Result<HttpResponse, String> {
     let client = reqwest::Client::builder()
-        .user_agent("EnglishWordReview/8.1.0")
+        .user_agent("EnglishWordReview/8.4.1")
         .timeout(Duration::from_millis(request.timeout_ms.unwrap_or(12_000)))
         .build()
         .map_err(|error| error.to_string())?;
@@ -143,14 +150,64 @@ async fn save_text_file(
 }
 
 #[tauri::command]
-async fn speak_text(text: String, _locale: String, _rate: f32) -> Result<(), String> {
+async fn speak_text(
+    text: String,
+    _locale: String,
+    rate: f32,
+    voice: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let script = "Add-Type -AssemblyName System.Speech; $voice = New-Object System.Speech.Synthesis.SpeechSynthesizer; $voice.Rate = -1; $voice.Speak($args[0])";
-        let status = Command::new("powershell.exe")
-            .args(["-NoProfile", "-NonInteractive", "-Command", script, &text])
-            .status()
-            .map_err(|error| error.to_string())?;
+        let script = "Add-Type -AssemblyName System.Speech; $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; $mapped = [Math]::Round(([double]$args[1] - 1.0) * 10); $synth.Rate = [int][Math]::Max(-10, [Math]::Min(10, $mapped)); if ($args[2]) { try { $synth.SelectVoice($args[2]) } catch {} }; $synth.Speak($args[0])";
+        let rate_text = rate.clamp(0.5, 2.0).to_string();
+        let voice_name = voice.unwrap_or_default();
+        let process_slot = ACTIVE_SPEECH_PROCESS.get_or_init(|| Mutex::new(None));
+        let mut child = {
+            let mut active = process_slot.lock().map_err(|_| "Windows 语音状态不可用".to_owned())?;
+            if let Some(process_id) = active.take() {
+                let _ = Command::new("taskkill.exe")
+                    .args(["/PID", &process_id.to_string(), "/T", "/F"])
+                    .status();
+            }
+            let child = Command::new("powershell.exe")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-Command",
+                    script,
+                    &text,
+                    &rate_text,
+                    &voice_name,
+                ])
+                .spawn()
+                .map_err(|error| error.to_string())?;
+            *active = Some(child.id());
+            child
+        };
+        let process_id = child.id();
+        let status = child.wait().map_err(|error| error.to_string())?;
+        let mut active = process_slot.lock().map_err(|_| "Windows 语音状态不可用".to_owned())?;
+        if *active == Some(process_id) {
+            *active = None;
+        }
         if status.success() { Ok(()) } else { Err("Windows 语音朗读失败".to_owned()) }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn open_external_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err("only HTTPS update URLs are allowed".to_owned());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        Command::new("explorer.exe")
+            .arg(&url)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
     })
     .await
     .map_err(|error| error.to_string())?
@@ -165,7 +222,8 @@ pub fn run() {
             load_secret,
             delete_secret,
             save_text_file,
-            speak_text
+            speak_text,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("failed to run English Word Review");

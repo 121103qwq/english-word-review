@@ -21,6 +21,8 @@ export interface WordOverride {
 export interface CustomLibraryWord {
   word: string;
   source: "dictionary" | "user";
+  /** Imported per-library copies may opt out of this device's unrelated global value. */
+  ignoreGlobalOverride?: boolean;
   /** Values migrated from v4/v3 remain below manual local/global overrides. */
   legacyOverride?: WordOverride;
   override?: WordOverride;
@@ -49,7 +51,7 @@ export interface AudioAssetMeta {
 
 export interface ContentSnapshotV1 {
   schemaVersion: 1;
-  appVersion: "8.1.0";
+  appVersion: string;
   dictionaryVersion: string;
   revision: HybridClock;
   revisionId: string;

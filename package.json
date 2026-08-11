@@ -1,6 +1,6 @@
 {
   "name": "english-word-review",
-  "version": "8.1.0",
+  "version": "8.4.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "dictionary:refresh": "node scripts/dictionary/build.mjs --refresh",
     "tauri": "tauri",
-    "tauri:compile": "npm run build && tauri build --no-bundle",
+    "tauri:compile": "tauri build --no-bundle",
     "tauri:build": "npm run tauri:compile && npm run tauri:portable && npm run package:windows-installer",
     "tauri:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-portable.ps1",
     "package:windows-installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows-installer.ps1",

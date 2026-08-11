@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>英语单词速记</title>
   <style>
+    :root { --ui-scale: 1; --word-scale: 1; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; padding-top: env(safe-area-inset-top); padding-right: env(safe-area-inset-right); padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); background: #f5f7fb; color: #17233a; font: 16px/1.5 "Microsoft YaHei", system-ui, sans-serif; }
-    .app-shell { width: min(1040px, calc(100% - 32px)); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 720px) 290px; gap: 20px; align-items: start; }
+    .app-shell { width: min(1360px, calc(100% - 32px)); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 23vw, 320px); gap: clamp(16px, 2vw, 28px); align-items: start; zoom: var(--ui-scale); }
     main { width: 100%; padding: 30px 0; }
     h1 { margin: 0; font-size: 28px; letter-spacing: .04em; }
     .subtitle { margin: 4px 0 22px; color: #6b7890; }
@@ -17,8 +18,8 @@
     .stat b { display: block; color: #1b2c49; font-size: 22px; }
     .clear { display: none; margin: 0 0 14px; padding: 12px 16px; border-radius: 12px; background: #e4f7eb; color: #176a40; text-align: center; font-weight: 700; }
     .clear.show { display: block; }
-    .card { min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px; text-align: center; }
-    .word { font-size: clamp(35px, 8vw, 58px); font-weight: 750; letter-spacing: .02em; color: #174ea6; word-break: break-word; }
+    .card { min-height: clamp(300px, 46vh, 500px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: clamp(24px, 4vw, 48px); text-align: center; }
+    .word { font-size: clamp(calc(35px * var(--word-scale)), calc(8vw * var(--word-scale)), calc(58px * var(--word-scale))); font-weight: 750; letter-spacing: .02em; color: #174ea6; word-break: break-word; }
     .meaning { min-height: 48px; margin-top: 22px; font-size: 22px; color: #273a59; }
     .hint { margin-top: 8px; color: #98a3b4; font-size: 14px; }
     button { border: 0; border-radius: 10px; padding: 11px 17px; cursor: pointer; font: inherit; font-weight: 700; transition: transform .12s, opacity .12s; }
@@ -28,6 +29,7 @@
     .forward-actions { display: flex; justify-content: center; gap: 10px; margin-top: 17px; flex-wrap: wrap; }
     .forward-actions[hidden], .recall-box[hidden], .recall-help[hidden] { display: none !important; }
     .forward-actions .show { margin-top: 0; }
+    .forward-actions button, .answers button { min-width: clamp(118px, 10vw, 180px); min-height: clamp(44px, 5vh, 58px); padding: 11px clamp(17px, 2vw, 28px); }
     .unsure { background: #fff1cf; color: #8a5a00; }
     .recall-box { width: min(520px, 100%); display: flex; flex-direction: column; align-items: center; margin-top: 17px; }
     .recall-input { width: 100%; padding: 12px 14px; border: 1px solid #ccd5e2; border-radius: 10px; outline: none; background: #fff; color: #203654; font: inherit; }
@@ -40,7 +42,7 @@
     .recall-feedback { min-height: 23px; margin-top: 10px; color: #3e5777; font-size: 14px; white-space: pre-line; }
     .recall-feedback.good { padding: 8px 11px; border-radius: 9px; background: #e4f7eb; color: #176a40; font-weight: 700; }
     .recall-feedback.bad { padding: 8px 11px; border-radius: 9px; background: #ffe4e3; color: #ac3434; font-weight: 700; }
-    .choices { width: min(560px, 100%); display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 22px; }
+    .choices { width: min(760px, 100%); display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(10px, 1.2vw, 16px); margin-top: 22px; }
     .choices[hidden] { display: none !important; }
     .choice { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #f3f6fb; color: #243a5c; text-align: left; }
     .choice-key { flex: 0 0 auto; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; background: #e2edff; color: #1753ad; font-size: 13px; }
@@ -72,7 +74,7 @@
     .review-choice span { display: block; margin-top: 5px; color: #64748b; font-weight: 400; font-size: 13px; }
     .review-card { min-height: 270px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px; margin-top: 12px; border: 1px solid #edf0f5; border-radius: 14px; background: #fbfcfe; text-align: center; }
     .review-prompt-label { color: #8793a7; font-size: 13px; }
-    .review-prompt { margin-top: 7px; color: #174ea6; font-size: clamp(30px, 7vw, 48px); font-weight: 750; word-break: break-word; }
+    .review-prompt { margin-top: 7px; color: #174ea6; font-size: clamp(calc(30px * var(--word-scale)), calc(7vw * var(--word-scale)), calc(48px * var(--word-scale))); font-weight: 750; word-break: break-word; }
     .review-meanings { width: min(520px, 100%); margin-top: 16px; color: #273a59; font-size: 18px; white-space: pre-line; }
     .review-input { width: min(480px, 100%); margin-top: 18px; padding: 12px 14px; border: 1px solid #ccd5e2; border-radius: 10px; outline: none; background: #fff; color: #203654; font: inherit; }
     .review-input:focus { border-color: #6e9de8; box-shadow: 0 0 0 3px #2768d619; }
@@ -129,7 +131,7 @@
     .intensive-clear.show { display: block; }
     .intensive-card { min-height: 255px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px; border: 1px solid #edf0f5; border-radius: 14px; background: #fbfcfe; text-align: center; }
     .intensive-label { color: #8793a7; font-size: 13px; }
-    .intensive-prompt { margin-top: 6px; color: #174ea6; font-size: clamp(29px, 6vw, 44px); font-weight: 750; word-break: break-word; }
+    .intensive-prompt { margin-top: 6px; color: #174ea6; font-size: clamp(calc(29px * var(--word-scale)), calc(6vw * var(--word-scale)), calc(44px * var(--word-scale))); font-weight: 750; word-break: break-word; }
     .intensive-input { width: min(480px, 100%); margin-top: 18px; padding: 12px 14px; border: 1px solid #ccd5e2; border-radius: 10px; outline: none; background: #fff; color: #203654; font: inherit; }
     .intensive-input:focus { border-color: #6e9de8; box-shadow: 0 0 0 3px #2768d619; }
     .intensive-submit { margin-top: 12px; background: #2768d6; color: #fff; }
@@ -162,7 +164,7 @@
 
     .root-study-related { min-height: 20px; margin-top: 10px; color: #75839a; font-size: 13px; }
     .root-study-section .choices { margin-top: 16px; }
-    .root-study-section .intensive-prompt { font-size: clamp(30px, 6vw, 46px); }
+    .root-study-section .intensive-prompt { font-size: clamp(calc(30px * var(--word-scale)), calc(6vw * var(--word-scale)), calc(46px * var(--word-scale))); }
     .root-study-section[hidden] { display: none !important; }
 
     .archive-list { display: grid; gap: 8px; }
@@ -175,6 +177,7 @@
     .sync-panel { margin-top: 14px; padding: 17px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
     .sync-panel[hidden] { display: none !important; }
     .sync-panel h2 { margin: 0; font-size: 17px; }
+    .settings-embedded-sync { margin-top: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
     .sync-note { margin: 5px 0 14px; color: #718099; font-size: 13px; }
     .sync-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .sync-group { min-width: 0; padding: 13px; border: 1px solid #e7ebf2; border-radius: 12px; background: #fafbfd; }
@@ -191,8 +194,37 @@
     .webdav-config-head button, #addWebdavBtn { padding: 7px 10px; background: #eef2f8; color: #3b4c67; font-size: 12px; }
     .sync-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 12px; }
     .sync-actions button { background: #2768d6; color: #fff; }
-    .sync-status { flex: 1 1 260px; min-height: 22px; color: #52647f; font-size: 13px; white-space: pre-line; }
+    .sync-status { flex: 1 1 260px; min-width: 0; min-height: 22px; overflow-wrap: anywhere; color: #52647f; font-size: 13px; white-space: pre-line; }
     .sync-status.good { color: #176a40; } .sync-status.bad { color: #ac3434; }
+    .data-sync-picker, .update-modal { position: fixed; inset: 0; z-index: 260; display: grid; place-items: center; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: #101a2cb8; }
+    .data-sync-picker[hidden] { display: none !important; }
+    .update-modal[hidden] { display: none !important; }
+    .update-dialog { width: min(460px, 100%); padding: 22px; border: 1px solid #dfe6f0; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px #07132970; }
+    .update-dialog h2 { margin: 0 0 9px; font-size: 21px; }
+    .update-dialog p { margin: 7px 0; color: #5e6d83; line-height: 1.65; }
+    .update-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .update-actions .primary { background: #2768d6; color: #fff; }
+    .data-sync-picker-dialog { width: min(1120px, 100%); max-height: calc(100dvh - 36px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid #dfe6f0; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px #07132970; }
+    .data-sync-picker-head, .data-sync-picker-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #e7ebf2; }
+    .data-sync-picker-head h2 { margin: 0; font-size: 19px; }
+    .data-sync-picker-head p { margin: 3px 0 0; color: #718099; font-size: 12px; }
+    .data-sync-picker-head button { width: 40px; min-width: 40px; padding: 0; background: #eef2f8; color: #3b4c67; }
+    .data-sync-picker-grid { min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; overflow: auto; padding: 16px 18px; }
+    .data-sync-column { min-width: 0; padding: 13px; border: 1px solid #e1e7f0; border-radius: 13px; background: #fafbfd; }
+    .data-sync-column h3 { margin: 0 0 4px; font-size: 15px; }
+    .data-sync-column-note { margin: 0 0 10px; color: #718099; font-size: 12px; }
+    .data-sync-file-list { display: grid; gap: 8px; }
+    .data-sync-file-empty { padding: 18px 10px; color: #7b899e; text-align: center; }
+    .data-sync-file-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; align-items: start; padding: 10px; border: 1px solid #dfe6f0; border-radius: 10px; background: #fff; }
+    .data-sync-file-item input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: #2768d6; }
+    .data-sync-file-title { color: #2e4361; font-weight: 700; overflow-wrap: anywhere; }
+    .data-sync-file-meta { margin-top: 3px; color: #718099; font-size: 12px; overflow-wrap: anywhere; }
+    .data-sync-file-state { display: inline-block; margin-top: 5px; padding: 2px 7px; border-radius: 999px; background: #eef2f8; color: #52647f; font-size: 11px; }
+    .data-sync-file-state.warn { background: #fff1cf; color: #825500; }
+    .data-sync-file-state.good { background: #e3f5eb; color: #176a40; }
+    .data-sync-picker-actions { justify-content: flex-end; border-top: 1px solid #e7ebf2; border-bottom: 0; }
+    .data-sync-picker-actions .sync-status { margin-right: auto; }
+    .data-sync-picker-actions .primary { background: #2768d6; color: #fff; }
     .library-manager { margin-top: 14px; padding: 18px; background: #fff; border: 1px solid #e7ebf2; border-radius: 16px; box-shadow: 0 8px 24px #2638600d; }
     .library-manager[hidden], .library-input-mode[hidden] { display: none !important; }
     .library-manager-head, .library-editor-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -225,16 +257,152 @@
     .unlock-panel { margin-top: 9px; padding: 10px; border: 1px dashed #bdc9d9; border-radius: 10px; }
     .version-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 5px 9px; border-radius: 9px; background: #f1f4f9; color: #687891; font-size: 12px; }
     .readonly-banner { margin-bottom: 14px; padding: 12px 15px; border-radius: 12px; background: #fff1cf; color: #7a5000; font-weight: 700; }
-    body.read-only main button:not(#exportV4Btn):not(#syncManageBtn), body.read-only main input { pointer-events: none; opacity: .45; }
+    .app-topbar { position: sticky; top: env(safe-area-inset-top); z-index: 45; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 66px; margin: 0 0 8px; padding: 10px 12px; border: 1px solid #e7ebf2; border-radius: 0 0 16px 16px; background: #f5f7fbeb; box-shadow: 0 8px 24px #2638600d; backdrop-filter: blur(14px); }
+    .app-brand { min-width: 0; }
+    .app-brand h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar-actions { position: relative; display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .top-mode-button, .settings-open-button, .android-speak-button { min-height: 42px; background: #eef2f8; color: #29415f; }
+    .top-mode-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 168px; }
+    .top-mode-button[aria-expanded="true"], .settings-open-button[aria-expanded="true"] { background: #e2edff; color: #1753ad; }
+    .settings-open-button { display: grid; place-items: center; width: 42px; min-width: 42px; padding: 0; font-size: 21px; }
+    .android-speak-button { display: grid; place-items: center; width: 42px; min-width: 42px; padding: 0; font-size: 19px; }
+    .android-speak-button[hidden] { display: none !important; }
+    .top-mode-menu { position: absolute; top: calc(100% + 8px); right: 50px; z-index: 80; width: min(280px, calc(100vw - 32px)); overflow: hidden; padding: 7px; border: 1px solid #dfe6f0; border-radius: 13px; background: #fff; box-shadow: 0 18px 50px #17233a2b; }
+    .top-mode-menu[hidden] { display: none !important; }
+    .top-mode-item { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 10px 11px; background: transparent; color: #334966; text-align: left; }
+    .top-mode-item::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: transparent; }
+    .top-mode-item.active { background: #eaf2ff; color: #1753ad; }
+    .top-mode-item.active::after { background: #2768d6; }
+    .top-mode-divider { height: 1px; margin: 6px 3px; background: #e8edf4; }
+    .top-wrong-toggle { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 9px; color: #3b4c67; cursor: pointer; font-weight: 700; }
+    .top-wrong-toggle:hover { background: #f5f7fb; }
+    .top-wrong-toggle input { width: 18px; height: 18px; margin: 0; accent-color: #2768d6; }
+
+    .settings-modal { position: fixed; inset: 0; z-index: 220; display: grid; place-items: center; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: #101a2c99; }
+    .settings-modal[hidden] { display: none !important; }
+    .settings-dialog { width: min(1040px, 100%); height: min(820px, calc(100dvh - 36px)); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid #dfe6f0; border-radius: 18px; background: #fff; box-shadow: 0 28px 90px #07132970; }
+    .settings-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 20px 13px; border-bottom: 1px solid #e7ebf2; }
+    .settings-heading { min-width: 0; }
+    .settings-heading h2 { margin: 0; font-size: 21px; }
+    .settings-heading p { margin: 3px 0 0; color: #718099; font-size: 12px; }
+    .settings-close-button { flex: 0 0 auto; width: 40px; min-width: 40px; height: 40px; padding: 0; background: #eef2f8; color: #3b4c67; font-size: 20px; }
+    .settings-search-row { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid #edf0f5; background: #fafbfd; }
+    .settings-search-row input, .settings-mobile-section { width: 100%; min-height: 42px; padding: 9px 12px; border: 1px solid #ccd5e2; border-radius: 9px; outline: none; background: #fff; color: #203654; font: inherit; }
+    .settings-search-row input:focus, .settings-mobile-section:focus { border-color: #6e9de8; box-shadow: 0 0 0 3px #2768d619; }
+    .settings-mobile-section { display: none; }
+    .settings-body { min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr); }
+    .settings-nav { min-height: 0; overflow: auto; padding: 12px; border-right: 1px solid #e7ebf2; background: #f8fafd; }
+    .settings-nav button { width: 100%; margin-bottom: 5px; padding: 10px 12px; background: transparent; color: #52647f; text-align: left; }
+    .settings-nav button.active { background: #e2edff; color: #1753ad; }
+    .settings-content { min-width: 0; overflow: auto; padding: 18px 22px 30px; overscroll-behavior: contain; }
+    .settings-section[hidden] { display: none !important; }
+    .settings-section h3 { margin: 0 0 5px; font-size: 18px; }
+    .settings-section-note { margin: 0 0 16px; color: #718099; font-size: 13px; }
+    .settings-group { margin-top: 14px; padding: 15px; border: 1px solid #e3e9f2; border-radius: 13px; background: #fafbfd; }
+    .settings-group:first-of-type { margin-top: 0; }
+    .settings-group h4 { margin: 0 0 10px; color: #2b405f; font-size: 14px; }
+    .setting-row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(190px, 1.25fr); align-items: center; gap: 16px; min-height: 54px; padding: 9px 0; border-bottom: 1px solid #e8edf4; }
+    .setting-row:last-child { border-bottom: 0; }
+    .setting-label { color: #2e4361; font-weight: 700; }
+    .setting-description { display: block; margin-top: 2px; color: #7b899e; font-size: 12px; font-weight: 400; }
+    .setting-control { min-width: 0; }
+    .setting-control input[type="text"], .setting-control input[type="password"], .setting-control input[type="number"], .setting-control select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid #ccd5e2; border-radius: 8px; background: #fff; color: #203654; font: inherit; }
+    .setting-control input[type="range"] { width: min(280px, calc(100% - 58px)); accent-color: #2768d6; vertical-align: middle; }
+    .setting-output { display: inline-block; min-width: 48px; color: #52647f; text-align: right; font-size: 13px; }
+    .setting-check { display: inline-flex; align-items: center; gap: 8px; color: #3b4c67; font-weight: 700; }
+    .setting-check input { width: 18px; height: 18px; margin: 0; accent-color: #2768d6; }
+    .settings-inline-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .settings-inline-actions button { padding: 8px 11px; background: #eef2f8; color: #3b4c67; font-size: 13px; }
+    .settings-inline-actions .primary { background: #2768d6; color: #fff; }
+    .settings-status { min-height: 20px; color: #60718b; font-size: 12px; white-space: pre-line; }
+    .settings-status.good { color: #176a40; }
+    .settings-status.bad { color: #ac3434; }
+    .settings-isolation-note { padding: 11px 12px; border-left: 4px solid #2768d6; border-radius: 8px; background: #edf4ff; color: #40597d; font-size: 13px; }
+    .shortcut-group { margin-top: 14px; overflow: hidden; border: 1px solid #e1e7f0; border-radius: 12px; }
+    .shortcut-group.active { border-color: #6e9de8; box-shadow: 0 0 0 2px #2768d619; }
+    .shortcut-group h4 { margin: 0; padding: 10px 13px; background: #f3f6fb; color: #405573; font-size: 13px; }
+    .shortcut-binding-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(92px, .55fr) minmax(92px, .55fr) 38px; align-items: center; gap: 8px; padding: 9px 12px; border-top: 1px solid #edf0f5; }
+    .shortcut-binding-row:first-of-type { border-top: 0; }
+    .shortcut-name { min-width: 0; color: #304661; font-size: 13px; font-weight: 700; }
+    .shortcut-binding { min-width: 0; min-height: 36px; padding: 6px 9px; overflow: hidden; border: 1px solid #d6deea; background: #fff; color: #315172; text-overflow: ellipsis; white-space: nowrap; font: 700 12px/1.2 ui-monospace, "Cascadia Mono", monospace; }
+    .shortcut-binding[data-empty="true"] { color: #98a3b4; font-family: inherit; font-weight: 600; }
+    .shortcut-reset { width: 36px; min-width: 36px; min-height: 36px; padding: 0; background: #eef2f8; color: #60718b; }
+    .shortcut-legend { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(92px, .55fr) minmax(92px, .55fr) 38px; gap: 8px; padding: 0 12px 7px; color: #8a96a8; font-size: 11px; }
+    .settings-file-list { display: grid; gap: 8px; margin-top: 10px; }
+    .settings-file-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 11px; border: 1px solid #e1e7f0; border-radius: 10px; background: #fff; }
+    .settings-file-item strong, .settings-file-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .settings-file-item span { margin-top: 2px; color: #7b899e; font-size: 12px; }
+    .settings-file-item button { padding: 7px 10px; background: #e2edff; color: #1753ad; font-size: 12px; }
+    .settings-file-empty { padding: 18px; border: 1px dashed #c8d2df; border-radius: 10px; color: #7c899b; text-align: center; font-size: 13px; }
+    .settings-foot { display: flex; align-items: center; justify-content: flex-end; gap: 9px; padding: 12px 20px; border-top: 1px solid #e7ebf2; background: #fafbfd; }
+    .settings-foot .settings-status { min-width: 0; margin-right: auto; }
+    .settings-foot button { min-width: 88px; background: #eef2f8; color: #3b4c67; }
+    .settings-foot .settings-apply-button { background: #e2edff; color: #1753ad; }
+    .settings-foot .settings-save-button { background: #2768d6; color: #fff; }
+    .settings-search-hidden { display: none !important; }
+    body.focus-mode .stats, body.focus-mode .clear, body.focus-mode .toolbar, body.focus-mode .mistakes, body.focus-mode .archives, body.focus-mode .root-sidebar, body.focus-mode .library-info { display: none !important; }
+    body.focus-mode .app-shell { width: min(1240px, calc(100% - 32px)); grid-template-columns: minmax(0, 1fr); }
+    body.focus-mode .card { min-height: clamp(420px, 62vh, 680px); }
+    body.focus-mode .word { font-size: clamp(calc(46px * var(--word-scale)), calc(9vw * var(--word-scale)), calc(78px * var(--word-scale))); }
+    body.focus-mode .meaning { font-size: clamp(22px, 2vw, 30px); }
+    body.focus-mode .forward-actions button, body.focus-mode .answers button { min-width: clamp(150px, 14vw, 220px); min-height: clamp(52px, 6vh, 66px); font-size: clamp(16px, 1.25vw, 20px); }
+    body.reduced-motion *, body.reduced-motion *::before, body.reduced-motion *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+    html[data-theme="light"] { color-scheme: light; }
+    html[data-theme="dark"] { color-scheme: dark; }
+    html[data-theme="dark"] body { background: #0e1625; color: #e6edf8; }
+    html[data-theme="dark"] .app-topbar { border-color: #2c3a50; background: #111c2deb; }
+    html[data-theme="dark"] .stat, html[data-theme="dark"] .card, html[data-theme="dark"] .toolbar, html[data-theme="dark"] .mistakes, html[data-theme="dark"] .review-panel, html[data-theme="dark"] .sync-panel, html[data-theme="dark"] .library-manager, html[data-theme="dark"] .archives, html[data-theme="dark"] .intensive, html[data-theme="dark"] .root-sidebar { border-color: #28374d; background: #151f30; box-shadow: 0 8px 28px #0005; }
+    html[data-theme="dark"] .top-mode-menu, html[data-theme="dark"] .settings-dialog, html[data-theme="dark"] .settings-file-item, html[data-theme="dark"] .shortcut-binding, html[data-theme="dark"] .data-sync-picker-dialog, html[data-theme="dark"] .data-sync-file-item, html[data-theme="dark"] .update-dialog { border-color: #334158; background: #182335; color: #dbe6f5; }
+    html[data-theme="dark"] .update-dialog p { color: #a9b8cb; }
+    html[data-theme="dark"] .data-sync-column { border-color: #2d3c52; background: #121d2d; }
+    html[data-theme="dark"] .settings-head, html[data-theme="dark"] .settings-search-row, html[data-theme="dark"] .settings-foot { border-color: #2c3a50; background: #121d2d; }
+    html[data-theme="dark"] .settings-nav, html[data-theme="dark"] .settings-group, html[data-theme="dark"] .shortcut-group h4 { border-color: #2c3a50; background: #111b2a; }
+    html[data-theme="dark"] .settings-content, html[data-theme="dark"] .settings-group, html[data-theme="dark"] .shortcut-group, html[data-theme="dark"] .setting-row, html[data-theme="dark"] .shortcut-binding-row { border-color: #2c3a50; }
+    html[data-theme="dark"] .settings-search-row input, html[data-theme="dark"] .settings-mobile-section, html[data-theme="dark"] .setting-control input, html[data-theme="dark"] .setting-control select { border-color: #3a4a61; background: #101a29; color: #e5edf8; }
+    html[data-theme="dark"] .setting-label, html[data-theme="dark"] .shortcut-name, html[data-theme="dark"] .settings-group h4 { color: #d4dfef; }
+    html[data-theme="dark"] .setting-description, html[data-theme="dark"] .settings-section-note, html[data-theme="dark"] .settings-heading p, html[data-theme="dark"] .settings-file-item span { color: #9dacbf; }
+    html[data-theme="dark"] .settings-embedded-sync { border: 0; background: transparent; box-shadow: none; }
+    html[data-theme="dark"] .word, html[data-theme="dark"] .review-prompt, html[data-theme="dark"] .intensive-prompt { color: #78aafd; }
+    html[data-theme="dark"] .meaning, html[data-theme="dark"] .stat b { color: #e5edf8; }
+    html[data-theme="dark"] .top-mode-item, html[data-theme="dark"] .top-wrong-toggle { color: #d3deed; }
+    html[data-theme="dark"] .top-mode-item.active, html[data-theme="dark"] .settings-nav button.active { background: #1b365e; color: #92baff; }
+    html[data-theme="dark"] .top-mode-button, html[data-theme="dark"] .settings-open-button, html[data-theme="dark"] .settings-close-button, html[data-theme="dark"] .settings-inline-actions button, html[data-theme="dark"] .settings-foot button, html[data-theme="dark"] .shortcut-reset { background: #233148; color: #d7e3f4; }
+    html[data-theme="dark"] .settings-foot .settings-save-button, html[data-theme="dark"] .settings-inline-actions .primary { background: #3979db; color: #fff; }
+    html[data-theme="dark"] .review-card, html[data-theme="dark"] .intensive-card, html[data-theme="dark"] .sync-group, html[data-theme="dark"] .review-result, html[data-theme="dark"] .root-item, html[data-theme="dark"] .intensive-stat, html[data-theme="dark"] .archive-item, html[data-theme="dark"] .audio-row, html[data-theme="dark"] .managed-library summary, html[data-theme="dark"] .selection-item, html[data-theme="dark"] .review-choice, html[data-theme="dark"] .choice { border-color: #2d3c52; background: #111b2a; color: #d7e2f1; }
+    html[data-theme="dark"] .recall-input, html[data-theme="dark"] .review-input, html[data-theme="dark"] .intensive-input, html[data-theme="dark"] .library-form-grid input, html[data-theme="dark"] .library-form-grid select, html[data-theme="dark"] .library-editor-grid input, html[data-theme="dark"] .library-editor-grid textarea, html[data-theme="dark"] .library-paste, html[data-theme="dark"] .table-word-input, html[data-theme="dark"] .word-check-table input { border-color: #3a4a61; background: #0f1928; color: #e5edf8; }
+    html[data-theme="dark"] .library-editor-card, html[data-theme="dark"] .selection-dialog, html[data-theme="dark"] .webdav-config { border-color: #2d3c52; background: #182335; color: #e2eaf6; }
+    html[data-theme="dark"] .subtitle, html[data-theme="dark"] .library-info, html[data-theme="dark"] .hint, html[data-theme="dark"] .mode, html[data-theme="dark"] .review-note, html[data-theme="dark"] .sync-note { color: #9baabd; }
+    html[data-theme="dark"] .settings-isolation-note { background: #152c4d; color: #b8d3f9; }
+    body.read-only main button:not(#exportV4Btn):not(#syncManageBtn):not(#settingsOpenBtn), body.read-only main input { pointer-events: none; opacity: .45; }
     @media (max-width: 980px) { .app-shell { grid-template-columns: 1fr; } .root-sidebar { position: static; margin: 0 0 30px; } }
-    @media (max-width: 600px) { button { min-width: 44px; min-height: 44px; } .suggestion-chip, .managed-word-row button { min-height: 44px; } .selection-list, .sync-grid, .library-form-grid, .review-choice-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } .word-check-table { display: block; overflow-x: auto; } .managed-word-row { grid-template-columns: 1fr auto; } .managed-word-row .managed-word-meaning { grid-column: 1 / -1; } }
-    @media (max-width: 480px) { main { padding: 18px 0; } .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } }
+    @media (max-width: 720px) { .settings-dialog { height: calc(100dvh - 20px); } .settings-search-row { display: grid; grid-template-columns: 1fr; padding: 10px 14px; } .settings-mobile-section { display: block; } .settings-body { grid-template-columns: 1fr; } .settings-nav { display: none; } .settings-content { padding: 15px 14px 24px; } .setting-row { grid-template-columns: 1fr; gap: 7px; } .settings-foot { padding: 10px 14px; } .data-sync-picker-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { button { min-width: 44px; min-height: 44px; } .suggestion-chip, .managed-word-row button { min-height: 44px; } .selection-list, .sync-grid, .library-form-grid, .review-choice-grid { grid-template-columns: 1fr; } .intensive-stats { grid-template-columns: repeat(2, 1fr); } .intensive-head { flex-direction: column; } .selection-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); } .word-check-table { display: block; overflow-x: auto; } .managed-word-row { grid-template-columns: 1fr auto; } .managed-word-row .managed-word-meaning { grid-column: 1 / -1; } .app-topbar { min-height: 58px; gap: 8px; padding: 8px; } .app-brand h1 { font-size: 20px; } .top-mode-button { min-width: 0; max-width: 190px; } .shortcut-binding-row, .shortcut-legend { grid-template-columns: minmax(110px, 1fr) minmax(76px, .6fr) minmax(76px, .6fr) 36px; } }
+    @media (max-width: 480px) { main { padding: 0 0 18px; } .app-shell, body.focus-mode .app-shell { width: min(100% - 22px, 720px); } .stats { grid-template-columns: repeat(2, 1fr); } .card, body.focus-mode .card { min-height: 285px; padding: 20px 16px; } .choices { grid-template-columns: 1fr; } .toolbar { justify-content: stretch; } .toolbar button { flex: 1 1 145px; min-height: 44px; } .mode { width: 100%; margin-left: 0; text-align: center; } .undo-toast { bottom: calc(12px + env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; } .app-brand { max-width: 112px; } .top-mode-button { max-width: 152px; padding: 9px 10px; font-size: 13px; } html[data-runtime-platform="android"] .app-brand { max-width: 90px; } html[data-runtime-platform="android"] .top-mode-button { max-width: 120px; } .top-mode-menu { right: 0; } .settings-modal, .data-sync-picker { padding: 0; } .settings-dialog, .data-sync-picker-dialog { height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; } .update-modal { padding: 12px; } .settings-heading p { display: none; } .settings-head { padding: max(12px, env(safe-area-inset-top)) 14px 10px; } .shortcut-binding-row { grid-template-columns: 1fr 1fr 1fr 36px; } .shortcut-name { grid-column: 1 / -1; } .shortcut-legend { grid-template-columns: 1fr 1fr 36px; } .shortcut-legend span:first-child { display: none; } .settings-foot { flex-wrap: wrap; } .settings-foot .settings-status { flex: 1 0 100%; } .settings-foot button { flex: 1; min-width: 0; padding: 10px 8px; } .data-sync-picker-actions { flex-wrap: wrap; } .data-sync-picker-actions .sync-status { flex-basis: 100%; } }
   </style>
 </head>
 <body>
   <div class="app-shell">
   <main>
-    <h1>英语单词速记</h1>
+    <header class="app-topbar" id="appTopbar">
+      <div class="app-brand"><h1>英语单词速记</h1></div>
+      <div class="topbar-actions">
+        <button class="top-mode-button" id="topModeMenuButton" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="topModeMenu">
+          <span id="topModeLabel">看英文说中文</span><span aria-hidden="true">▾</span>
+        </button>
+        <div class="top-mode-menu" id="topModeMenu" role="menu" hidden>
+          <button class="top-mode-item active" type="button" role="menuitemradio" aria-checked="true" data-mode="forward" data-mode-target="forwardModeBtn">看英文说中文</button>
+          <button class="top-mode-item" type="button" role="menuitemradio" aria-checked="false" data-mode="reverse" data-mode-target="reverseModeBtn">看中文选英文</button>
+          <button class="top-mode-item" type="button" role="menuitemradio" aria-checked="false" data-mode="rare" data-mode-target="rareModeBtn">熟词生义</button>
+          <button class="top-mode-item" type="button" role="menuitemradio" aria-checked="false" data-mode="intensive" data-mode-target="intensiveOpenBtn">错词强化</button>
+          <button class="top-mode-item" type="button" role="menuitemradio" aria-checked="false" data-mode="root" data-mode-target="rootStudyOpenBtn">词根背诵</button>
+          <button class="top-mode-item" type="button" role="menuitemradio" aria-checked="false" data-mode="review" data-mode-target="reviewOpenBtn">检查背诵</button>
+          <div class="top-mode-divider" role="separator"></div>
+          <label class="top-wrong-toggle"><input id="topWrongOnlyToggle" type="checkbox" data-shortcut-action="toggleWrongOnly">仅复习错词</label>
+        </div>
+        <button class="android-speak-button" id="androidSpeakBtn" type="button" aria-label="朗读当前单词" title="朗读当前单词" hidden disabled><span aria-hidden="true">🔊</span></button>
+        <button class="settings-open-button" id="settingsOpenBtn" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsModal" title="设置正在初始化" disabled><span aria-hidden="true">⚙</span></button>
+      </div>
+    </header>
     <p class="subtitle" id="subtitle">看英文，说中文。答错的词会被更频繁地抽到。</p>
     <div class="library-info" id="libraryInfo"></div>
     <section class="stats" aria-label="学习统计">
@@ -249,12 +417,12 @@
       <div class="meaning" id="meaning">先在脑中说出中文</div>
       <div class="hint" id="hint">按空格显示释义</div>
       <div class="forward-actions" id="forwardActions">
-        <button class="show" id="showBtn">显示中文（空格）</button>
-        <button class="unsure" id="unsureBtn">记不清（W）</button>
+        <button class="show" id="showBtn" data-shortcut-action="reveal">显示中文（空格）</button>
+        <button class="unsure" id="unsureBtn" data-shortcut-action="uncertain">记不清（W）</button>
       </div>
       <div class="recall-box" id="recallBox" hidden>
         <input class="recall-input" id="recallInput" type="text" autocomplete="off" spellcheck="false" placeholder="根据构词提示输入中文意思">
-        <button class="recall-submit" id="recallSubmitBtn">判断正误（Enter）</button>
+        <button class="recall-submit" id="recallSubmitBtn" data-shortcut-action="uncertainConfirm">判断正误（Enter）</button>
         <div class="recall-help" id="recallHelp">
           <button id="recallHintBtn" type="button">再提示一点：释义首字</button>
           <button class="recall-give-up" id="recallGiveUpBtn" type="button">还是想不起：看答案</button>
@@ -263,24 +431,24 @@
         <div class="recall-feedback" id="recallFeedback"></div>
       </div>
       <div class="answers" id="answers" hidden>
-        <button class="know" id="knowBtn">认识（A）</button>
-        <button class="dont" id="dontBtn">不认识（D）</button>
+        <button class="know" id="knowBtn" data-shortcut-action="know">认识（A）</button>
+        <button class="dont" id="dontBtn" data-shortcut-action="dontKnow">不认识（D）</button>
       </div>
       <div class="choices" id="choices" hidden></div>
     </section>
     <nav class="toolbar" aria-label="学习操作">
-      <button id="forwardModeBtn" class="active">看英文说中文</button>
-      <button id="reverseModeBtn">看中文选英文</button>
-      <button id="rareModeBtn">熟词生义</button>
-      <button id="intensiveOpenBtn">错词强化</button>
-      <button id="reviewOpenBtn">检查背诵</button>
-      <button id="rootStudyOpenBtn">词根背诵</button>
-      <button id="nextBtn">换一个（N）</button>
-      <button id="speakBtn">朗读单词（R）</button>
+      <button id="forwardModeBtn" class="active" data-shortcut-action="modeForward">看英文说中文</button>
+      <button id="reverseModeBtn" data-shortcut-action="modeReverse">看中文选英文</button>
+      <button id="rareModeBtn" data-shortcut-action="modeRare">熟词生义</button>
+      <button id="intensiveOpenBtn" data-shortcut-action="modeIntensive">错词强化</button>
+      <button id="reviewOpenBtn" data-shortcut-action="modeReview">检查背诵</button>
+      <button id="rootStudyOpenBtn" data-shortcut-action="modeRoot">词根背诵</button>
+      <button id="nextBtn" data-shortcut-action="next">换一个（N）</button>
+      <button id="speakBtn" data-shortcut-action="speak">朗读单词（R）</button>
       <button id="currentBtn">当前词库</button>
-      <button id="wrongModeBtn">仅复习错词</button>
+      <button id="wrongModeBtn" data-shortcut-action="toggleWrongOnly">仅复习错词</button>
       <button id="exportBtn">导出 v7.4.5 兼容版</button>
-      <button id="exportV4Btn">导出完整 8.1</button>
+      <button id="exportV4Btn">导出完整 8.4.1</button>
       <button id="importBtn">导入旧版</button>
       <button id="importV4Btn">导入完整快照</button>
       <button id="libraryManageBtn">管理手动词库</button>
@@ -306,10 +474,10 @@
           <div class="review-prompt-label" id="reviewPromptLabel"></div>
           <div class="review-prompt" id="reviewPrompt"></div>
           <input class="review-input" id="reviewInput" type="text" autocomplete="off" spellcheck="false" placeholder="输入完整英文">
-          <button class="review-primary" id="reviewSubmitBtn" type="button">提交（Enter）</button>
+          <button class="review-primary" id="reviewSubmitBtn" type="button" data-shortcut-action="reviewSubmit">提交（Enter）</button>
           <div class="review-meanings" id="reviewMeanings" hidden></div>
           <div class="review-feedback" id="reviewFeedback"></div>
-          <div class="review-judge" id="reviewJudge" hidden><button class="know" id="reviewKnowBtn" type="button">记得</button><button class="dont" id="reviewDontBtn" type="button">没记得</button></div>
+          <div class="review-judge" id="reviewJudge" hidden><button class="know" id="reviewKnowBtn" type="button" data-shortcut-action="reviewKnow">记得</button><button class="dont" id="reviewDontBtn" type="button" data-shortcut-action="reviewDontKnow">没记得</button></div>
         </div>
       </div>
       <div class="review-state" id="reviewResultState" hidden>
@@ -319,45 +487,6 @@
     </section>
     <input id="importFile" type="file" accept="application/json" hidden>
     <input id="importV4File" type="file" accept="application/json" hidden>
-    <section class="sync-panel" id="syncPanel" hidden aria-labelledby="syncTitle">
-      <h2 id="syncTitle">学习进度与内容镜像同步</h2>
-      <p class="sync-note">学习进度按事件合并；词库内容严格采用最新完整快照。本机、GitHub 和全部启用的 WebDAV 均为对等镜像。</p>
-      <div class="sync-grid">
-        <div class="sync-group">
-          <h3>GitHub Contents API</h3>
-          <div class="sync-fields">
-            <label><span><input id="githubEnabled" type="checkbox" checked> 启用 GitHub 镜像</span></label>
-            <label>仓库所有者<input id="githubOwner" value="121103qwq" autocomplete="off"></label>
-            <label>私有数据仓库名<input id="githubRepo" value="english-word-review-data" autocomplete="off"></label>
-            <label>分支<input id="githubBranch" value="main" autocomplete="off"></label>
-            <label>学习快照路径<input id="githubPath" value="progress/snapshot-v4.json" autocomplete="off"></label>
-            <label>细粒度令牌<input id="githubToken" type="password" autocomplete="off" placeholder="只需 Contents 读写权限"></label>
-          </div>
-        </div>
-        <div class="sync-group">
-          <h3>WebDAV 镜像（HTTPS，可添加多个）</h3>
-          <div id="webdavConfigs"></div>
-          <button id="addWebdavBtn" type="button">添加 WebDAV 镜像</button>
-        </div>
-      </div>
-      <div class="sync-group" id="browserVaultGroup">
-        <h3>HTML 凭据加密</h3>
-        <p class="sync-note">令牌和密码使用主密码经 PBKDF2-SHA256 + AES-256-GCM 加密；重新打开 HTML 后需输入主密码解锁。</p>
-        <div class="sync-fields">
-          <label>主密码<input id="syncMasterPassword" type="password" autocomplete="current-password"></label>
-        </div>
-        <div class="sync-actions">
-          <button id="unlockCredentialsBtn" type="button">解锁并自动同步</button>
-          <button id="clearCredentialsBtn" type="button">忘记主密码：清除凭据密文</button>
-        </div>
-      </div>
-      <div class="sync-actions">
-        <button id="saveSyncBtn" type="button">保存同步设置</button>
-        <button id="syncNowBtn" type="button">立即同步</button>
-        <span class="version-chip" id="versionChip">8.1.0 · weighted-random-v1</span>
-        <span class="sync-status" id="syncStatus" role="status"></span>
-      </div>
-    </section>
     <section class="library-manager" id="libraryManager" hidden aria-labelledby="libraryManagerTitle">
       <div class="library-manager-head">
         <div><h2 id="libraryManagerTitle">手动词库</h2><span class="sync-note">释义、检查和词根分析均在本机完成。</span></div>
@@ -419,7 +548,7 @@
         <div class="intensive-prompt" id="rootStudyPrompt">点击“词根背诵”开始</div>
         <div class="choices" id="rootStudyChoices" hidden></div>
         <input class="intensive-input" id="rootStudyInput" type="text" autocomplete="off" spellcheck="false" placeholder="输入词根" hidden>
-        <button class="intensive-submit" id="rootStudySubmitBtn" hidden>提交（Enter）</button>
+        <button class="intensive-submit" id="rootStudySubmitBtn" data-shortcut-action="rootConfirm" hidden>提交（Enter）</button>
         <div class="intensive-feedback" id="rootStudyFeedback"></div>
         <div class="root-study-related" id="rootStudyRelated"></div>
       </div>
@@ -457,11 +586,11 @@
         <div class="intensive-label" id="intensiveLabel">中文意思</div>
         <div class="intensive-prompt" id="intensivePrompt">请先选择强化单词</div>
         <input class="intensive-input" id="intensiveInput" type="text" autocomplete="off" spellcheck="false" placeholder="输入完整英文单词">
-        <button class="intensive-submit" id="intensiveSubmitBtn">提交（Enter）</button>
+        <button class="intensive-submit" id="intensiveSubmitBtn" data-shortcut-action="intensiveConfirm">提交（Enter）</button>
         <div class="intensive-feedback" id="intensiveFeedback"></div>
         <div class="intensive-judge" id="intensiveJudge" hidden>
-          <button class="know" id="intensiveKnowBtn">写对了（A）</button>
-          <button class="dont" id="intensiveWrongBtn">写错了（D）</button>
+          <button class="know" id="intensiveKnowBtn" data-shortcut-action="intensiveKnow">写对了（A）</button>
+          <button class="dont" id="intensiveWrongBtn" data-shortcut-action="intensiveDontKnow">写错了（D）</button>
         </div>
       </div>
       <div class="intensive-toolbar">
@@ -481,6 +610,313 @@
       <div class="root-empty">当前单词暂无已收录的词根。</div>
     </div>
   </aside>
+  </div>
+
+  <div class="settings-modal" id="settingsModal" hidden>
+    <div class="settings-dialog" id="settingsDialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" tabindex="-1">
+      <div>
+        <header class="settings-head">
+          <div class="settings-heading"><h2 id="settingsTitle">设置</h2><p>仅管理当前平台的个性化体验，不修改词库或学习算法。</p></div>
+          <button class="settings-close-button" id="settingsCloseBtn" type="button" aria-label="关闭设置">×</button>
+        </header>
+        <div class="settings-search-row">
+          <input id="settingsSearchInput" type="search" autocomplete="off" placeholder="搜索主题、朗读、快捷键……" aria-label="搜索设置">
+          <select class="settings-mobile-section" id="settingsSectionSelect" aria-label="设置分区">
+            <option value="general">常规</option>
+            <option value="appearance">外观</option>
+            <option value="speech">朗读与反馈</option>
+            <option value="shortcuts">快捷键</option>
+            <option value="settings-sync">设置文件同步</option>
+            <option value="data-sync">数据同步</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-body">
+        <nav class="settings-nav" id="settingsNav" aria-label="设置分区">
+          <button class="active" type="button" data-settings-section="general">常规</button>
+          <button type="button" data-settings-section="appearance">外观</button>
+          <button type="button" data-settings-section="speech">朗读与反馈</button>
+          <button type="button" data-settings-section="shortcuts">快捷键</button>
+          <button type="button" data-settings-section="settings-sync">设置文件同步</button>
+          <button type="button" data-settings-section="data-sync">数据同步</button>
+        </nav>
+        <div class="settings-content" id="settingsContent">
+          <section class="settings-section" id="settingsSectionGeneral" data-settings-section-panel="general" data-settings-search="常规 专注模式 下一题 延迟 确认 重置">
+            <h3>常规</h3>
+            <p class="settings-section-note">调整学习界面的日常操作，不影响抽题权重、答题统计或词库内容。</p>
+            <div class="settings-isolation-note">个性化设置使用独立文件和独立目录；不会写入 ContentSnapshot、学习事件、词库备份或普通同步 outbox。</div>
+            <div class="settings-group">
+              <div class="setting-row" data-settings-search="专注模式 隐藏统计 工具">
+                <div class="setting-label">专注模式<span class="setting-description">隐藏统计卡片和次要工具，只保留学习区域、模式菜单和设置入口。</span></div>
+                <div class="setting-control"><label class="setting-check"><input id="settingsFocusMode" type="checkbox" data-setting-key="focusMode">启用专注模式</label></div>
+              </div>
+              <div class="setting-row" data-settings-search="自动 下一题 延迟">
+                <div class="setting-label">自动进入下一题<span class="setting-description">适用于答题反馈后的自动切换，范围 0.5～5 秒。</span></div>
+                <div class="setting-control"><input id="settingsAutoAdvanceDelay" type="range" min="500" max="5000" step="50" value="650" data-setting-key="autoAdvanceDelayMs"><output class="setting-output" id="settingsAutoAdvanceDelayOutput" for="settingsAutoAdvanceDelay">0.65 秒</output></div>
+              </div>
+              <div class="setting-row" data-settings-search="重新开始 二次确认 危险操作">
+                <div class="setting-label">重新开始前确认<span class="setting-description">防止误触清空当前题型进度。</span></div>
+                <div class="setting-control"><label class="setting-check"><input id="settingsConfirmReset" type="checkbox" checked data-setting-key="confirmRestart">显示二次确认</label></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section" id="settingsSectionAppearance" data-settings-section-panel="appearance" data-settings-search="外观 主题 深色 浅色 缩放 字号 动画" hidden>
+            <h3>外观</h3>
+            <p class="settings-section-note">“跟随系统”只在应用打开时读取一次；无法读取时使用深色。</p>
+            <div class="settings-group">
+              <div class="setting-row" data-settings-search="主题 跟随系统 深色 浅色">
+                <div class="setting-label">主题</div>
+                <div class="setting-control"><select id="settingsTheme" data-setting-key="theme"><option value="system" selected>跟随系统</option><option value="dark">深色</option><option value="light">浅色</option></select></div>
+              </div>
+              <div class="setting-row" data-settings-search="界面 缩放 大小">
+                <div class="setting-label">整体界面缩放<span class="setting-description">调整按钮、说明文字和卡片大小。</span></div>
+                <div class="setting-control"><input id="settingsUiScale" type="range" min="80" max="140" step="5" value="100" data-setting-key="uiScale"><output class="setting-output" id="settingsUiScaleOutput" for="settingsUiScale">100%</output> <button type="button" id="settingsResetUiScale">默认</button></div>
+              </div>
+              <div class="setting-row" data-settings-search="单词 字号 题目 大小">
+                <div class="setting-label">中央题目字号<span class="setting-description">只改变题目单词、词根和检查背诵提示。</span></div>
+                <div class="setting-control"><input id="settingsWordScale" type="range" min="80" max="160" step="5" value="100" data-setting-key="wordScale"><output class="setting-output" id="settingsWordScaleOutput" for="settingsWordScale">100%</output> <button type="button" id="settingsResetWordScale">默认</button></div>
+              </div>
+              <div class="setting-row" data-settings-search="减少动画 无障碍 眩晕" hidden>
+                <div class="setting-label">减少动画<span class="setting-description">关闭过渡与动画滚动，适合对闪动或运动敏感时使用。</span></div>
+                <div class="setting-control"><label class="setting-check"><input id="settingsReducedMotion" type="checkbox" data-setting-key="reducedMotion">减少界面动画</label></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section" id="settingsSectionSpeech" data-settings-section-panel="speech" data-settings-search="朗读 反馈 TTS MiMo 音效 振动 缓存 音量" hidden>
+            <h3>朗读与反馈</h3>
+            <p class="settings-section-note">默认使用浏览器或系统朗读；自定义单词 MP3 始终优先。可能泄露答案时不会自动朗读。</p>
+            <div class="settings-group">
+              <h4>朗读</h4>
+              <div class="setting-row" data-settings-search="自动朗读">
+                <div class="setting-label">自动朗读新题</div>
+                <div class="setting-control"><label class="setting-check"><input id="settingsAutoSpeak" type="checkbox" data-setting-key="autoSpeak">启用自动朗读</label></div>
+              </div>
+              <div class="setting-row" data-settings-search="提供方 系统 MiMo">
+                <div class="setting-label">朗读提供方<span class="setting-description">选择 MiMo 后才会联网；失败时自动回退系统朗读。</span></div>
+                <div class="setting-control"><select id="settingsSpeechProvider" data-setting-key="speechProvider"><option value="system" selected>浏览器 / 系统 TTS</option><option value="mimo">MiMo v2.5 TTS</option></select></div>
+              </div>
+              <div class="setting-row" data-settings-search="系统 语音 音色">
+                <div class="setting-label">系统语音<span class="setting-description">语音名称只保存在本机，不随设置文件同步。</span></div>
+                <div class="setting-control"><select id="settingsSystemVoice" data-setting-key="deviceLocal.systemVoiceId"><option value="">系统默认语音</option></select></div>
+              </div>
+              <div class="setting-row" data-settings-search="MiMo 音色 Mia Chloe Milo Dean">
+                <div class="setting-label">MiMo 英文音色</div>
+                <div class="setting-control"><select id="settingsMimoVoice" data-setting-key="deviceLocal.mimoVoice"><option value="Mia" selected>Mia</option><option value="Chloe">Chloe</option><option value="Milo">Milo</option><option value="Dean">Dean</option></select></div>
+              </div>
+              <div class="setting-row" data-settings-search="语速 速度 试听">
+                <div class="setting-label">语速</div>
+                <div class="setting-control"><input id="settingsSpeechRate" type="range" min="0.5" max="2" step="0.05" value="1" data-setting-key="speechRate"><output class="setting-output" id="settingsSpeechRateOutput" for="settingsSpeechRate">1.00×</output> <button type="button" id="settingsSpeechPreviewBtn">试听</button></div>
+              </div>
+              <div class="setting-row" data-settings-search="MiMo 密钥 私密仓库 自动获取">
+                <div class="setting-label">MiMo 密钥<span class="setting-description">仅在选择 MiMo 且本机没有密钥时，从私密 GitHub 数据仓库自动获取。</span></div>
+                <div class="setting-control"><div class="settings-inline-actions"><span class="settings-status" id="settingsMimoKeyStatus">尚未检查</span><button type="button" id="settingsMimoFetchKeyBtn">立即获取</button><button type="button" id="settingsMimoClearKeyBtn">删除本机密钥</button></div></div>
+              </div>
+              <div class="setting-row" data-settings-search="缓存 容量 512MB 3GB 清空">
+                <div class="setting-label">MiMo 本地缓存<span class="setting-description">缓存不会进入词库或设置同步，容量绝不超过 3 GB。</span></div>
+                <div class="setting-control"><select id="settingsMimoCacheLimit" data-setting-key="deviceLocal.ttsCacheLimitBytes"><option value="209715200">200 MB</option><option value="536870912" selected>512 MB</option><option value="1073741824">1 GB</option><option value="3221225472">3 GB</option></select><div class="settings-inline-actions"><span class="settings-status" id="settingsMimoCacheUsage">当前缓存：正在读取</span><button type="button" id="settingsClearMimoCacheBtn">清空缓存</button></div></div>
+              </div>
+            </div>
+            <div class="settings-group">
+              <h4>答题反馈</h4>
+              <div class="setting-row" data-settings-search="答题 音效 开关">
+                <div class="setting-label">答题音效</div>
+                <div class="setting-control"><label class="setting-check"><input id="settingsSoundEnabled" type="checkbox" data-setting-key="feedback.soundEnabled">启用答对与答错提示音</label></div>
+              </div>
+              <div class="setting-row" data-settings-search="音效 清脆 柔和 极简 静音">
+                <div class="setting-label">音效主题<span class="setting-description">答对与答错使用不同短提示音。</span></div>
+                <div class="setting-control"><select id="settingsSoundTheme" data-setting-key="feedback.theme"><option value="silent" selected>静音</option><option value="crisp">清脆</option><option value="soft">柔和</option><option value="minimal">极简提示音</option><option value="custom">自定义</option></select></div>
+              </div>
+              <div class="setting-row" data-settings-search="音量">
+                <div class="setting-label">提示音音量</div>
+                <div class="setting-control"><input id="settingsSoundVolume" type="range" min="0" max="100" step="5" value="60" data-setting-key="feedback.volume"><output class="setting-output" id="settingsSoundVolumeOutput" for="settingsSoundVolume">60%</output></div>
+              </div>
+              <div class="setting-row" data-settings-search="自定义 答对 音效 MP3 WAV OGG">
+                <div class="setting-label">自定义答对音效<span class="setting-description">MP3、WAV 或 OGG，单文件最多 2 MiB。</span></div>
+                <div class="setting-control"><input id="settingsCorrectSoundFile" type="file" accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg" data-setting-key="feedback.correctSound"><div class="settings-inline-actions"><button type="button" id="settingsPreviewCorrectSoundBtn">试听</button><button type="button" id="settingsResetCorrectSoundBtn">恢复默认</button></div></div>
+              </div>
+              <div class="setting-row" data-settings-search="自定义 答错 音效 MP3 WAV OGG">
+                <div class="setting-label">自定义答错音效<span class="setting-description">MP3、WAV 或 OGG，单文件最多 2 MiB。</span></div>
+                <div class="setting-control"><input id="settingsWrongSoundFile" type="file" accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg" data-setting-key="feedback.wrongSound"><div class="settings-inline-actions"><button type="button" id="settingsPreviewWrongSoundBtn">试听</button><button type="button" id="settingsResetWrongSoundBtn">恢复默认</button></div></div>
+              </div>
+              <div class="setting-row" data-settings-search="Android 振动">
+                <div class="setting-label">Android 振动</div>
+                <div class="setting-control"><label class="setting-check"><input id="settingsVibration" type="checkbox" data-setting-key="feedback.vibrationEnabled">答对或答错时振动</label></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section" id="settingsSectionShortcuts" data-settings-section-panel="shortcuts" data-settings-search="快捷键 按键 绑定 冲突 恢复" hidden>
+            <h3>快捷键</h3>
+            <p class="settings-section-note">点击按键槽后录入新按键；同一上下文发生冲突时可交换或取消。文本输入聚焦时学习快捷键暂停。</p>
+            <div class="settings-group">
+              <div class="setting-row" data-settings-search="启用 关闭 快捷键">
+                <div class="setting-label">快捷键总开关</div>
+                <div class="setting-control"><label class="setting-check"><input id="settingsShortcutsEnabled" type="checkbox" checked data-setting-key="shortcutsEnabled">启用可配置快捷键</label></div>
+              </div>
+              <div class="settings-inline-actions"><button type="button" id="settingsResetShortcutGroupBtn">恢复当前分组</button><button type="button" id="settingsResetAllShortcutsBtn">恢复全部快捷键</button><span class="settings-status" id="settingsShortcutStatus" role="status"></span></div>
+            </div>
+            <div id="shortcutBindingList">
+              <div class="shortcut-group" data-shortcut-context="common"><h4>通用</h4><div class="shortcut-legend"><span>动作</span><span>主按键</span><span>备用按键</span><span></span></div>
+                <div class="shortcut-binding-row" data-shortcut-action="next-word"><span class="shortcut-name">换一个</span><button class="shortcut-binding" id="shortcutNextPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.next-word.0">N</button><button class="shortcut-binding" id="shortcutNextSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.next-word.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="next-word" aria-label="恢复换一个默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="speak-word"><span class="shortcut-name">朗读单词</span><button class="shortcut-binding" id="shortcutSpeakPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.speak-word.0">R</button><button class="shortcut-binding" id="shortcutSpeakSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.speak-word.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="speak-word" aria-label="恢复朗读默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="undo-answer"><span class="shortcut-name">撤销上次作答</span><button class="shortcut-binding" id="shortcutUndoPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.undo-answer.0">U</button><button class="shortcut-binding" id="shortcutUndoSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.undo-answer.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="undo-answer" aria-label="恢复撤销默认按键">↺</button></div>
+              </div>
+              <div class="shortcut-group" data-shortcut-context="forward"><h4>看英文说中文</h4><div class="shortcut-legend"><span>动作</span><span>主按键</span><span>备用按键</span><span></span></div>
+                <div class="shortcut-binding-row" data-shortcut-action="reveal-answer"><span class="shortcut-name">显示释义</span><button class="shortcut-binding" id="shortcutRevealPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.reveal-answer.0">Space</button><button class="shortcut-binding" id="shortcutRevealSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.reveal-answer.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="reveal-answer" aria-label="恢复显示释义默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="uncertain"><span class="shortcut-name">记不清</span><button class="shortcut-binding" id="shortcutUncertainPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.uncertain.0">W</button><button class="shortcut-binding" id="shortcutUncertainSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.uncertain.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="uncertain" aria-label="恢复记不清默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="answer-known"><span class="shortcut-name">认识 / 正确</span><button class="shortcut-binding" id="shortcutKnowPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.answer-known.0">A</button><button class="shortcut-binding" id="shortcutKnowSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.answer-known.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="answer-known" aria-label="恢复认识默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="answer-unknown"><span class="shortcut-name">不认识 / 错误</span><button class="shortcut-binding" id="shortcutDontKnowPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.answer-unknown.0">D</button><button class="shortcut-binding" id="shortcutDontKnowSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.answer-unknown.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="answer-unknown" aria-label="恢复不认识默认按键">↺</button></div>
+              </div>
+              <div class="shortcut-group" data-shortcut-context="choice"><h4>选择题（看中文选英文 / 熟词生义）</h4><div class="shortcut-legend"><span>动作</span><span>主按键</span><span>备用按键</span><span></span></div>
+                <div class="shortcut-binding-row" data-shortcut-action="choice-1"><span class="shortcut-name">选项 1</span><button class="shortcut-binding" id="shortcutOption1Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.choice-1.0">A</button><button class="shortcut-binding" id="shortcutOption1Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.choice-1.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="choice-1" aria-label="恢复选项一默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="choice-2"><span class="shortcut-name">选项 2</span><button class="shortcut-binding" id="shortcutOption2Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.choice-2.0">S</button><button class="shortcut-binding" id="shortcutOption2Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.choice-2.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="choice-2" aria-label="恢复选项二默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="choice-3"><span class="shortcut-name">选项 3</span><button class="shortcut-binding" id="shortcutOption3Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.choice-3.0">D</button><button class="shortcut-binding" id="shortcutOption3Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.choice-3.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="choice-3" aria-label="恢复选项三默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="choice-4"><span class="shortcut-name">选项 4</span><button class="shortcut-binding" id="shortcutOption4Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.choice-4.0">F</button><button class="shortcut-binding" id="shortcutOption4Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.choice-4.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="choice-4" aria-label="恢复选项四默认按键">↺</button></div>
+              </div>
+              <div class="shortcut-group" data-shortcut-context="intensive"><h4>错词强化</h4><div class="shortcut-legend"><span>动作</span><span>主按键</span><span>备用按键</span><span></span></div>
+                <div class="shortcut-binding-row" data-shortcut-action="intensive-submit"><span class="shortcut-name">确认 / 下一题</span><button class="shortcut-binding" id="shortcutIntensiveConfirmPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.intensive-submit.0">Enter</button><button class="shortcut-binding" id="shortcutIntensiveConfirmSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.intensive-submit.1">Space</button><button class="shortcut-reset" type="button" data-shortcut-reset="intensive-submit" aria-label="恢复强化确认默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="intensive-correct"><span class="shortcut-name">人工判定正确</span><button class="shortcut-binding" id="shortcutIntensiveKnowPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.intensive-correct.0">A</button><button class="shortcut-binding" id="shortcutIntensiveKnowSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.intensive-correct.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="intensive-correct" aria-label="恢复强化正确默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="intensive-wrong"><span class="shortcut-name">人工判定错误</span><button class="shortcut-binding" id="shortcutIntensiveDontKnowPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.intensive-wrong.0">D</button><button class="shortcut-binding" id="shortcutIntensiveDontKnowSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.intensive-wrong.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="intensive-wrong" aria-label="恢复强化错误默认按键">↺</button></div>
+              </div>
+              <div class="shortcut-group" data-shortcut-context="root"><h4>词根背诵</h4><div class="shortcut-legend"><span>动作</span><span>主按键</span><span>备用按键</span><span></span></div>
+                <div class="shortcut-binding-row" data-shortcut-action="root-choice-1"><span class="shortcut-name">词根选项 1</span><button class="shortcut-binding" id="shortcutRootOption1Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.root-choice-1.0">A</button><button class="shortcut-binding" id="shortcutRootOption1Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.root-choice-1.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="root-choice-1" aria-label="恢复词根选项一默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="root-choice-2"><span class="shortcut-name">词根选项 2</span><button class="shortcut-binding" id="shortcutRootOption2Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.root-choice-2.0">S</button><button class="shortcut-binding" id="shortcutRootOption2Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.root-choice-2.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="root-choice-2" aria-label="恢复词根选项二默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="root-choice-3"><span class="shortcut-name">词根选项 3</span><button class="shortcut-binding" id="shortcutRootOption3Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.root-choice-3.0">D</button><button class="shortcut-binding" id="shortcutRootOption3Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.root-choice-3.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="root-choice-3" aria-label="恢复词根选项三默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="root-choice-4"><span class="shortcut-name">词根选项 4</span><button class="shortcut-binding" id="shortcutRootOption4Primary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.root-choice-4.0">F</button><button class="shortcut-binding" id="shortcutRootOption4Secondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.root-choice-4.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="root-choice-4" aria-label="恢复词根选项四默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="root-submit"><span class="shortcut-name">提交 / 下一题</span><button class="shortcut-binding" id="shortcutRootSubmitPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.root-submit.0">Enter</button><button class="shortcut-binding" id="shortcutRootSubmitSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.root-submit.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="root-submit" aria-label="恢复词根提交默认按键">↺</button></div>
+              </div>
+              <div class="shortcut-group" data-shortcut-context="review"><h4>检查背诵</h4><div class="shortcut-legend"><span>动作</span><span>主按键</span><span>备用按键</span><span></span></div>
+                <div class="shortcut-binding-row" data-shortcut-action="review-submit"><span class="shortcut-name">提交 / 下一题</span><button class="shortcut-binding" id="shortcutReviewSubmitPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.review-submit.0">Enter</button><button class="shortcut-binding" id="shortcutReviewSubmitSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.review-submit.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="review-submit" aria-label="恢复检查背诵提交默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="review-known"><span class="shortcut-name">记得</span><button class="shortcut-binding" id="shortcutReviewKnowPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.review-known.0">A</button><button class="shortcut-binding" id="shortcutReviewKnowSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.review-known.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="review-known" aria-label="恢复检查背诵记得默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="review-unknown"><span class="shortcut-name">没记得</span><button class="shortcut-binding" id="shortcutReviewDontKnowPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.review-unknown.0">D</button><button class="shortcut-binding" id="shortcutReviewDontKnowSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.review-unknown.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="review-unknown" aria-label="恢复检查背诵没记得默认按键">↺</button></div>
+              </div>
+              <div class="shortcut-group" data-shortcut-context="mode"><h4>题型切换（默认不绑定）</h4><div class="shortcut-legend"><span>动作</span><span>主按键</span><span>备用按键</span><span></span></div>
+                <div class="shortcut-binding-row" data-shortcut-action="mode-forward"><span class="shortcut-name">看英文说中文</span><button class="shortcut-binding" id="shortcutModeForwardPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.mode-forward.0" data-empty="true">未绑定</button><button class="shortcut-binding" id="shortcutModeForwardSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.mode-forward.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="mode-forward" aria-label="恢复模式默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="mode-reverse"><span class="shortcut-name">看中文选英文</span><button class="shortcut-binding" id="shortcutModeReversePrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.mode-reverse.0" data-empty="true">未绑定</button><button class="shortcut-binding" id="shortcutModeReverseSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.mode-reverse.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="mode-reverse" aria-label="恢复模式默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="mode-rare"><span class="shortcut-name">熟词生义</span><button class="shortcut-binding" id="shortcutModeRarePrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.mode-rare.0" data-empty="true">未绑定</button><button class="shortcut-binding" id="shortcutModeRareSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.mode-rare.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="mode-rare" aria-label="恢复模式默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="mode-intensive"><span class="shortcut-name">错词强化</span><button class="shortcut-binding" id="shortcutModeIntensivePrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.mode-intensive.0" data-empty="true">未绑定</button><button class="shortcut-binding" id="shortcutModeIntensiveSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.mode-intensive.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="mode-intensive" aria-label="恢复模式默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="mode-root"><span class="shortcut-name">词根背诵</span><button class="shortcut-binding" id="shortcutModeRootPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.mode-root.0" data-empty="true">未绑定</button><button class="shortcut-binding" id="shortcutModeRootSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.mode-root.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="mode-root" aria-label="恢复模式默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="mode-review"><span class="shortcut-name">检查背诵</span><button class="shortcut-binding" id="shortcutModeReviewPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.mode-review.0" data-empty="true">未绑定</button><button class="shortcut-binding" id="shortcutModeReviewSecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.mode-review.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="mode-review" aria-label="恢复模式默认按键">↺</button></div>
+                <div class="shortcut-binding-row" data-shortcut-action="toggle-wrong-only"><span class="shortcut-name">仅复习错词</span><button class="shortcut-binding" id="shortcutWrongOnlyPrimary" type="button" data-shortcut-slot="primary" data-setting-key="shortcutBindings.toggle-wrong-only.0" data-empty="true">未绑定</button><button class="shortcut-binding" id="shortcutWrongOnlySecondary" type="button" data-shortcut-slot="secondary" data-setting-key="shortcutBindings.toggle-wrong-only.1" data-empty="true">未绑定</button><button class="shortcut-reset" type="button" data-shortcut-reset="toggle-wrong-only" aria-label="恢复错词筛选默认按键">↺</button></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section" id="settingsSectionFileSync" data-settings-section-panel="settings-sync" data-settings-search="设置 文件 同步 设备 地点 上传 下载 GitHub WebDAV" hidden>
+            <h3>设置文件同步</h3>
+            <p class="settings-section-note">只在你点击刷新、上传或下载时访问云端。普通学习同步不会检查此目录。</p>
+            <div class="settings-isolation-note">Windows、Android、HTML 使用独立档案；同平台设备可手动选择设置文件。具体系统 TTS 语音、设备身份、MiMo 密钥和 TTS 缓存不会被覆盖。</div>
+            <div class="settings-group">
+              <h4>当前设备</h4>
+              <div class="setting-row" data-settings-search="平台"><div class="setting-label">平台档案</div><div class="setting-control"><input id="settingsPlatform" type="text" readonly value="正在识别"></div></div>
+              <div class="setting-row" data-settings-search="设备编码"><div class="setting-label">设备编码<span class="setting-description">从本机设备 UUID 生成的稳定 8 位编码。</span></div><div class="setting-control"><input id="settingsDeviceCode" type="text" readonly></div></div>
+              <div class="setting-row" data-settings-search="设备名称"><div class="setting-label">设备名称<span class="setting-description">首次上传设置文件时必填。</span></div><div class="setting-control"><input id="settingsDeviceName" type="text" maxlength="80" autocomplete="off" placeholder="例如：卧室电脑" data-setting-key="deviceLocal.identity.deviceName"></div></div>
+              <div class="setting-row" data-settings-search="地点 地区 家里 学校"><div class="setting-label">当前地点<span class="setting-description">完全手填，不读取 Wi-Fi 或定位；相同地点的文件优先显示。</span></div><div class="setting-control"><input id="settingsLocation" type="text" maxlength="80" autocomplete="off" placeholder="例如：家里" data-setting-key="deviceLocal.identity.location"></div></div>
+            </div>
+            <div class="settings-group">
+              <h4>手动同步</h4>
+              <div class="settings-inline-actions"><button class="primary" type="button" id="settingsRefreshCloudFilesBtn">刷新云端文件</button><button type="button" id="settingsUploadCloudFileBtn">上传当前设置</button><span class="settings-status" id="settingsCloudStatus" role="status"></span></div>
+              <label class="setting-check" style="margin-top:10px"><input id="settingsPushLargeAssets" type="checkbox" data-setting-key="feedback.pushLargeAttachments">同时推送大附件（一次超过 10 MiB 时默认不勾选）</label>
+              <div class="settings-file-list" id="settingsCloudFileList" aria-live="polite"><div class="settings-file-empty">点击“刷新云端文件”后显示同平台文件；当前地点排在最上方。</div></div>
+            </div>
+            <div class="settings-group">
+              <h4>本地文件</h4>
+              <p class="settings-section-note">导入前会预览变化；未来未知格式只允许下载备份，禁止应用或回写。</p>
+              <div class="settings-inline-actions"><button type="button" id="settingsExportFileBtn">导出设置文件</button><button type="button" id="settingsImportFileBtn">导入设置文件</button><input id="settingsImportFileInput" type="file" accept="application/json,.json" hidden><span class="settings-status" id="settingsFileStatus" role="status"></span></div>
+            </div>
+          </section>
+
+          <section class="settings-section" id="settingsSectionDataSync" data-settings-section-panel="data-sync" data-settings-search="数据 同步 GitHub WebDAV 凭据 词库 进度" hidden>
+            <h3>数据同步</h3>
+            <p class="settings-section-note">只在点击同步后访问云端。词库拆分为独立文件，学习进度单独合并；不会再用一份云端快照自动覆盖全部本地词库。</p>
+            <section class="sync-panel settings-embedded-sync" id="syncPanel" aria-labelledby="syncTitle">
+              <h2 id="syncTitle">学习进度与词库文件同步</h2>
+              <p class="sync-note">同步文件按“设备编码、设备名称、地点、分钟”命名。点击同步后，可分别勾选本机上传项和云端下载项。</p>
+              <div class="sync-grid">
+                <div class="sync-group">
+                  <h3>GitHub Contents API</h3>
+                  <div class="sync-fields">
+                    <label><span><input id="githubEnabled" type="checkbox" checked> 启用 GitHub 镜像</span></label>
+                    <label>仓库所有者<input id="githubOwner" value="121103qwq" autocomplete="off"></label>
+                    <label>私有数据仓库名<input id="githubRepo" value="english-word-review-data" autocomplete="off"></label>
+                    <label>分支<input id="githubBranch" value="main" autocomplete="off"></label>
+                    <label>旧版快照路径（只读兼容）<input id="githubPath" value="progress/snapshot-v4.json" autocomplete="off"></label>
+                    <label>细粒度令牌<input id="githubToken" type="password" autocomplete="off" placeholder="只需 Contents 读写权限"></label>
+                  </div>
+                </div>
+                <div class="sync-group">
+                  <h3>WebDAV 镜像（HTTPS，可添加多个）</h3>
+                  <div id="webdavConfigs"></div>
+                  <button id="addWebdavBtn" type="button">添加 WebDAV 镜像</button>
+                </div>
+              </div>
+              <div class="sync-group" id="browserCredentialGroup">
+                <h3>HTML 本地凭据</h3>
+                <p class="sync-note">令牌和密码将不加密地保存在当前浏览器，并在下次打开时自动加载。请勿在共享电脑上保存凭据。</p>
+                <div class="sync-actions">
+                  <button id="clearCredentialsBtn" type="button">清除 HTML 本地凭据</button>
+                </div>
+              </div>
+              <div class="sync-group" id="nativeCredentialGroup" hidden>
+                <h3>原生安全存储</h3>
+                <p class="sync-note">不再设置或输入应用密码。GitHub Token 与 WebDAV 服务凭据由 Windows 凭据管理器或 Android Keystore 直接保存。</p>
+                <div class="sync-actions">
+                  <button id="clearNativeCredentialsBtn" type="button">清除原生同步凭据</button>
+                </div>
+              </div>
+              <div class="sync-actions">
+                <button id="saveSyncBtn" type="button">保存同步设置</button>
+                <button id="syncNowBtn" type="button">选择上传 / 下载</button>
+                <span class="version-chip" id="versionChip">8.4.1 · weighted-random-v1</span>
+                <span class="sync-status" id="syncStatus" role="status"></span>
+              </div>
+            </section>
+          </section>
+        </div>
+      </div>
+      <footer class="settings-foot"><span class="settings-status" id="settingsGeneralStatus" role="status"></span><button id="settingsCancelBtn" type="button">取消</button><button class="settings-apply-button" id="settingsApplyBtn" type="button">应用</button><button class="settings-save-button" id="settingsSaveBtn" type="button">保存</button></footer>
+    </div>
+  </div>
+
+  <div class="data-sync-picker" id="dataSyncSelectionModal" hidden>
+    <div class="data-sync-picker-dialog" id="dataSyncSelectionDialog" role="dialog" aria-modal="true" aria-labelledby="dataSyncSelectionTitle" tabindex="-1">
+      <header class="data-sync-picker-head">
+        <div><h2 id="dataSyncSelectionTitle">选择词库与进度同步文件</h2><p id="dataSyncSelectionIdentity">正在读取设备编码与地点……</p></div>
+        <button id="dataSyncSelectionCloseBtn" type="button" aria-label="关闭同步选择">×</button>
+      </header>
+      <div class="data-sync-picker-grid">
+        <section class="data-sync-column" aria-labelledby="dataSyncLocalTitle">
+          <h3 id="dataSyncLocalTitle">本机文件 · 勾选后上传</h3>
+          <p class="data-sync-column-note">每个词库独立上传；学习进度使用单独事件文件，不会覆盖词库。</p>
+          <div class="data-sync-file-list" id="dataSyncLocalList"><div class="data-sync-file-empty">正在整理本机词库……</div></div>
+        </section>
+        <section class="data-sync-column" aria-labelledby="dataSyncCloudTitle">
+          <h3 id="dataSyncCloudTitle">云端文件 · 勾选后下载</h3>
+          <p class="data-sync-column-note">同一分钟存在本机副本时会比较内容，并标出“单词相同、进度不同”。</p>
+          <div class="data-sync-file-list" id="dataSyncCloudList"><div class="data-sync-file-empty">点击刷新后读取 GitHub 与全部启用的 WebDAV。</div></div>
+        </section>
+      </div>
+      <footer class="data-sync-picker-actions">
+        <span class="sync-status" id="dataSyncSelectionStatus" role="status"></span>
+        <label class="setting-check"><input id="dataSyncIncludeAssets" type="checkbox">同时传输 MP3（默认关闭）</label>
+        <button id="dataSyncSelectionRefreshBtn" type="button">刷新列表</button>
+        <button class="primary" id="dataSyncSelectionApplyBtn" type="button">执行已选同步</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="update-modal" id="updateModal" hidden>
+    <div class="update-dialog" id="updateDialog" role="dialog" aria-modal="true" aria-labelledby="updateTitle" tabindex="-1">
+      <h2 id="updateTitle">发现新版本</h2>
+      <p id="updateVersionText"></p>
+      <p id="updateAssetText"></p>
+      <div class="update-actions">
+        <button id="updateLaterBtn" type="button">稍后</button>
+        <button class="primary" id="updateNowBtn" type="button">前往更新</button>
+      </div>
+    </div>
   </div>
 
   <div class="library-editor" id="libraryEditor" hidden>
@@ -526,7 +962,7 @@
       </div>
     </div>
   </div>
-  <div class="undo-toast" id="undoToast" hidden><span>已记录作答</span><button id="undoBtn" type="button">撤销（U）</button></div>
+  <div class="undo-toast" id="undoToast" hidden><span>已记录作答</span><button id="undoBtn" type="button" data-shortcut-action="undo">撤销（U）</button></div>
   <script type="module">
     import { ALGORITHM_CONFIG } from '/src/core/config.ts';
     import {
@@ -546,45 +982,11 @@
       weightedPick as sharedWeightedPick,
       zhSimilarity as sharedZhSimilarity
     } from '/src/core/selection.ts';
-    const words = [
-      ["childhood", "童年；儿童时期"],
-      ["ceremony", "仪式；典礼；礼节"],
-      ["routine", "常规；惯例；例行公事；日常的；常规的"],
-      ["endless", "无尽的；没完没了的；无数的"],
-      ["scenery", "风景；景色；舞台布景"],
-      ["silvery", "银色的；银白色的；银铃般的"],
-      ["kindness", "善良；仁慈；好意；友好的行为"],
-      ["happiness", "幸福；快乐"],
-      ["darkness", "黑暗；漆黑；阴暗；邪恶"],
-      ["weakness", "弱点；缺点；虚弱；软弱"],
-      ["racial", "种族的；人种的"],
-      ["official", "官方的；正式的；公务的；官员；公务员"],
-      ["facial", "面部的；脸部的；面部护理"],
-      ["initial", "最初的；开始的；首字母；姓名首字母；用首字母签署"],
-      ["failure", "失败；失败的人或事；故障；未能做到"],
-      ["measure", "测量；衡量；措施；程度；尺寸；量度"],
-      ["creature", "生物；动物；人；受支配的人"],
-      ["guilty", "内疚的；有罪的；犯罪的"],
-      ["steady", "稳定的；平稳的；稳步的；使稳定"],
-      ["tasty", "美味的；可口的"],
-      ["worthy", "值得的；有价值的；值得尊敬的"],
-      ["muddy", "泥泞的；浑浊的；使沾上泥；使混乱"],
-      ["harmony", "和谐；协调；和声"],
-      ["energy", "能量；精力；活力"],
-      ["novel", "小说；新颖的；新奇的"],
-      ["previous", "以前的；先前的；上一个的"],
-      ["graduate", "毕业；毕业生；大学毕业生；授予学位"],
-      ["graduation", "毕业；毕业典礼"],
-      ["gradual", "逐渐的；渐进的"],
-      ["duty", "责任；义务；职责；值班；税"],
-      ["advocate", "提倡；拥护；主张；拥护者；辩护律师"],
-      ["microwave", "微波炉；微波；用微波炉加热"],
-      ["gentle", "温和的；轻柔的；文雅的；缓慢的"],
-      ["engine", "发动机；引擎；机车；搜索引擎"],
-      ["comfort", "安慰；舒适；慰藉；使安慰；使舒适"],
-      ["effort", "努力；尝试；力气；成果"],
-      ["professor", "教授；教师"]
-    ].map(([en, zh]) => ({en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0, reverseMastery: 0, rareRight: 0, rareWrong: 0, rareMastery: 0}));
+    import { V746_BUNDLED_LIBRARY } from '/src/content/bundled-library.ts';
+    const words = V746_BUNDLED_LIBRARY.map(({word: en, meaning: zh}) => ({
+      en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0,
+      reverseMastery: 0, reverseReviewWeight: 0, rareRight: 0, rareWrong: 0, rareMastery: 0
+    }));
 
     const yesterdayWords = [
       ['theory','理论；学说；原理；看法；推测'],
@@ -632,7 +1034,7 @@
       ['poison','毒药；毒物；毒害；败坏；有害影响'],
       ['poisonous','有毒的；恶毒的；有害的']
     ].map(([en, zh]) => ({en, zh, right: 0, wrong: 0, mastery: 0, reverseRight: 0, reverseWrong: 0, reverseMastery: 0, rareRight: 0, rareWrong: 0, rareMastery: 0}));
-    const ROOT_DATA = {
+    const V820_ROOT_DATA = {
       "childhood": ["child / -hood", "儿童；时期、状态"],
       "ceremony": ["ceremon", "仪式；礼节"],
       "routine": ["rout / route", "道路；固定路线"],
@@ -671,7 +1073,8 @@
       "effort": ["ex- / fort", "向外；强壮"],
       "professor": ["pro- / fess", "向前、公开；说"]
     };
-    const ROOT_HINT_DATA = {
+    const ROOT_DATA = Object.fromEntries(V746_BUNDLED_LIBRARY.map(entry => [entry.word, [entry.root, entry.rootMeaning]]));
+    const V820_ROOT_HINT_DATA = {
       "childhood": "child（儿童）+ -hood（时期、状态）→一个人处于儿童阶段的那段时期",
       "ceremony": "ceremon（礼仪、仪式）+ -y（名词后缀）→按固定礼节举行的一套正式活动",
       "routine": "route（道路、路线）→每天沿着同一条“路线”重复进行的安排",
@@ -710,6 +1113,9 @@
       "effort": "ex-（向外）+ fort（强壮、力量）→把身体或意志中的力量向外用出来",
       "professor": "pro-（向前、公开）+ fess（说）+ -or（人）→公开讲授并表达专业知识的人"
     };
+    const ROOT_HINT_DATA = Object.fromEntries(V746_BUNDLED_LIBRARY.map(entry => [entry.word, entry.rootHint]));
+    void V820_ROOT_DATA;
+    void V820_ROOT_HINT_DATA;
     const YESTERDAY_ARCHIVE_DATE = '2026-07-21';
     const yesterdayLibraryId = yesterdayWords.map(w => w.en).join('|');
 
@@ -804,7 +1210,7 @@
       store.current = normalizeLibrary(store.current);
       store.archives = pruneArchives(store.archives);
       // Legacy daily libraries use a pipe-joined word-list id. UUID libraries are
-      // managed by the 8.1 content store and must remain active across reloads.
+      // managed by the v8 content store and must remain active across reloads.
       if (store.current.id !== libraryId && store.current.id.includes('|') && !v8ManagedLibraryIds.has(store.current.id)) {
         store.archives = store.archives.filter(a => a.id !== store.current.id);
         store.archives.unshift(store.current);
@@ -926,6 +1332,22 @@
     let undoable = null;
     let undoTimer = null;
     let autoAdvanceTimer = null;
+    let configuredAutoAdvanceDelayMs = null;
+    let configuredConfirmRestart = true;
+    let activeUiMode = 'forward';
+    let lastModeStateSignature = '';
+    const modeStateListeners = new Set();
+    const questionListeners = new Set();
+    const answerFeedbackListeners = new Set();
+    let settingsReturnFocus = null;
+    let shortcutLabels = {
+      reveal: 'Space', uncertain: 'W', know: 'A', dontKnow: 'D',
+      option1: 'A', option2: 'S', option3: 'D', option4: 'F',
+      next: 'N', speak: 'R', undo: 'U', intensiveConfirm: 'Enter / Space',
+      intensiveKnow: 'A', intensiveDontKnow: 'D', rootOption1: 'A',
+      rootOption2: 'S', rootOption3: 'D', rootOption4: 'F', rootConfirm: 'Enter',
+      reviewSubmit: 'Enter', reviewKnow: 'A', reviewDontKnow: 'D'
+    };
     const recencySize = list => calculateRecencySize(list.length);
     function pushRecent(buffer, word, size) {
       if (size <= 0) return;
@@ -936,6 +1358,172 @@
     }
     const $ = id => document.getElementById(id);
     let rootVisible = localStorage.getItem(ROOT_VISIBILITY_KEY) !== 'false';
+
+    const modeDefinitions = {
+      forward: {label: '看英文说中文', target: 'forwardModeBtn'},
+      reverse: {label: '看中文选英文', target: 'reverseModeBtn'},
+      rare: {label: '熟词生义', target: 'rareModeBtn'},
+      intensive: {label: '错词强化', target: 'intensiveOpenBtn'},
+      root: {label: '词根背诵', target: 'rootStudyOpenBtn'},
+      review: {label: '检查背诵', target: 'reviewOpenBtn'}
+    };
+
+    function isEditableShortcutTarget(target) {
+      if (!(target instanceof Element)) return false;
+      return !!target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+    }
+
+    function autoAdvanceDelay(fallbackMs) {
+      return Number.isFinite(configuredAutoAdvanceDelayMs) ? configuredAutoAdvanceDelayMs : fallbackMs;
+    }
+
+    function getModeState() {
+      return {mode: activeUiMode, studyMode, wrongOnly};
+    }
+
+    function supportsWrongOnly(mode = activeUiMode) {
+      return mode === 'forward' || mode === 'reverse' || mode === 'rare';
+    }
+
+    function setWrongOnly(enabled) {
+      wrongOnly = !!enabled;
+      updateTopModeUi(activeUiMode);
+    }
+
+    function prepareModeSurface(mode) {
+      if (mode !== 'review') $('reviewPanel').hidden = true;
+      if (mode !== 'root') $('rootStudySection').hidden = true;
+      if (mode !== 'intensive') {
+        $('intensiveSection').hidden = true;
+        if (!$('intensiveSelectionModal').hidden) closeIntensiveSelection();
+      }
+    }
+
+    function notifyModeState() {
+      const state = getModeState();
+      const signature = `${state.mode}|${state.studyMode}|${state.wrongOnly}`;
+      if (signature === lastModeStateSignature) return;
+      lastModeStateSignature = signature;
+      modeStateListeners.forEach(listener => {
+        try { listener({...state}); } catch (error) { console.error(error); }
+      });
+      window.dispatchEvent(new CustomEvent('english-review:mode-state', {detail: state}));
+    }
+
+    function updateTopModeUi(mode = activeUiMode) {
+      const definition = modeDefinitions[mode] || modeDefinitions.forward;
+      activeUiMode = modeDefinitions[mode] ? mode : 'forward';
+      const wrongOnlyAvailable = supportsWrongOnly(activeUiMode);
+      const label = $('topModeLabel');
+      if (label) label.textContent = `${definition.label}${wrongOnlyAvailable && wrongOnly ? ' · 错词' : ''}`;
+      document.querySelectorAll('#topModeMenu [data-mode]').forEach(item => {
+        const active = item.dataset.mode === activeUiMode;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-checked', String(active));
+      });
+      if ($('topWrongOnlyToggle')) {
+        $('topWrongOnlyToggle').disabled = !wrongOnlyAvailable;
+        $('topWrongOnlyToggle').checked = wrongOnlyAvailable && wrongOnly;
+      }
+      if ($('wrongModeBtn')) $('wrongModeBtn').disabled = !wrongOnlyAvailable;
+      notifyModeState();
+    }
+
+    function requestMode(mode) {
+      const definition = modeDefinitions[mode];
+      const target = definition && $(definition.target);
+      if (!target || target.disabled) return false;
+      const pendingInputs = ['recallInput', 'intensiveInput', 'rootStudyInput', 'reviewInput']
+        .map(id => $(id))
+        .filter(input => input && !input.disabled && !input.readOnly && input.value.trim() && input.offsetParent !== null);
+      if (pendingInputs.length && !confirm('当前输入尚未完成，切换模式将放弃这些内容。确定切换吗？')) return false;
+      pendingInputs.forEach(input => { input.value = ''; input.dispatchEvent(new Event('input', {bubbles: true})); });
+      prepareModeSurface(mode);
+      target.click();
+      updateTopModeUi(mode);
+      return true;
+    }
+
+    function notifyQuestion(word, safeToSpeak) {
+      const detail = {word: String(word || ''), safeToSpeak: !!safeToSpeak};
+      questionListeners.forEach(listener => {
+        try { listener({...detail}); } catch (error) { console.error(error); }
+      });
+      window.dispatchEvent(new CustomEvent('english-review:question', {detail}));
+    }
+
+    function currentQuestionState() {
+      if (activeUiMode === 'root' && rootStudyCurrent) {
+        return {word: rootStudyCurrent.root, safeToSpeak: rootStudyMode === 'choice' || rootStudyLocked};
+      }
+      if (activeUiMode === 'intensive' && intensiveCurrent) {
+        return {word: intensiveCurrent.en, safeToSpeak: intensiveMode === 'meaning' || intensiveState === 'answered'};
+      }
+      if (activeUiMode === 'review') return {word: '', safeToSpeak: false};
+      if (!current) return {word: '', safeToSpeak: false};
+      return {word: current.en, safeToSpeak: studyMode !== 'reverse'};
+    }
+
+    function notifyAnswerFeedback(correct) {
+      const value = !!correct;
+      answerFeedbackListeners.forEach(listener => {
+        try { listener(value); } catch (error) { console.error(error); }
+      });
+      window.__englishReviewFeedback?.(value);
+      window.dispatchEvent(new CustomEvent('english-review:answer-feedback', {detail: {correct: value}}));
+    }
+
+    function shortcutLabel(action, fallback = '') {
+      return Object.prototype.hasOwnProperty.call(shortcutLabels, action) ? shortcutLabels[action] : fallback;
+    }
+
+    function refreshShortcutLabels() {
+      const targets = {
+        showBtn: ['显示中文', 'reveal', '空格'], unsureBtn: ['记不清', 'uncertain', 'W'],
+        knowBtn: ['认识', 'know', 'A'], dontBtn: ['不认识', 'dontKnow', 'D'],
+        nextBtn: ['换一个', 'next', 'N'], speakBtn: ['朗读单词', 'speak', 'R'],
+        undoBtn: ['撤销', 'undo', 'U'], intensiveKnowBtn: ['写对了', 'intensiveKnow', 'A'],
+        intensiveWrongBtn: ['写错了', 'intensiveDontKnow', 'D'],
+        forwardModeBtn: ['看英文说中文', 'modeForward', ''], reverseModeBtn: ['看中文选英文', 'modeReverse', ''],
+        rareModeBtn: ['熟词生义', 'modeRare', ''], intensiveOpenBtn: ['错词强化', 'modeIntensive', ''],
+        rootStudyOpenBtn: ['词根背诵', 'modeRoot', ''], reviewOpenBtn: ['检查背诵', 'modeReview', ''],
+        wrongModeBtn: ['仅复习错词', 'toggleWrongOnly', ''],
+        reviewKnowBtn: ['记得', 'reviewKnow', 'A'], reviewDontBtn: ['没记得', 'reviewDontKnow', 'D']
+      };
+      Object.entries(targets).forEach(([id, [base, action, fallback]]) => {
+        const element = $(id);
+        if (!element) return;
+        const hint = shortcutLabel(action, fallback);
+        element.textContent = hint ? `${base}（${hint}）` : base;
+      });
+      [...$('choices')?.querySelectorAll('.choice-key') || []].forEach((element, index) => {
+        element.textContent = shortcutLabel(`option${index + 1}`, ['A','S','D','F'][index]);
+      });
+      [...$('rootStudyChoices')?.querySelectorAll('.choice-key') || []].forEach((element, index) => {
+        element.textContent = shortcutLabel(`rootOption${index + 1}`, ['A','S','D','F'][index]);
+      });
+      document.querySelectorAll('[data-shortcut-action]').forEach(element => {
+        element.dataset.shortcutLabel = shortcutLabel(element.dataset.shortcutAction, '');
+      });
+      if ($('intensiveSubmitBtn')) {
+        const base = intensiveState === 'answered'
+          ? '下一题'
+          : intensiveMode === 'spell' ? '提交' : '核对答案';
+        const hint = shortcutLabel('intensiveConfirm', intensiveMode === 'meaning' ? '空格 / Enter' : 'Enter');
+        $('intensiveSubmitBtn').textContent = hint ? `${base}（${hint}）` : base;
+      }
+      if (current && !choiceLocked && uncertainState === 'idle') {
+        if (studyMode === 'forward' && !revealed) $('hint').textContent = `按 ${shortcutLabel('reveal', '空格')} 显示释义`;
+        if (studyMode === 'reverse') $('hint').textContent = `电脑端按 ${[1,2,3,4].map(index => shortcutLabel(`option${index}`, ['A','S','D','F'][index - 1])).join(' / ')} 选择`;
+        if (studyMode === 'rare') $('hint').textContent = `生僻义项抽取权重更高 · 电脑端按 ${[1,2,3,4].map(index => shortcutLabel(`option${index}`, ['A','S','D','F'][index - 1])).join(' / ')} 选择`;
+      }
+    }
+
+    function updateShortcutLabels(labels) {
+      shortcutLabels = {...shortcutLabels, ...(labels || {})};
+      refreshShortcutLabels();
+      window.dispatchEvent(new CustomEvent('english-review:shortcut-labels-updated'));
+    }
 
     function applyRootVisibility() {
       const sidebar = document.querySelector('.root-sidebar');
@@ -965,7 +1553,7 @@
     function loadLibrary(library) {
       activeLibrary = library;
       words.splice(0, words.length, ...library.words.map(w => ({...w})));
-      wrongOnly = false;
+      setWrongOnly(false);
       recentWords = [];
       clearTimeout(autoAdvanceTimer);
       autoAdvanceTimer = null;
@@ -1126,7 +1714,7 @@
         $('word').textContent = current.en;
         $('word').lang = 'en';
         $('meaning').textContent = '先在脑中说出中文';
-        $('hint').textContent = '按空格显示释义';
+        $('hint').textContent = `按 ${shortcutLabel('reveal', '空格')} 显示释义`;
         $('showBtn').hidden = false;
         $('forwardActions').hidden = false;
         $('answers').hidden = true;
@@ -1138,7 +1726,7 @@
         $('word').textContent = currentMeaning;
         $('word').lang = 'zh-CN';
         $('meaning').textContent = '选择对应的英文单词';
-        $('hint').textContent = '电脑端按 A / S / D / F 选择';
+        $('hint').textContent = `电脑端按 ${[1,2,3,4].map(index => shortcutLabel(`option${index}`, ['A','S','D','F'][index - 1])).join(' / ')} 选择`;
         $('showBtn').hidden = true;
         $('forwardActions').hidden = true;
         $('answers').hidden = true;
@@ -1148,13 +1736,15 @@
         $('word').textContent = current.en;
         $('word').lang = 'en';
         $('meaning').textContent = '选择这个单词对应的中文义项';
-        $('hint').textContent = '生僻义项抽取权重更高 · 电脑端按 A / S / D / F 选择';
+        $('hint').textContent = `生僻义项抽取权重更高 · 电脑端按 ${[1,2,3,4].map(index => shortcutLabel(`option${index}`, ['A','S','D','F'][index - 1])).join(' / ')} 选择`;
         $('showBtn').hidden = true;
         $('forwardActions').hidden = true;
         $('answers').hidden = true;
         renderRareChoices();
       }
       render();
+      refreshShortcutLabels();
+      notifyQuestion(current.en, studyMode !== 'reverse');
     }
     function reveal() {
       if (studyMode !== 'forward' || revealed || uncertainState !== 'idle') return;
@@ -1174,7 +1764,7 @@
         (item.root || item.form) && (item.meaning || item.meaningZh || item.zh)) : [];
       const primaryRoots = customRoots.filter(item => !item.alternative);
       const alternativeCount = customRoots.length - primaryRoots.length;
-      const customHint = primaryRoots.map(item =>
+      const customHint = primaryRoots.find(item => item.note)?.note || primaryRoots.map(item =>
         `${item.root || item.form}（${item.meaning || item.meaningZh || item.zh}${item.source === 'inferred' ? '，推测' : ''}）`).join(' + ');
       $('meaning').textContent = (customHint ? `${customHint}${alternativeCount ? ` · 另有 ${alternativeCount} 个推测可在右侧展开` : ''}` : '') || rootHint || (rootInfo
         ? `${rootInfo[0]}（${rootInfo[1]}）→根据这个词根关系回想完整意思`
@@ -1287,12 +1877,17 @@
         pick(w);
       }
     }
+    function undoLastForMode(intensive) {
+      if (!undoable || undoable.intensive !== intensive) return false;
+      undoLast();
+      return true;
+    }
     function scheduleNext() {
       clearTimeout(autoAdvanceTimer);
       autoAdvanceTimer = setTimeout(() => {
         autoAdvanceTimer = null;
         pick();
-      }, 650);
+      }, autoAdvanceDelay(650));
     }
     function answer(right) {
       if (studyMode !== 'forward' || !revealed) return;
@@ -1300,6 +1895,7 @@
       current[right ? 'right' : 'wrong']++;
       current.mastery = wordMastery(current, 'forward');
       recordAnswerEvent({area: 'library', libraryId: activeLibrary.id, itemId: current.en, mode: 'forward', correct: right});
+      notifyAnswerFeedback(right);
       save(); pick();
     }
     function renderChoices() {
@@ -1313,6 +1909,7 @@
         button.type = 'button';
         button.className = 'choice';
         button.dataset.correct = String(w === current);
+        button.dataset.shortcutAction = `option${i + 1}`;
         button.innerHTML = `<span class="choice-key">${labels[i]}</span><span>${w.en}</span>`;
         button.onclick = () => chooseReverse(i);
         box.append(button);
@@ -1330,12 +1927,14 @@
       current.reverseReviewWeight = updateReverseReviewWeight(Number(current.reverseReviewWeight) || 0, correct);
       current.reverseMastery = wordMastery(current, 'reverse');
       recordAnswerEvent({area: 'library', libraryId: activeLibrary.id, itemId: current.en, mode: 'reverse', correct});
+      notifyAnswerFeedback(correct);
       buttons.forEach(b => {
         b.disabled = true;
         if (b.dataset.correct === 'true') b.classList.add('correct');
       });
       if (!correct) selected.classList.add('wrong');
       $('hint').textContent = correct ? '正确' : `错误，正确答案：${current.en}`;
+      notifyQuestion(current.en, true);
       save();
       render();
       scheduleNext();
@@ -1351,6 +1950,7 @@
         button.type = 'button';
         button.className = 'choice';
         button.dataset.correct = String(meaning === currentMeaning);
+        button.dataset.shortcutAction = `option${i + 1}`;
         button.innerHTML = `<span class="choice-key">${labels[i]}</span><span>${meaning}</span>`;
         button.onclick = () => chooseRare(i);
         box.append(button);
@@ -1367,6 +1967,7 @@
       current[correct ? 'rareRight' : 'rareWrong']++;
       current.rareMastery = wordMastery(current, 'rare');
       recordAnswerEvent({area: 'library', libraryId: activeLibrary.id, itemId: current.en, mode: 'rare', correct});
+      notifyAnswerFeedback(correct);
       buttons.forEach(b => {
         b.disabled = true;
         if (b.dataset.correct === 'true') b.classList.add('correct');
@@ -1382,7 +1983,8 @@
       $('choices').hidden = true;
       $('choices').replaceChildren();
       studyMode = mode;
-      wrongOnly = false;
+      activeUiMode = mode;
+      setWrongOnly(false);
       recentWords = [];
       clearTimeout(autoAdvanceTimer);
       autoAdvanceTimer = null;
@@ -1494,6 +2096,8 @@
         setTimeout(() => $('rootStudyInput').focus(), 0);
       }
       renderRootStudyStats();
+      refreshShortcutLabels();
+      notifyQuestion(next.root, rootStudyMode === 'choice');
     }
 
     function renderRootMeaningChoices() {
@@ -1523,6 +2127,7 @@
         button.type = 'button';
         button.className = 'choice';
         button.dataset.correct = String(meaning === rootStudyCurrent.meaning);
+        button.dataset.shortcutAction = `rootOption${index + 1}`;
         button.innerHTML = `<span class="choice-key">${labels[index]}</span><span>${meaning}</span>`;
         button.onclick = () => answerRootMeaningChoice(index);
         box.append(button);
@@ -1538,7 +2143,8 @@
       $('rootStudyRelated').textContent = `相关单词：${rootStudyCurrent.words.join('、')}`;
       saveRootStudy();
       renderRootStudyStats();
-      rootStudyAdvanceTimer = setTimeout(pickRootStudyItem, 850);
+      if (rootStudyMode === 'write') notifyQuestion(rootStudyCurrent.root, true);
+      rootStudyAdvanceTimer = setTimeout(pickRootStudyItem, autoAdvanceDelay(850));
     }
 
     function answerRootMeaningChoice(index) {
@@ -1549,6 +2155,7 @@
       const correct = selected.dataset.correct === 'true';
       rootStudyCurrent[correct ? 'choiceRight' : 'choiceWrong']++;
       window.__v8Bridge?.answer({area: 'root', itemId: rootStudyCurrent.id, mode: 'root-choice', correct});
+      notifyAnswerFeedback(correct);
       buttons.forEach(button => {
         button.disabled = true;
         if (button.dataset.correct === 'true') button.classList.add('correct');
@@ -1583,6 +2190,7 @@
       const correct = acceptedRootAnswers(rootStudyCurrent.root).has(typed);
       rootStudyCurrent[correct ? 'writeRight' : 'writeWrong']++;
       window.__v8Bridge?.answer({area: 'root', itemId: rootStudyCurrent.id, mode: 'root-write', correct});
+      notifyAnswerFeedback(correct);
       $('rootStudyInput').readOnly = true;
       $('rootStudySubmitBtn').textContent = '下一题（Enter）';
       finishRootStudyAnswer(
@@ -1678,7 +2286,9 @@
       $('intensiveFeedback').className = 'intensive-feedback';
       $('intensiveJudge').hidden = true;
       $('intensiveSubmitBtn').disabled = false;
-      $('intensiveSubmitBtn').textContent = intensiveMode === 'spell' ? '提交（Enter）' : '核对答案（空格 / Enter）';
+      $('intensiveSubmitBtn').textContent = intensiveMode === 'spell'
+        ? `提交（${shortcutLabel('intensiveConfirm', 'Enter')}）`
+        : `核对答案（${shortcutLabel('intensiveConfirm', '空格 / Enter')}）`;
 
       if (intensiveMode === 'spell') {
         $('intensiveLabel').textContent = '中文意思';
@@ -1693,6 +2303,8 @@
       }
 
       renderIntensiveStats();
+      refreshShortcutLabels();
+      notifyQuestion(next.en, intensiveMode === 'meaning');
       setTimeout(() => $('intensiveInput').focus(), 0);
     }
 
@@ -1748,8 +2360,9 @@
       $('intensiveFeedback').className = `intensive-feedback ${correct ? 'good' : 'bad'}`;
       $('intensiveFeedback').textContent = `${correct ? '✅ 正确' : '❌ 错误'}\n${text}`;
       $('intensiveSubmitBtn').disabled = false;
-      $('intensiveSubmitBtn').textContent = '下一题（Enter）';
+      $('intensiveSubmitBtn').textContent = `下一题（${shortcutLabel('intensiveConfirm', 'Enter')}）`;
       $('intensiveInput').readOnly = true;
+      if (intensiveMode === 'spell') notifyQuestion(intensiveCurrent?.en || '', true);
       setTimeout(() => $('intensiveInput').focus(), 0);
     }
 
@@ -1774,6 +2387,7 @@
         markUndo(intensiveCurrent, true);
         intensiveCurrent[correct ? 'spellRight' : 'spellWrong']++;
         recordAnswerEvent({area: 'intensive', itemId: intensiveCurrent.en, mode: 'spell', correct});
+        notifyAnswerFeedback(correct);
         intensiveState = 'answered';
         showIntensiveResult(
           correct,
@@ -1803,6 +2417,7 @@
         markUndo(intensiveCurrent, true);
         intensiveCurrent.meaningRight++;
         recordAnswerEvent({area: 'intensive', itemId: intensiveCurrent.en, mode: 'meaning', correct: true});
+        notifyAnswerFeedback(true);
         intensiveState = 'answered';
         saveIntensive();
         renderIntensiveStats();
@@ -1834,6 +2449,7 @@
       markUndo(intensiveCurrent, true);
       intensiveCurrent[correct ? 'meaningRight' : 'meaningWrong']++;
       recordAnswerEvent({area: 'intensive', itemId: intensiveCurrent.en, mode: 'meaning', correct});
+      notifyAnswerFeedback(correct);
       saveIntensive();
       renderIntensiveStats();
       intensiveState = 'answered';
@@ -2123,6 +2739,7 @@
       $('libraryInfo').textContent = `${activeLibrary === store.current ? '当前词库' : '昨日复习'} · ${modeName} · 获取日期：${activeLibrary.date}`;
       $('wrongModeBtn').classList.toggle('active', wrongOnly);
       $('modeText').textContent = wrongOnly ? `错词复习 · ${errors.length} 个错词` : `全部词库 · ${words.length} 个词`;
+      updateTopModeUi(activeUiMode);
       $('currentBtn').disabled = activeLibrary === store.current;
       $('speakBtn').disabled = studyMode === 'reverse';
       $('speakBtn').title = studyMode === 'reverse' ? '此模式朗读会泄露英文答案' : '朗读当前英文单词（R）';
@@ -2190,6 +2807,7 @@
     });
     $('rootStudySection').addEventListener('keydown', e => {
       if (e.isComposing || e.keyCode === 229) return;
+      if (typeof window.__englishReviewShortcutHandler === 'function' && !isEditableShortcutTarget(e.target)) return;
       e.stopPropagation();
       if (rootStudyMode === 'choice') {
         const index = ['a','s','d','f'].indexOf(e.key.toLowerCase());
@@ -2201,7 +2819,7 @@
     });
     $('resetRootStudyBtn').onclick = () => {
       const name = rootStudyMode === 'choice' ? '看词根选含义' : '看含义写词根';
-      if (!confirm(`确定重新开始“${name}”吗？只会清空词根背诵这一题型的记录。`)) return;
+      if (configuredConfirmRestart && !confirm(`确定重新开始“${name}”吗？只会清空词根背诵这一题型的记录。`)) return;
       const k = rootStudyKeys(rootStudyMode);
       rootStudyStore.items.forEach(item => { item[k.right] = 0; item[k.wrong] = 0; });
       window.__v8Bridge?.reset(`root:${rootStudyMode === 'choice' ? 'root-choice' : 'root-write'}`);
@@ -2227,6 +2845,7 @@
     $('intensiveSelectionModal').onclick = e => { if (e.target === $('intensiveSelectionModal')) closeIntensiveSelection(); };
     $('intensiveSection').addEventListener('keydown', e => {
       if (e.isComposing || e.keyCode === 229) return;
+      if (typeof window.__englishReviewShortcutHandler === 'function' && !isEditableShortcutTarget(e.target)) return;
       const key = e.key.toLowerCase();
 
       if (key === 'u' && intensiveState === 'answered') {
@@ -2258,7 +2877,7 @@
     });
     $('resetIntensiveBtn').onclick = () => {
       const name = intensiveMode === 'spell' ? '中文意思→拼写英文' : '完整英文→写中文意思';
-      if (!confirm(`确定重新开始“${name}”吗？只会清空强化词库这一题型的记录。`)) return;
+      if (configuredConfirmRestart && !confirm(`确定重新开始“${name}”吗？只会清空强化词库这一题型的记录。`)) return;
       const k = intensiveKeys(intensiveMode);
       intensiveStore.words.forEach(w => { w[k.right] = 0; w[k.wrong] = 0; });
       window.__v8Bridge?.reset(`intensive:${intensiveMode}`);
@@ -2293,16 +2912,18 @@
       e.target.value = '';
     };
     $('wrongModeBtn').onclick = () => {
+      if (!supportsWrongOnly()) return;
       const k = keysFor(studyMode);
       if (!words.some(w => w[k.wrong])) return alert('当前模式还没有错词。');
-      wrongOnly = !wrongOnly;
+      setWrongOnly(!wrongOnly);
       recentWords = [];
       hideUndoToast();
       pick();
+      updateTopModeUi(activeUiMode);
     };
     $('resetBtn').onclick = () => {
       const name = studyMode === 'forward' ? '看英文说中文' : studyMode === 'reverse' ? '看中文选英文' : '熟词生义';
-      if (!confirm(`确定重新开始“${name}”吗？只会清空当前正在学习词库的这一模式记录，不影响其他模式或其他词库。`)) return;
+      if (configuredConfirmRestart && !confirm(`确定重新开始“${name}”吗？只会清空当前正在学习词库的这一模式记录，不影响其他模式或其他词库。`)) return;
       if (studyMode === 'forward') {
         words.forEach(w => { w.right = 0; w.wrong = 0; w.mastery = 0; });
       } else if (studyMode === 'reverse') {
@@ -2311,18 +2932,204 @@
         words.forEach(w => { w.rareRight = 0; w.rareWrong = 0; w.rareMastery = 0; });
       }
       window.__v8Bridge?.reset(`library:${activeLibrary.id}:${studyMode}`);
-      wrongOnly = false;
+      setWrongOnly(false);
       recentWords = [];
       hideUndoToast();
       save(); pick();
+      updateTopModeUi(activeUiMode);
     };
+
+    function performAction(action) {
+      const click = id => {
+        const element = $(id);
+        if (!element || element.disabled) return false;
+        element.click();
+        return true;
+      };
+      const clickChoice = (containerId, index) => {
+        const element = $(containerId)?.children?.[index];
+        if (!element || element.disabled) return false;
+        element.click();
+        return true;
+      };
+      const directActions = {
+        reveal: 'showBtn', uncertain: 'unsureBtn', uncertainConfirm: 'recallSubmitBtn',
+        know: 'knowBtn', dontKnow: 'dontBtn', next: 'nextBtn', undo: 'undoBtn',
+        intensiveConfirm: 'intensiveSubmitBtn', intensiveNext: 'intensiveSubmitBtn',
+        intensiveKnow: 'intensiveKnowBtn', intensiveDontKnow: 'intensiveWrongBtn',
+        rootConfirm: 'rootStudySubmitBtn', reviewSubmit: 'reviewSubmitBtn',
+        reviewKnow: 'reviewKnowBtn', reviewDontKnow: 'reviewDontBtn', toggleWrongOnly: 'wrongModeBtn'
+      };
+      if (action === 'speak') return click('speakBtn');
+      if (action === 'undoNormal') return undoLastForMode(false);
+      if (action === 'undoIntensive') return undoLastForMode(true);
+      if (action === 'intensiveSkip') {
+        if (activeUiMode !== 'intensive') return false;
+        clearTimeout(autoAdvanceTimer);
+        autoAdvanceTimer = null;
+        hideUndoToast();
+        pickIntensiveWord();
+        return true;
+      }
+      if (action === 'rootSkip') {
+        if (activeUiMode !== 'root') return false;
+        clearTimeout(rootStudyAdvanceTimer);
+        rootStudyAdvanceTimer = null;
+        pickRootStudyItem();
+        return true;
+      }
+      if (directActions[action]) return click(directActions[action]);
+      const optionMatch = /^option([1-4])$/.exec(action);
+      if (optionMatch) return clickChoice('choices', Number(optionMatch[1]) - 1);
+      const rootOptionMatch = /^rootOption([1-4])$/.exec(action);
+      if (rootOptionMatch) return clickChoice('rootStudyChoices', Number(rootOptionMatch[1]) - 1);
+      const modeAction = /^mode(Forward|Reverse|Rare|Intensive|Root|Review)$/.exec(action);
+      if (modeAction) return requestMode(modeAction[1].toLowerCase());
+      return false;
+    }
+
+    function closeTopModeMenu() {
+      $('topModeMenu').hidden = true;
+      $('topModeMenuButton').setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleTopModeMenu() {
+      const opening = $('topModeMenu').hidden;
+      $('topModeMenu').hidden = !opening;
+      $('topModeMenuButton').setAttribute('aria-expanded', String(opening));
+      if (opening) $('topModeMenu').querySelector('.top-mode-item.active')?.focus();
+    }
+
+    function activateSettingsSection(section) {
+      const exists = !!document.querySelector(`[data-settings-section-panel="${section}"]`);
+      const next = exists ? section : 'general';
+      document.querySelectorAll('[data-settings-section]').forEach(button => button.classList.toggle('active', button.dataset.settingsSection === next));
+      document.querySelectorAll('[data-settings-section-panel]').forEach(panel => { panel.hidden = panel.dataset.settingsSectionPanel !== next; });
+      $('settingsSectionSelect').value = next;
+      const dataSync = next === 'data-sync';
+      $('settingsApplyBtn').hidden = dataSync;
+      $('settingsSaveBtn').hidden = dataSync;
+      $('settingsCancelBtn').textContent = dataSync ? '关闭' : '取消';
+      $('settingsContent').scrollTop = 0;
+    }
+
+    function openSettings() {
+      settingsReturnFocus = document.activeElement;
+      closeTopModeMenu();
+      $('settingsModal').hidden = false;
+      $('settingsOpenBtn').setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => $('settingsSearchInput').focus(), 0);
+      window.dispatchEvent(new CustomEvent('english-review:settings-open'));
+    }
+
+    function closeSettings() {
+      $('settingsModal').hidden = true;
+      $('settingsOpenBtn').setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+      const previous = settingsReturnFocus;
+      settingsReturnFocus = null;
+      previous?.focus?.();
+    }
+
+    function requestSettingsAction(action) {
+      const allowed = window.dispatchEvent(new CustomEvent('english-review:settings-action', {
+        cancelable: true,
+        detail: {action}
+      }));
+      if (allowed && (action === 'cancel' || action === 'save')) closeSettings();
+      return allowed;
+    }
+
+    function filterSettings(query) {
+      const normalized = String(query || '').trim().toLocaleLowerCase('zh-CN');
+      if (!normalized) {
+        document.querySelectorAll('[data-settings-search]').forEach(element => element.classList.remove('settings-search-hidden'));
+        activateSettingsSection($('settingsSectionSelect').value || 'general');
+        return;
+      }
+      document.querySelectorAll('[data-settings-section-panel]').forEach(panel => {
+        const rows = [...panel.querySelectorAll('.setting-row, .shortcut-group, .settings-group')];
+        let matchCount = 0;
+        rows.forEach(row => {
+          const haystack = `${row.dataset.settingsSearch || ''} ${row.textContent || ''}`.toLocaleLowerCase('zh-CN');
+          const matches = haystack.includes(normalized);
+          row.classList.toggle('settings-search-hidden', !matches);
+          if (matches) matchCount++;
+        });
+        const panelHaystack = `${panel.dataset.settingsSearch || ''} ${panel.querySelector('h3')?.textContent || ''}`.toLocaleLowerCase('zh-CN');
+        const panelMatches = matchCount > 0 || panelHaystack.includes(normalized);
+        panel.hidden = !panelMatches;
+      });
+    }
+
+    $('topModeMenuButton').addEventListener('click', toggleTopModeMenu);
+    $('settingsOpenBtn').addEventListener('click', openSettings);
+    document.querySelectorAll('#topModeMenu [data-mode]').forEach(item => item.addEventListener('click', () => {
+      requestMode(item.dataset.mode);
+      closeTopModeMenu();
+      $('topModeMenuButton').focus();
+    }));
+    $('topWrongOnlyToggle').addEventListener('change', () => {
+      if (!supportsWrongOnly()) {
+        $('topWrongOnlyToggle').checked = false;
+        return;
+      }
+      performAction('toggleWrongOnly');
+      $('topWrongOnlyToggle').checked = wrongOnly;
+      updateTopModeUi(activeUiMode);
+    });
+    Object.entries(modeDefinitions).forEach(([mode, definition]) => {
+      $(definition.target)?.addEventListener('click', () => {
+        prepareModeSurface(mode);
+        updateTopModeUi(mode);
+      });
+    });
+    ['reviewCloseBtn', 'reviewBackBtn'].forEach(id => $(id)?.addEventListener('click', () => updateTopModeUi(studyMode)));
+    document.addEventListener('click', event => {
+      if (!$('topModeMenu').hidden && (!(event.target instanceof Element) || !event.target.closest('.topbar-actions'))) closeTopModeMenu();
+    });
+    $('topModeMenu').addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeTopModeMenu();
+        $('topModeMenuButton').focus();
+      }
+    });
+
+    document.querySelectorAll('[data-settings-section]').forEach(button => button.addEventListener('click', () => activateSettingsSection(button.dataset.settingsSection)));
+    $('settingsSectionSelect').addEventListener('change', event => activateSettingsSection(event.currentTarget.value));
+    $('settingsSearchInput').addEventListener('input', event => filterSettings(event.currentTarget.value));
+    $('settingsCloseBtn').addEventListener('click', () => requestSettingsAction('cancel'));
+    $('settingsCancelBtn').addEventListener('click', () => requestSettingsAction('cancel'));
+    $('settingsApplyBtn').addEventListener('click', () => requestSettingsAction('apply'));
+    $('settingsSaveBtn').addEventListener('click', () => requestSettingsAction('save'));
+    $('settingsDialog').addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        requestSettingsAction('cancel');
+      }
+    });
+    [['settingsAutoAdvanceDelay', 'settingsAutoAdvanceDelayOutput', value => `${(Number(value) / 1000).toFixed(2)} 秒`], ['settingsUiScale', 'settingsUiScaleOutput', value => `${value}%`], ['settingsWordScale', 'settingsWordScaleOutput', value => `${value}%`], ['settingsSpeechRate', 'settingsSpeechRateOutput', value => `${Number(value).toFixed(2)}×`], ['settingsSoundVolume', 'settingsSoundVolumeOutput', value => `${value}%`]].forEach(([inputId, outputId, format]) => {
+      $(inputId).addEventListener('input', event => { $(outputId).textContent = format(event.currentTarget.value); });
+    });
+    $('settingsResetUiScale').addEventListener('click', () => { $('settingsUiScale').value = '100'; $('settingsUiScale').dispatchEvent(new Event('input', {bubbles: true})); $('settingsUiScale').dispatchEvent(new Event('change', {bubbles: true})); });
+    $('settingsResetWordScale').addEventListener('click', () => { $('settingsWordScale').value = '100'; $('settingsWordScale').dispatchEvent(new Event('input', {bubbles: true})); $('settingsWordScale').dispatchEvent(new Event('change', {bubbles: true})); });
+    activateSettingsSection('general');
+
     document.addEventListener('keydown', e => {
       if (e.isComposing || e.keyCode === 229 || e.repeat) return;
       if (!$('intensiveSelectionModal').hidden) {
         if (e.key === 'Escape') closeIntensiveSelection();
         return;
       }
-      if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+      if (!$('settingsModal').hidden || isEditableShortcutTarget(e.target) || isEditableShortcutTarget(document.activeElement)) return;
+      if (typeof window.__englishReviewShortcutHandler === 'function') {
+        const handled = window.__englishReviewShortcutHandler(e, getModeState());
+        if (handled && !e.defaultPrevented) e.preventDefault();
+        return;
+      }
       const key = e.key.toLowerCase();
       if (studyMode === 'forward') {
         if ((key === ' ' || key === 'spacebar') && uncertainState === 'idle') { e.preventDefault(); reveal(); }
@@ -2369,9 +3176,46 @@
         localStorage.setItem(ROOT_VISIBILITY_KEY, String(bundle.settings.rootVisible));
         location.reload();
       },
+      performAction,
+      requestMode,
+      getModeState,
+      subscribeModeState(listener) {
+        if (typeof listener !== 'function') return () => {};
+        modeStateListeners.add(listener);
+        queueMicrotask(() => listener(getModeState()));
+        return () => modeStateListeners.delete(listener);
+      },
+      subscribeQuestion(listener) {
+        if (typeof listener !== 'function') return () => {};
+        questionListeners.add(listener);
+        queueMicrotask(() => listener(currentQuestionState()));
+        return () => questionListeners.delete(listener);
+      },
+      subscribeAnswerFeedback(listener) {
+        if (typeof listener !== 'function') return () => {};
+        answerFeedbackListeners.add(listener);
+        return () => answerFeedbackListeners.delete(listener);
+      },
+      setAutoAdvanceDelay(ms) {
+        const value = Number(ms);
+        configuredAutoAdvanceDelayMs = Number.isFinite(value)
+          ? Math.min(5000, Math.max(500, Math.round(value)))
+          : null;
+      },
+      setConfirmRestart(enabled) {
+        configuredConfirmRestart = enabled !== false;
+      },
+      updateShortcutLabels,
       getCurrentWord() {
-        return current && studyMode !== 'reverse' ? current.en : '';
+        const question = currentQuestionState();
+        return question.safeToSpeak ? question.word : '';
       }
+    };
+    window.__englishReviewSettingsUi = {
+      open: openSettings,
+      close: closeSettings,
+      activateSection: activateSettingsSection,
+      get activeSection() { return $('settingsSectionSelect').value; }
     };
     pick();
   </script>

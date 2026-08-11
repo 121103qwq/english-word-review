@@ -185,6 +185,19 @@ export interface LegacyRuntimeApi {
   getBundle(): LegacyBundle;
   applyBundle(bundle: LegacyBundle): void;
   getCurrentWord(): string;
+  performAction(action: string): boolean;
+  requestMode(mode: "forward" | "reverse" | "rare" | "intensive" | "root" | "review"): boolean;
+  getModeState(): {
+    mode: "forward" | "reverse" | "rare" | "intensive" | "root" | "review";
+    studyMode: "forward" | "reverse" | "rare";
+    wrongOnly: boolean;
+  };
+  subscribeModeState(listener: (state: ReturnType<LegacyRuntimeApi["getModeState"]>) => void): () => void;
+  subscribeQuestion(listener: (question: { word: string; safeToSpeak: boolean }) => void): () => void;
+  subscribeAnswerFeedback(listener: (correct: boolean) => void): () => void;
+  setAutoAdvanceDelay(milliseconds: number): void;
+  setConfirmRestart(enabled: boolean): void;
+  updateShortcutLabels(labels: Record<string, string>): void;
 }
 
 export interface V8Bridge {
@@ -200,5 +213,12 @@ declare global {
   interface Window {
     __englishReviewLegacy?: LegacyRuntimeApi;
     __v8Bridge?: V8Bridge;
+    __englishReviewShortcutHandler?: (event: KeyboardEvent) => boolean;
+    __englishReviewSettingsUi?: {
+      open(): void;
+      close(): void;
+      activateSection(section: string): void;
+      readonly activeSection: string;
+    };
   }
 }

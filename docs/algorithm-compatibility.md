@@ -1,6 +1,6 @@
 # weighted-random-v1 与 spaced-review-v1 兼容性约束
 
-8.0.0 的共享核心将 7.4.5 行为登记为 `weighted-random-v1`；当前 8.1.0 发布线继续原样使用。检查背诵由独立的 `spaced-review-v1` 调度，不改变原有学习抽题公式、成绩字段或三种学习模式。
+8.0.0 的共享核心将 7.4.5 行为登记为 `weighted-random-v1`；当前 8.4.1 发布线继续原样使用。检查背诵由独立的 `spaced-review-v1` 调度，不改变原有学习抽题公式、成绩字段或三种学习模式。
 
 ## spaced-review-v1
 

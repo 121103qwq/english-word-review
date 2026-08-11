@@ -10,6 +10,7 @@ const projectRoot = resolve(import.meta.dirname, "../..");
 const cacheDir = join(import.meta.dirname, ".cache");
 const outputDir = join(projectRoot, "src/dictionary/generated");
 const refresh = process.argv.includes("--refresh");
+const rootGlossZh = JSON.parse(await readFile(join(projectRoot, "src/dictionary/root-gloss-zh.json"), "utf8"));
 
 const sources = [
   {
@@ -292,9 +293,12 @@ await readCsv(join(cacheDir, "ecdict.csv"), (row) => {
   if (!existing || candidate.translation.length > existing.translation.length) entries.set(word, candidate);
 });
 
-function firstChineseMeaning(translation) {
-  const first = translation.split("\n").find((line) => /[\u3400-\u9fff]/u.test(line)) ?? "";
-  return first.replace(/^[a-z]+\.\s*/iu, "").trim().slice(0, 120);
+function chineseRootMeaning(meaningEn) {
+  const meaningZh = rootGlossZh[meaningEn];
+  if (typeof meaningZh !== "string" || !/[\u3400-\u9fff]/u.test(meaningZh)) {
+    throw new Error(`词根构词义缺失：${JSON.stringify(meaningEn)}`);
+  }
+  return meaningZh.trim();
 }
 
 const rootRecords = new Map();
@@ -302,11 +306,11 @@ for (const [rawRoot, metadata] of Object.entries(rootSource)) {
   const variants = rootParts(rawRoot);
   for (const form of variants) {
     if (form.length < 3 || rootRecords.has(form)) continue;
-    const exactEntry = entries.get(form);
+    const meaningEn = String(metadata.meaning ?? "").trim();
     rootRecords.set(form, {
       form,
-      meaningZh: exactEntry ? firstChineseMeaning(exactEntry.translation) : "",
-      meaningEn: String(metadata.meaning ?? "").trim(),
+      meaningZh: chineseRootMeaning(meaningEn),
+      meaningEn,
       kind: String(metadata.class ?? "root").trim(),
       position: rawRoot.startsWith("-") ? "suffix" : rawRoot.endsWith("-") ? "prefix" : "any",
     });
@@ -318,7 +322,7 @@ for (const entry of entries.values()) {
     const metadata = rootRecords.get(form);
     return {
       form,
-      meaningZh: metadata?.meaningZh ?? firstChineseMeaning(entries.get(form)?.translation ?? ""),
+      meaningZh: metadata?.meaningZh ?? "",
       meaningEn: metadata?.meaningEn ?? "",
       kind: metadata?.kind ?? "root",
       inferred: false,

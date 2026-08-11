@@ -8,6 +8,7 @@ import android.content.SharedPreferences;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
 import android.util.Base64;
 
 import androidx.activity.result.ActivityResult;
@@ -23,6 +24,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Iterator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,6 +46,25 @@ public class EnglishReviewNativePlugin extends Plugin {
     private static final String KEYSTORE = "AndroidKeyStore";
     private static final String ALIAS_PREFIX = "english-review:";
     private static final String PREFERENCES = "english-review-secure-values";
+    private TextToSpeech textToSpeech;
+    private boolean textToSpeechInitializing;
+    private final List<PendingSpeech> pendingSpeech = new ArrayList<>();
+
+    private static final class PendingSpeech {
+        final PluginCall call;
+        final String text;
+        final String locale;
+        final float rate;
+        final String voice;
+
+        PendingSpeech(PluginCall call, String text, String locale, float rate, String voice) {
+            this.call = call;
+            this.text = text;
+            this.locale = locale;
+            this.rate = rate;
+            this.voice = voice;
+        }
+    }
 
     private SharedPreferences preferences() {
         return getContext().getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE);
@@ -187,22 +208,106 @@ public class EnglishReviewNativePlugin extends Plugin {
     public void speak(PluginCall call) {
         String text = call.getString("text");
         Double requestedRate = call.getDouble("rate", 0.85);
-        if (text == null) {
+        String locale = call.getString("locale", "en-US");
+        String voice = call.getString("voice");
+        if (text == null || text.trim().isEmpty()) {
             call.reject("Missing text");
             return;
         }
-        final TextToSpeech[] engine = new TextToSpeech[1];
-        engine[0] = new TextToSpeech(getContext(), status -> {
+        PendingSpeech request = new PendingSpeech(
+            call,
+            text.trim(),
+            locale,
+            Math.max(0.5f, Math.min(2f, requestedRate.floatValue())),
+            voice == null || voice.trim().isEmpty() ? null : voice.trim()
+        );
+        getActivity().runOnUiThread(() -> enqueueSpeech(request));
+    }
+
+    @PluginMethod
+    public void openExternalUrl(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || !url.startsWith("https://")) {
+            call.reject("Only HTTPS update URLs are allowed");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception error) {
+            call.reject("Unable to open update page", error);
+        }
+    }
+
+    private void enqueueSpeech(PendingSpeech request) {
+        if (textToSpeechInitializing) {
+            pendingSpeech.add(request);
+            return;
+        }
+        if (textToSpeech != null) {
+            performSpeech(request);
+            return;
+        }
+        pendingSpeech.add(request);
+        textToSpeechInitializing = true;
+        textToSpeech = new TextToSpeech(getContext().getApplicationContext(), status -> {
+            textToSpeechInitializing = false;
             if (status != TextToSpeech.SUCCESS) {
-                call.reject("Android text-to-speech initialization failed");
+                TextToSpeech failedEngine = textToSpeech;
+                textToSpeech = null;
+                if (failedEngine != null) failedEngine.shutdown();
+                for (PendingSpeech pending : pendingSpeech) {
+                    pending.call.reject("Android text-to-speech initialization failed");
+                }
+                pendingSpeech.clear();
                 return;
             }
-            engine[0].setLanguage(Locale.US);
-            engine[0].setSpeechRate(requestedRate.floatValue());
-            int result = engine[0].speak(text, TextToSpeech.QUEUE_FLUSH, null, "english-review");
-            if (result == TextToSpeech.ERROR) call.reject("Android text-to-speech failed");
-            else call.resolve();
+
+            // QUEUE_FLUSH means only the newest request should be audible when
+            // several taps arrive while Android is initializing its TTS engine.
+            int lastIndex = pendingSpeech.size() - 1;
+            for (int index = 0; index < lastIndex; index++) pendingSpeech.get(index).call.resolve();
+            PendingSpeech latest = lastIndex >= 0 ? pendingSpeech.get(lastIndex) : null;
+            pendingSpeech.clear();
+            if (latest != null) performSpeech(latest);
         });
+    }
+
+    private void performSpeech(PendingSpeech request) {
+        Locale requestedLocale = Locale.forLanguageTag(request.locale.replace('_', '-'));
+        if (requestedLocale.getLanguage().isEmpty()) requestedLocale = Locale.US;
+        int languageResult = textToSpeech.setLanguage(requestedLocale);
+        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+            request.call.reject("English text-to-speech voice is unavailable on this device");
+            return;
+        }
+        if (request.voice != null && textToSpeech.getVoices() != null) {
+            for (Voice voice : textToSpeech.getVoices()) {
+                if (request.voice.equals(voice.getName())) {
+                    textToSpeech.setVoice(voice);
+                    break;
+                }
+            }
+        }
+        textToSpeech.setSpeechRate(request.rate);
+        int result = textToSpeech.speak(request.text, TextToSpeech.QUEUE_FLUSH, null, "english-review");
+        if (result == TextToSpeech.ERROR) request.call.reject("Android text-to-speech failed");
+        else request.call.resolve();
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        for (PendingSpeech pending : pendingSpeech) pending.call.reject("Android text-to-speech stopped");
+        pendingSpeech.clear();
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+            textToSpeech = null;
+        }
+        textToSpeechInitializing = false;
+        super.handleOnDestroy();
     }
 
     @PluginMethod

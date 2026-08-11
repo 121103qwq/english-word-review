@@ -4,21 +4,39 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   isNativePlatform: vi.fn(),
   nativeSaveTextFile: vi.fn(),
+  nativeSpeak: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 vi.mock("@capacitor/core", () => ({
   Capacitor: { isNativePlatform: mocks.isNativePlatform },
-  registerPlugin: () => ({ saveTextFile: mocks.nativeSaveTextFile }),
+  registerPlugin: () => ({ saveTextFile: mocks.nativeSaveTextFile, speak: mocks.nativeSpeak }),
 }));
 
-import { saveTextFile } from "../src/platform/runtime";
+import { saveTextFile, speakEnglish } from "../src/platform/runtime";
 
 describe("platform text export", () => {
   beforeEach(() => {
     mocks.invoke.mockReset();
     mocks.isNativePlatform.mockReset().mockReturnValue(false);
     mocks.nativeSaveTextFile.mockReset();
+    mocks.nativeSpeak.mockReset();
+  });
+
+  it("uses Android native TTS even when WebView exposes speechSynthesis", async () => {
+    const browserSpeak = vi.fn();
+    vi.stubGlobal("window", { speechSynthesis: { cancel: vi.fn(), speak: browserSpeak } });
+    vi.stubGlobal("speechSynthesis", { cancel: vi.fn(), speak: browserSpeak });
+    vi.stubGlobal("SpeechSynthesisUtterance", vi.fn());
+    mocks.isNativePlatform.mockReturnValue(true);
+    mocks.nativeSpeak.mockResolvedValue(undefined);
+
+    await speakEnglish("apple", { rate: 9, voice: "English Voice" });
+
+    expect(mocks.nativeSpeak).toHaveBeenCalledWith({
+      text: "apple", locale: "en-US", rate: 2, voice: "English Voice",
+    });
+    expect(browserSpeak).not.toHaveBeenCalled();
   });
 
   it("opens the Tauri save command on Windows", async () => {
@@ -32,6 +50,17 @@ describe("platform text export", () => {
       filename: "progress.json",
       content: "{}",
       mimeType: "application/json",
+    });
+  });
+
+  it("passes the selected voice and rate to Windows TTS", async () => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    mocks.invoke.mockResolvedValue(undefined);
+
+    await speakEnglish("nuclear", { rate: 1.25, voice: "Desktop Voice" });
+
+    expect(mocks.invoke).toHaveBeenCalledWith("speak_text", {
+      text: "nuclear", locale: "en-US", rate: 1.25, voice: "Desktop Voice",
     });
   });
 
