@@ -68,4 +68,10 @@ describe("legacy bundle startup comparison", () => {
     expect(source).toContain("!v8ManagedLibraryIds.has(store.current.id)");
     expect(source).toContain("localStorage.setItem(V8_MANAGED_LIBRARY_IDS_KEY");
   });
+
+  it("keeps lower-confidence alternative roots out of root-study items", () => {
+    const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+    expect(source).toContain("if (!root.alternative) add(word.en");
+  });
 });

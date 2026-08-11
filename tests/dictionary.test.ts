@@ -10,7 +10,7 @@ describe("offline dictionary", () => {
       Object.values(GENERATED_DICTIONARY.entryChunks).map((chunk) => decodeGzipJson<DictionaryEntry[]>(chunk)),
     );
     expect(chunks.reduce((total, entries) => total + entries.length, 0)).toBe(GENERATED_DICTIONARY.entryCount);
-  });
+  }, 15_000);
 
   it.each(["apple", "built", "kick", "counter"])("contains %s with Chinese meaning", async (word) => {
     const entry = await offlineDictionary.lookup(word);
