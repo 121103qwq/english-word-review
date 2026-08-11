@@ -7,6 +7,7 @@ export interface RootComponent {
   meaning: string;
   note?: string;
   source: RootSource;
+  alternative?: boolean;
 }
 
 export interface WordOverride {

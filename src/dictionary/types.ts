@@ -7,6 +7,8 @@ export interface DictionaryRoot {
   kind: string;
   inferred: boolean;
   source: RootSource;
+  /** A lower-ranked parse shown only when the learner expands other guesses. */
+  alternative?: boolean;
 }
 
 export interface DictionaryEntry {
@@ -43,4 +45,3 @@ export interface DictionaryCheckResult {
   entry: DictionaryEntry | null;
   suggestions: DictionaryEntry[];
 }
-
