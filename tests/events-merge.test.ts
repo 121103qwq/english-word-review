@@ -91,4 +91,21 @@ describe("v4 migration and learning event replay", () => {
       id: "cap\u0000old", words: ["accept"], choiceRight: 5, writeWrong: 3,
     })]);
   });
+
+  it("excludes lower-confidence alternative guesses from independent root study", () => {
+    const rebuilt = rebuildRootStudyStore({ items: [] }, [{
+      id: "daily-a",
+      date: "2026-08-06",
+      words: [{
+        en: "rewrite",
+        zh: "重写",
+        roots: [
+          { root: "re", meaning: "再；重新" },
+          { root: "rite", meaning: "仪式", alternative: true },
+        ],
+      }],
+    }]);
+
+    expect(rebuilt.items.map((item) => item.root)).toEqual(["re"]);
+  });
 });

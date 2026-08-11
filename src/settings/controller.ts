@@ -284,20 +284,20 @@ export class PlatformSettingsController {
     void this.pruneUnusedSettingsAssets().catch(() => undefined);
   }
 
-  async speakWord(word?: string): Promise<void> {
+  async speakWord(word?: string, speechState: LocalPlatformSettingsStateV1 = this.state): Promise<void> {
     if (word === undefined && !this.currentQuestionSafeToSpeak) {
       this.options.reportStatus?.("当前题型会因提前朗读泄露答案，请先完成作答。", "bad");
       return;
     }
     const normalized = (word ?? (this.currentQuestionWord || this.options.legacyRuntime.getCurrentWord())).trim();
     if (!normalized) return;
-    this.currentQuestionWord = normalized;
+    if (word === undefined) this.currentQuestionWord = normalized;
     if (await this.options.playPrimaryForWord(normalized)) return;
-    const settings = this.state.settings;
+    const settings = speechState.settings;
     if (settings.speechProvider !== "mimo") {
       await speakEnglish(normalized, {
         rate: settings.speechRate,
-        voice: this.state.deviceLocal.systemVoiceId,
+        voice: speechState.deviceLocal.systemVoiceId,
       });
       return;
     }
@@ -307,7 +307,7 @@ export class PlatformSettingsController {
     try {
       cacheKey = await createTtsCacheKey({
         text: normalized,
-        voice: this.state.deviceLocal.mimoVoice,
+        voice: speechState.deviceLocal.mimoVoice,
         rate: settings.speechRate,
         model: MIMO_TTS_MODEL,
       });
@@ -320,7 +320,7 @@ export class PlatformSettingsController {
       cacheUnavailable = true;
     }
     const result = await this.mimo.synthesize(normalized, {
-      voice: this.state.deviceLocal.mimoVoice,
+      voice: speechState.deviceLocal.mimoVoice,
       rate: settings.speechRate,
     });
     if (result.status === "ok") {
@@ -340,7 +340,7 @@ export class PlatformSettingsController {
     this.setMimoStatus(`${reason}，本次已回退系统朗读`, "bad");
     await speakEnglish(normalized, {
       rate: settings.speechRate,
-      voice: this.state.deviceLocal.systemVoiceId,
+      voice: speechState.deviceLocal.systemVoiceId,
     });
   }
 
@@ -485,12 +485,8 @@ export class PlatformSettingsController {
     };
     byId<HTMLButtonElement>("settingsSpeechPreviewBtn").onclick = () => {
       this.readFormIntoDraft();
-      const previous = this.state;
       const previewState = clone(this.draft);
-      this.state = previewState;
-      void this.speakWord("example").catch((error) => this.report(error, "bad")).finally(() => {
-        if (this.state === previewState) this.state = previous;
-      });
+      void this.speakWord("example", previewState).catch((error) => this.report(error, "bad"));
     };
     byId<HTMLButtonElement>("settingsMimoFetchKeyBtn").onclick = () => void this.fetchMimoKey();
     byId<HTMLButtonElement>("settingsMimoClearKeyBtn").onclick = () => void this.clearMimoKey();

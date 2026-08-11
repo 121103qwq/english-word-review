@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEVICE_ID_KEY } from "../src/core/config";
 import { EventStore } from "../src/core/events";
+import { mergeSnapshots } from "../src/core/merge";
 import type { ContentSnapshotV1 } from "../src/content/types";
 import { MemoryContentBackend } from "../src/content/storage";
 import {
   compareLibraryCopies,
   createLibrarySyncBatch,
+  inflateLearningProgressSnapshot,
   librarySyncFileName,
   mergeLibrarySyncFilesIntoContent,
   type LibrarySyncFileV1,
@@ -61,10 +63,10 @@ function content(): ContentSnapshotV1 {
 
 class FakeLibraryTransport implements LibraryFileTransport {
   readonly kind = "github" as const;
-  readonly label = "Fake";
-  readonly id = "fake";
   files = new Map<string, LibrarySyncFileV1>();
   assets = new Map<string, Uint8Array>();
+
+  constructor(readonly id = "fake", readonly label = "Fake") {}
 
   async listLibraryFiles(): Promise<LibrarySyncFileRef[]> {
     return [...this.files.entries()].map(([fileName, file]) => ({
@@ -109,6 +111,36 @@ describe("manual multi-file library sync", () => {
     expect(names[2]).toBe("8F3A21CD_家里_20260810-1825_batch-A_progress.json");
   });
 
+  it("stores progress without legacy content or settings", () => {
+    const local = learning("local");
+    const remoteStorage = new MemoryStorage();
+    remoteStorage.setItem(DEVICE_ID_KEY, "remote");
+    const remoteStore = EventStore.open(legacyBundle(), remoteStorage);
+    remoteStore.recordSetting("rootVisible", false);
+    remoteStore.recordIntensiveSelection([{ en: "foreign", zh: "remote definition" }], "remote-library");
+    remoteStore.recordAnswer({
+      area: "library", libraryId: "daily-a", itemId: "accept", mode: "forward", correct: true,
+    });
+    const remote = remoteStore.getSnapshot();
+    remote.checkpoint.data.store.current.words[0].zh = "remote definition";
+    remote.checkpoint.data.settings.meaningMatchMode = "exact";
+
+    const batch = createLibrarySyncBatch(content(), remote, {
+      deviceCode: "8F3A21CD", location: "home",
+    }, { now: new Date(2026, 7, 10, 18, 25), batchId: "progress-only" });
+    const file = batch.files.find((item) => item.kind === "learning-progress");
+    if (!file || file.kind !== "learning-progress") throw new Error("fixture error");
+    expect(JSON.stringify(file)).not.toContain('"snapshot"');
+    expect(JSON.stringify(file)).not.toContain('"settings"');
+    expect(file.progress.events.map((event) => event.type)).toEqual(["answer"]);
+
+    const merged = mergeSnapshots(local, inflateLearningProgressSnapshot(file.progress, local));
+    expect(merged.checkpoint.data.store.current.words[0].zh).toBe(local.checkpoint.data.store.current.words[0].zh);
+    expect(merged.checkpoint.data.settings).toEqual(local.checkpoint.data.settings);
+    expect(merged.checkpoint.data.intensiveStore.words.some((word) => word.en === "foreign")).toBe(false);
+    expect(merged.events.map((event) => event.type)).toEqual(["answer"]);
+  });
+
   it("keeps file names unique when long legacy library ids share the same prefix", () => {
     const source = content();
     const prefix = "same-legacy-library-id-prefix-that-is-longer-than-forty-eight-characters-";
@@ -135,6 +167,38 @@ describe("manual multi-file library sync", () => {
     expect(local.libraries.map((library) => library.id)).toEqual(["daily-a", "daily-b"]);
     expect(local.libraries.find((library) => library.id === "daily-a")?.name).toBe("云端第一组");
     expect(local.libraries.find((library) => library.id === "daily-b")?.name).toBe("第二组");
+  });
+
+  it("keeps downloaded overrides local to the selected library", () => {
+    const local = content();
+    local.libraries[1].words.push({ word: "accept", source: "dictionary" });
+    local.globalOverrides.accept = { meaning: "local global" };
+    const remote = content();
+    remote.globalOverrides.accept = { meaning: "remote selected" };
+    const file = createLibrarySyncBatch(remote, learning("remote"), {
+      deviceCode: "8F3A21CD", location: "home",
+    }, { now: new Date(2026, 7, 10, 18, 25), batchId: "override" }).files[0];
+    if (file.kind !== "library") throw new Error("fixture error");
+
+    mergeLibrarySyncFilesIntoContent(local, [file]);
+
+    const selected = local.libraries.find((library) => library.id === "daily-a")!.words[0];
+    const untouched = local.libraries.find((library) => library.id === "daily-b")!.words.at(-1)!;
+    expect(selected.override?.meaning).toBe("remote selected");
+    expect(selected.ignoreGlobalOverride).toBe(true);
+    expect(untouched.ignoreGlobalOverride).toBeUndefined();
+    expect(local.globalOverrides.accept.meaning).toBe("local global");
+
+    remote.globalOverrides = {};
+    const withoutOverride = createLibrarySyncBatch(remote, learning("remote"), {
+      deviceCode: "8F3A21CD", location: "home",
+    }, { now: new Date(2026, 7, 10, 18, 26), batchId: "override-deleted" }).files[0];
+    if (withoutOverride.kind !== "library") throw new Error("fixture error");
+    mergeLibrarySyncFilesIntoContent(local, [withoutOverride]);
+    const cleared = local.libraries.find((library) => library.id === "daily-a")!.words[0];
+    expect(cleared.override).toBeUndefined();
+    expect(cleared.ignoreGlobalOverride).toBe(true);
+    expect(local.globalOverrides.accept.meaning).toBe("local global");
   });
 
   it("distinguishes same words with different progress", () => {
@@ -260,6 +324,36 @@ describe("manual multi-file library sync", () => {
     await downloadLibrarySyncSelection(model.cloud, [fileName], {
       assetBackend: destination, includeAssets: true,
     });
+    expect((await destination.getAsset(hash))?.bytes).toEqual(bytes);
+  });
+
+  it("downloads MP3 data from another mirror when the first JSON mirror is incomplete", async () => {
+    const bytes = new Uint8Array([0x49, 0x44, 0x33, 1]);
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const hash = [...digest].map((part) => part.toString(16).padStart(2, "0")).join("");
+    const source = content();
+    source.globalOverrides.accept = { audioAssetIds: [hash], primaryAudioAssetId: hash };
+    source.assets[hash] = {
+      id: hash, sha256: hash, mimeType: "audio/mpeg", byteLength: bytes.length,
+      fileName: "accept.mp3", createdAt: "2026-08-10T10:00:00.000Z",
+    };
+    const batch = createLibrarySyncBatch(source, learning("local"), {
+      deviceCode: "8F3A21CD", location: "home",
+    }, { now: new Date(2026, 7, 10, 18, 25), batchId: "fallback" });
+    const file = batch.files.find((item) => item.kind === "library" && item.library.id === "daily-a")!;
+    const fileName = librarySyncFileName(file);
+    const incomplete = new FakeLibraryTransport("incomplete", "Incomplete");
+    const complete = new FakeLibraryTransport("complete", "Complete");
+    await incomplete.writeLibraryFile(file, fileName);
+    await complete.writeLibraryFile(file, fileName);
+    complete.assets.set(hash, bytes);
+
+    const model = await listLibrarySyncChoices(batch, [incomplete, complete]);
+    const destination = new MemoryContentBackend();
+    await downloadLibrarySyncSelection(model.cloud, [fileName], {
+      assetBackend: destination, includeAssets: true,
+    });
+
     expect((await destination.getAsset(hash))?.bytes).toEqual(bytes);
   });
 

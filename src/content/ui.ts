@@ -51,6 +51,7 @@ function rootsFromDictionary(entry?: DictionaryEntry): RootComponent[] | undefin
     root: root.form,
     meaning: root.meaningZh,
     source: root.inferred ? "inferred" : "engra",
+    ...(root.alternative ? { alternative: true } : {}),
     ...(root.meaningEn ? { note: root.meaningEn } : {}),
   }));
   return roots.length ? roots : undefined;
@@ -72,8 +73,11 @@ function rootsFromText(value: string, source: RootComponent["source"] = "manual"
   }).filter((root) => root.root && root.meaning);
 }
 
-function rootsToText(roots?: RootComponent[]): string {
-  return (roots ?? []).map((root) => `${root.root} = ${root.meaning}`).join("\n");
+export function rootsToText(roots?: RootComponent[]): string {
+  return (roots ?? [])
+    .filter((root) => root.alternative !== true)
+    .map((root) => `${root.root} = ${root.meaning}`)
+    .join("\n");
 }
 
 function cloneScores(word?: LegacyWord): LegacyWord {

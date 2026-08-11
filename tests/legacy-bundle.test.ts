@@ -229,4 +229,10 @@ describe("legacy bundle startup comparison", () => {
     expect(main).toContain("onLegacyProjectionReady: async () =>");
     expect(main).toContain("reconcileLegacyProjection(");
   });
+
+  it("keeps lower-confidence alternative roots out of root-study items", () => {
+    const source = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+    expect(source).toContain("if (!root.alternative) add(word.en");
+  });
 });

@@ -61,6 +61,7 @@ import {
 } from "./sync/library-file-transports";
 import {
   createLibrarySyncBatch,
+  inflateLearningProgressSnapshot,
   mergeLibrarySyncFilesIntoContent,
   type LibraryContentSyncFileV1,
   type LibrarySyncBatchV1,
@@ -537,7 +538,7 @@ function syncFileMeta(file: LibrarySyncFileV1): string {
   const source = file.sourceDevice;
   const device = source.deviceName ? `${source.deviceCode} / ${source.deviceName}` : source.deviceCode;
   const detail = file.kind === "learning-progress"
-    ? `${file.snapshot.events.length} 个未压缩学习事件`
+    ? `${file.progress.events.length} 个未压缩学习事件`
     : `${file.library.words.length} 个单词`;
   return `${device} · ${source.location} · ${new Date(file.createdAt).toLocaleString()} · ${detail}`;
 }
@@ -690,16 +691,6 @@ function reportLibrarySyncPickerError(error: unknown): void {
 
 async function applyDownloadedSyncFiles(files: LibrarySyncFileV1[]): Promise<void> {
   if (!contentManager || !files.length) return;
-  const progress = files.filter((file) => file.kind === "learning-progress");
-  if (progress.length) {
-    let merged = store.getSnapshot();
-    for (const file of progress) {
-      const issue = incompatibility(file.snapshot);
-      if (issue) throw new Error(`学习进度文件只能只读查看：${issue}`);
-      merged = mergeSnapshots(merged, file.snapshot);
-    }
-    store.replaceSnapshot(merged);
-  }
   const libraries = files.filter((file): file is LibraryContentSyncFileV1 => file.kind === "library");
   if (libraries.length) {
     const next = await contentManager.repository.commit((draft) => {
@@ -707,7 +698,17 @@ async function applyDownloadedSyncFiles(files: LibrarySyncFileV1[]): Promise<voi
     });
     await contentManager.acceptSynchronizedSnapshot(next);
     await contentManager.repository.pruneUnreferencedAssets();
-  } else if (progress.length) {
+  }
+  const progress = files.filter((file) => file.kind === "learning-progress");
+  if (progress.length) {
+    let merged = store.getSnapshot();
+    for (const file of progress) {
+      const incoming = inflateLearningProgressSnapshot(file.progress, merged);
+      const issue = incompatibility(incoming);
+      if (issue) throw new Error(`学习进度文件只能只读查看：${issue}`);
+      merged = mergeSnapshots(merged, incoming);
+    }
+    store.replaceSnapshot(merged);
     reconcileProjectedLegacy(true);
   }
 }

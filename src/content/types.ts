@@ -7,6 +7,7 @@ export interface RootComponent {
   meaning: string;
   note?: string;
   source: RootSource;
+  alternative?: boolean;
 }
 
 export interface WordOverride {
@@ -20,6 +21,8 @@ export interface WordOverride {
 export interface CustomLibraryWord {
   word: string;
   source: "dictionary" | "user";
+  /** Imported per-library copies may opt out of this device's unrelated global value. */
+  ignoreGlobalOverride?: boolean;
   /** Values migrated from v4/v3 remain below manual local/global overrides. */
   legacyOverride?: WordOverride;
   override?: WordOverride;

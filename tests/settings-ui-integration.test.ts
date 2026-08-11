@@ -7,8 +7,8 @@ describe("settings UI integration safeguards", () => {
   it("keeps mode changes on the unified surface-switch path", () => {
     const html = read("index.html");
     expect(html).toContain("function prepareModeSurface(mode)");
-    expect(html).toContain("prepareModeSurface(mode);\n      target.click();");
-    expect(html).toContain("prepareModeSurface(mode);\n        updateTopModeUi(mode);");
+    expect(html).toMatch(/prepareModeSurface\(mode\);\r?\n\s+target\.click\(\);/u);
+    expect(html).toMatch(/prepareModeSurface\(mode\);\r?\n\s+updateTopModeUi\(mode\);/u);
     expect(html).toContain("$('topWrongOnlyToggle').disabled = !wrongOnlyAvailable");
   });
 
@@ -55,6 +55,12 @@ describe("settings UI integration safeguards", () => {
     const main = read("src/main.ts");
     expect(main).toContain("await settingsController.speakWord();");
     expect(main).not.toContain("await settingsController.speakWord(word);");
+  });
+
+  it("previews an isolated speech draft without replacing the saved state", () => {
+    const controller = read("src/settings/controller.ts");
+    expect(controller).toContain('this.speakWord("example", previewState)');
+    expect(controller).not.toContain("this.state = previewState");
   });
 
   it("honors cleared shortcut labels and every restart-confirmation setting", () => {

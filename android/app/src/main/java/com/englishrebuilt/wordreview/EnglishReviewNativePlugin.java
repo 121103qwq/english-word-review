@@ -8,6 +8,7 @@ import android.content.SharedPreferences;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
 import android.util.Base64;
 
 import androidx.activity.result.ActivityResult;
@@ -54,12 +55,14 @@ public class EnglishReviewNativePlugin extends Plugin {
         final String text;
         final String locale;
         final float rate;
+        final String voice;
 
-        PendingSpeech(PluginCall call, String text, String locale, float rate) {
+        PendingSpeech(PluginCall call, String text, String locale, float rate, String voice) {
             this.call = call;
             this.text = text;
             this.locale = locale;
             this.rate = rate;
+            this.voice = voice;
         }
     }
 
@@ -206,6 +209,7 @@ public class EnglishReviewNativePlugin extends Plugin {
         String text = call.getString("text");
         Double requestedRate = call.getDouble("rate", 0.85);
         String locale = call.getString("locale", "en-US");
+        String voice = call.getString("voice");
         if (text == null || text.trim().isEmpty()) {
             call.reject("Missing text");
             return;
@@ -214,7 +218,8 @@ public class EnglishReviewNativePlugin extends Plugin {
             call,
             text.trim(),
             locale,
-            Math.max(0.5f, Math.min(2f, requestedRate.floatValue()))
+            Math.max(0.5f, Math.min(2f, requestedRate.floatValue())),
+            voice == null || voice.trim().isEmpty() ? null : voice.trim()
         );
         getActivity().runOnUiThread(() -> enqueueSpeech(request));
     }
@@ -277,6 +282,14 @@ public class EnglishReviewNativePlugin extends Plugin {
         if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
             request.call.reject("English text-to-speech voice is unavailable on this device");
             return;
+        }
+        if (request.voice != null && textToSpeech.getVoices() != null) {
+            for (Voice voice : textToSpeech.getVoices()) {
+                if (request.voice.equals(voice.getName())) {
+                    textToSpeech.setVoice(voice);
+                    break;
+                }
+            }
         }
         textToSpeech.setSpeechRate(request.rate);
         int result = textToSpeech.speak(request.text, TextToSpeech.QUEUE_FLUSH, null, "english-review");

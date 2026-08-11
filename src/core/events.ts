@@ -199,6 +199,7 @@ export function rebuildRootStudyStore(base: RootStudyStore, libraries: LegacyLib
     for (const word of library.words) {
       const roots = Array.isArray(word.roots) ? word.roots as Array<Record<string, unknown>> : [];
       for (const value of roots) {
+        if (value.alternative === true) continue;
         const root = String(value.root ?? value.form ?? "").trim();
         const meaning = String(value.meaning ?? value.meaningZh ?? value.zh ?? "").trim();
         if (!root || !meaning) continue;

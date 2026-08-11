@@ -91,19 +91,30 @@ describe("content model", () => {
     expect(resolved.meaning).toBe("全局释义");
     expect(resolved.pronunciation).toBe("local");
     expect(resolved.roots?.[0].root).toBe("app");
+
+    const isolated = resolveWord(
+      { word: "apple", source: "dictionary", ignoreGlobalOverride: true },
+      { meaning: "unrelated local global" },
+      { meaning: "dictionary value" },
+    );
+    expect(isolated.meaning).toBe("dictionary value");
   });
 
   it("global changes clear the same local fields in every library", () => {
     const snapshot = createEmptyContentSnapshot("device-a", { uuid: () => "snapshot" });
     snapshot.libraries = ["a", "b"].map((id) => ({
       id, date: "2026-08-06", createdAt: "x", modifiedAt: "x",
-      words: [{ word: "apple", source: "dictionary", override: { meaning: id, pronunciation: id } }],
+      words: [{
+        word: "apple", source: "dictionary", ignoreGlobalOverride: true,
+        override: { meaning: id, pronunciation: id },
+      }],
     }));
     const changed = applyWordOverride(snapshot, "APPLE", { meaning: "苹果" }, { type: "global" });
     expect(changed.globalOverrides.apple.meaning).toBe("苹果");
     expect(changed.libraries.map((library) => library.words[0].override)).toEqual([
       { pronunciation: "a" }, { pronunciation: "b" },
     ]);
+    expect(changed.libraries.every((library) => !library.words[0].ignoreGlobalOverride)).toBe(true);
     expect(snapshot.libraries[0].words[0].override?.meaning).toBe("a");
   });
 

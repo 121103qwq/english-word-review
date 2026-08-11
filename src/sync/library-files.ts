@@ -2,7 +2,8 @@ import { stableHash, projectReviewCards, projectSnapshot } from "../core/events"
 import type { LegacyLibrary, LegacyWord, V4Snapshot } from "../core/types";
 import type { AudioAssetMeta, ContentSnapshotV1, CustomLibrary, WordOverride } from "../content/types";
 
-export const LIBRARY_SYNC_SCHEMA_VERSION = 1 as const;
+export const LIBRARY_SYNC_SCHEMA_VERSION = 2 as const;
+const LEGACY_LIBRARY_SYNC_SCHEMA_VERSION = 1 as const;
 export const LIBRARY_SYNC_ROOT_PATH = "library-sync";
 export const LIBRARY_SYNC_BATCHES_PER_LOCATION = 30;
 
@@ -13,7 +14,7 @@ export interface LibrarySyncDevice {
 }
 
 interface LibrarySyncFileBase {
-  schemaVersion: typeof LIBRARY_SYNC_SCHEMA_VERSION;
+  schemaVersion: typeof LEGACY_LIBRARY_SYNC_SCHEMA_VERSION | typeof LIBRARY_SYNC_SCHEMA_VERSION;
   format: "english-word-review-library-sync";
   appVersion: string;
   batchId: string;
@@ -42,7 +43,35 @@ export interface LibraryContentSyncFileV1 extends LibrarySyncFileBase {
 
 export interface LearningProgressSyncFileV1 extends LibrarySyncFileBase {
   kind: "learning-progress";
-  snapshot: V4Snapshot;
+  progress: LearningProgressSnapshotV1;
+}
+
+export interface LearningProgressSnapshotV1 {
+  schemaVersion: V4Snapshot["schemaVersion"];
+  appVersion: string;
+  contentVersion: string;
+  algorithmVersion: V4Snapshot["algorithmVersion"];
+  minReaderVersion: string;
+  requiredFeatures: string[];
+  checkpoint: Omit<V4Snapshot["checkpoint"], "data"> & {
+    progress: LearningCheckpointProgressV1;
+  };
+  events: V4Snapshot["events"];
+  generations: Record<string, string>;
+  updatedAt: string;
+  fingerprint: string;
+}
+
+interface LearningCheckpointProgressV1 {
+  libraries: Array<{ libraryId: string; words: Array<Record<string, unknown> & { word: string }> }>;
+  intensiveWords: Array<Record<string, unknown> & { word: string }>;
+  rootItems: Array<{
+    id: string;
+    choiceRight: number;
+    choiceWrong: number;
+    writeRight: number;
+    writeWrong: number;
+  }>;
 }
 
 export type LibrarySyncFileV1 = LibraryContentSyncFileV1 | LearningProgressSyncFileV1;
@@ -144,6 +173,99 @@ function progressWord(word: LegacyWord): Record<string, unknown> & { word: strin
   return result;
 }
 
+function checkpointProgress(snapshot: V4Snapshot): LearningCheckpointProgressV1 {
+  const data = snapshot.checkpoint.data;
+  return {
+    libraries: [data.store.current, ...data.store.archives].map((library) => ({
+      libraryId: library.id,
+      words: library.words.map(progressWord).sort((left, right) => left.word.localeCompare(right.word)),
+    })).sort((left, right) => left.libraryId.localeCompare(right.libraryId)),
+    intensiveWords: data.intensiveStore.words
+      .map(progressWord)
+      .sort((left, right) => left.word.localeCompare(right.word)),
+    rootItems: data.rootStudyStore.items.map((item) => ({
+      id: item.id,
+      choiceRight: Number(item.choiceRight) || 0,
+      choiceWrong: Number(item.choiceWrong) || 0,
+      writeRight: Number(item.writeRight) || 0,
+      writeWrong: Number(item.writeWrong) || 0,
+    })).sort((left, right) => left.id.localeCompare(right.id)),
+  };
+}
+
+function progressWithoutFingerprint(snapshot: V4Snapshot): Omit<LearningProgressSnapshotV1, "fingerprint"> {
+  const { data: _data, ...checkpoint } = snapshot.checkpoint;
+  const learningEvents = snapshot.events.filter((event) =>
+    event.type !== "setting" && event.type !== "intensive-selection");
+  return {
+    schemaVersion: snapshot.schemaVersion,
+    appVersion: snapshot.appVersion,
+    contentVersion: snapshot.contentVersion,
+    algorithmVersion: snapshot.algorithmVersion,
+    minReaderVersion: snapshot.minReaderVersion,
+    requiredFeatures: clone(snapshot.requiredFeatures),
+    checkpoint: { ...clone(checkpoint), progress: checkpointProgress(snapshot) },
+    events: clone(learningEvents),
+    generations: clone(snapshot.generations),
+    updatedAt: snapshot.updatedAt,
+  };
+}
+
+export function createLearningProgressSnapshot(snapshot: V4Snapshot): LearningProgressSnapshotV1 {
+  const progress = progressWithoutFingerprint(snapshot);
+  return { ...progress, fingerprint: stableHash(progress) };
+}
+
+function applyWordProgress(target: LegacyWord[], incoming: Array<Record<string, unknown> & { word: string }>): void {
+  const values = new Map(incoming.map((word) => [word.word.trim().toLocaleLowerCase(), word]));
+  for (const word of target) {
+    const progress = values.get(word.en.trim().toLocaleLowerCase());
+    if (!progress) continue;
+    for (const field of PROGRESS_FIELDS) word[field] = Number(progress[field]) || 0;
+  }
+}
+
+/** Rebuilds a valid v4 snapshot using local definitions/settings and remote learning state only. */
+export function inflateLearningProgressSnapshot(
+  progress: LearningProgressSnapshotV1,
+  local: V4Snapshot,
+): V4Snapshot {
+  const result = clone(local);
+  result.appVersion = progress.appVersion;
+  result.contentVersion = progress.contentVersion;
+  result.algorithmVersion = progress.algorithmVersion;
+  result.minReaderVersion = progress.minReaderVersion;
+  result.requiredFeatures = clone(progress.requiredFeatures);
+  result.events = clone(progress.events);
+  result.generations = clone(progress.generations);
+  result.updatedAt = progress.updatedAt;
+  result.checkpoint = {
+    id: progress.checkpoint.id,
+    createdAt: progress.checkpoint.createdAt,
+    vector: clone(progress.checkpoint.vector),
+    ...(progress.checkpoint.lineage ? { lineage: clone(progress.checkpoint.lineage) } : {}),
+    ...(progress.checkpoint.lastReviewedAt ? { lastReviewedAt: clone(progress.checkpoint.lastReviewedAt) } : {}),
+    ...(progress.checkpoint.reviewCards ? { reviewCards: clone(progress.checkpoint.reviewCards) } : {}),
+    data: clone(local.checkpoint.data),
+  };
+
+  const libraries = new Map(progress.checkpoint.progress.libraries.map((library) => [library.libraryId, library.words]));
+  for (const library of [result.checkpoint.data.store.current, ...result.checkpoint.data.store.archives]) {
+    applyWordProgress(library.words, libraries.get(library.id) ?? []);
+  }
+  applyWordProgress(result.checkpoint.data.intensiveStore.words, progress.checkpoint.progress.intensiveWords);
+  const roots = new Map(progress.checkpoint.progress.rootItems.map((item) => [item.id, item]));
+  for (const item of result.checkpoint.data.rootStudyStore.items) {
+    const incoming = roots.get(item.id);
+    if (!incoming) continue;
+    item.choiceRight = incoming.choiceRight;
+    item.choiceWrong = incoming.choiceWrong;
+    item.writeRight = incoming.writeRight;
+    item.writeWrong = incoming.writeWrong;
+  }
+  return result;
+}
+
 /**
  * Produces a semantic progress summary. Event IDs and device ordering are not
  * compared, so two devices that replay to the same visible progress match.
@@ -200,7 +322,7 @@ export function createLibrarySyncBatch(
       progress: summarizeLibraryProgress(learning, library.id),
     };
   });
-  files.push({ ...base, kind: "learning-progress", snapshot: clone(learning) });
+  files.push({ ...base, kind: "learning-progress", progress: createLearningProgressSnapshot(learning) });
   return { batchId, createdAt, sourceDevice, files };
 }
 
@@ -220,10 +342,19 @@ export function mergeLibrarySyncFilesIntoContent(
   files: LibraryContentSyncFileV1[],
 ): void {
   for (const file of files) {
-    const index = target.libraries.findIndex((library) => library.id === file.library.id);
-    if (index >= 0) target.libraries[index] = clone(file.library);
-    else target.libraries.unshift(clone(file.library));
-    Object.assign(target.globalOverrides, clone(file.globalOverrides));
+    const incoming = clone(file.library);
+    for (const word of incoming.words) {
+      const global = file.globalOverrides[word.word.trim().toLocaleLowerCase()];
+      if (global) word.override = { ...clone(global), ...(word.override ? clone(word.override) : {}) };
+      // A downloaded library is a self-contained copy. It must not inherit a
+      // same-spelling global value that belongs to another local library.
+      word.ignoreGlobalOverride = true;
+    }
+    const index = target.libraries.findIndex((library) => library.id === incoming.id);
+    if (index >= 0) target.libraries[index] = incoming;
+    else target.libraries.unshift(incoming);
+    // A selected file must not change another local library containing the
+    // same word. Source-global values therefore become local values here.
     Object.assign(target.assets, clone(file.assets));
     if (!target.activeLibraryId) target.activeLibraryId = file.library.id;
   }
@@ -232,7 +363,7 @@ export function mergeLibrarySyncFilesIntoContent(
 export function parseLibrarySyncFile(text: string): LibrarySyncFileV1 {
   const value = JSON.parse(text) as Partial<LibrarySyncFileV1>;
   if (
-    value.schemaVersion !== LIBRARY_SYNC_SCHEMA_VERSION ||
+    (value.schemaVersion !== LEGACY_LIBRARY_SYNC_SCHEMA_VERSION && value.schemaVersion !== LIBRARY_SYNC_SCHEMA_VERSION) ||
     value.format !== "english-word-review-library-sync" ||
     (value.kind !== "library" && value.kind !== "learning-progress") ||
     typeof value.batchId !== "string" || !value.batchId ||
@@ -261,10 +392,29 @@ export function parseLibrarySyncFile(text: string): LibrarySyncFileV1 {
     });
     if (progress.fingerprint !== expectedProgress) throw new Error("词库同步文件的学习进度校验失败");
   } else {
-    const progress = value as Partial<LearningProgressSyncFileV1>;
-    if (!progress.snapshot || progress.snapshot.schemaVersion !== 4 || !Array.isArray(progress.snapshot.events)) {
-    throw new Error("学习进度同步文件缺少有效 v4 快照");
+    const raw = value as Partial<LearningProgressSyncFileV1> & { snapshot?: V4Snapshot };
+    // Read already-uploaded v1 files once and immediately canonicalize them to
+    // the progress-only representation. New files never contain legacy content.
+    const progress = raw.progress ?? (raw.snapshot?.schemaVersion === 4
+      ? createLearningProgressSnapshot(raw.snapshot)
+      : undefined);
+    if (
+      !progress || progress.schemaVersion !== 4 || !Array.isArray(progress.events) ||
+      !progress.checkpoint?.progress ||
+      !Array.isArray(progress.checkpoint.progress.libraries) ||
+      !Array.isArray(progress.checkpoint.progress.intensiveWords) ||
+      !Array.isArray(progress.checkpoint.progress.rootItems)
+    ) {
+      throw new Error("学习进度同步文件缺少有效 v4 学习载荷");
     }
+    if (progress.events.some((event) => event.type === "setting" || event.type === "intensive-selection")) {
+      throw new Error("Learning progress files must not contain content or setting events");
+    }
+    const { fingerprint, ...semantic } = progress;
+    if (fingerprint !== stableHash(semantic)) throw new Error("学习进度同步文件校验失败");
+    const canonical = { ...raw, progress } as Record<string, unknown>;
+    delete canonical.snapshot;
+    return canonical as unknown as LibrarySyncFileV1;
   }
   return value as LibrarySyncFileV1;
 }

@@ -31,9 +31,11 @@ describe("platform text export", () => {
     mocks.isNativePlatform.mockReturnValue(true);
     mocks.nativeSpeak.mockResolvedValue(undefined);
 
-    await speakEnglish("apple", { rate: 9 });
+    await speakEnglish("apple", { rate: 9, voice: "English Voice" });
 
-    expect(mocks.nativeSpeak).toHaveBeenCalledWith({ text: "apple", locale: "en-US", rate: 2 });
+    expect(mocks.nativeSpeak).toHaveBeenCalledWith({
+      text: "apple", locale: "en-US", rate: 2, voice: "English Voice",
+    });
     expect(browserSpeak).not.toHaveBeenCalled();
   });
 
@@ -48,6 +50,17 @@ describe("platform text export", () => {
       filename: "progress.json",
       content: "{}",
       mimeType: "application/json",
+    });
+  });
+
+  it("passes the selected voice and rate to Windows TTS", async () => {
+    vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+    mocks.invoke.mockResolvedValue(undefined);
+
+    await speakEnglish("nuclear", { rate: 1.25, voice: "Desktop Voice" });
+
+    expect(mocks.invoke).toHaveBeenCalledWith("speak_text", {
+      text: "nuclear", locale: "en-US", rate: 1.25, voice: "Desktop Voice",
     });
   });
 

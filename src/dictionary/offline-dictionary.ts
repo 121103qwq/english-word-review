@@ -47,6 +47,7 @@ const PRODUCTIVE_PREFIXES: readonly ProductiveAffix[] = [
 
 const PRODUCTIVE_SUFFIXES: readonly ProductiveAffix[] = [
   { form: "ation", meaningZh: "行为；过程；结果" },
+  { form: "ular", meaningZh: "与……有关的；具有……特征的" },
   { form: "ical", meaningZh: "与……有关的；具有……特征的" },
   { form: "less", meaningZh: "没有……的" },
   { form: "ness", meaningZh: "性质；状态" },
@@ -68,6 +69,7 @@ const PRODUCTIVE_SUFFIXES: readonly ProductiveAffix[] = [
   { form: "ism", meaningZh: "主义；体系；现象" },
   { form: "ist", meaningZh: "从事……的人；……者" },
   { form: "ial", meaningZh: "与……有关的" },
+  { form: "ar", meaningZh: "与……有关的；具有……特征的" },
   { form: "al", meaningZh: "与……有关的；行为或结果" },
   { form: "ic", meaningZh: "与……有关的；具有……特征的" },
   { form: "ly", meaningZh: "以……方式；具有……性质" },
@@ -84,7 +86,7 @@ function preferredBaseParts(suffix?: string): readonly string[] {
   if (["er", "or", "ment", "tion", "sion", "ation", "able", "ible", "ed", "ing"].includes(suffix ?? "")) {
     return ["v", "vi", "vt"];
   }
-  if (["ful", "less", "ship", "hood"].includes(suffix ?? "")) return ["n"];
+  if (["ful", "less", "ship", "hood", "ar", "ular"].includes(suffix ?? "")) return ["n"];
   return [];
 }
 
@@ -102,8 +104,12 @@ function restoredBaseForms(stem: string, suffix?: string): string[] {
   const forms = new Set([stem]);
   if (stem.endsWith("i")) forms.add(`${stem.slice(0, -1)}y`);
   if (/([^aeiou])\1$/u.test(stem)) forms.add(stem.slice(0, -1));
-  if (!stem.endsWith("e")) forms.add(`${stem}e`);
+  if (suffix && !stem.endsWith("e")) forms.add(`${stem}e`);
   if (suffix === "ation") forms.add(`${stem}ate`);
+  // Latin-derived adjectives commonly restore a noun that loses letters at
+  // the boundary: nucle-ar -> nucleus, cellul-ar -> cell, muscul-ar -> muscle.
+  if (suffix === "ar") forms.add(`${stem}us`);
+  if (suffix === "ular") forms.add(`${stem}le`);
   if (stem.endsWith("abil")) forms.add(`${stem.slice(0, -4)}able`);
   if (stem.endsWith("ibil")) forms.add(`${stem.slice(0, -4)}ible`);
   return [...forms].filter((form) => form.length >= 3 && /^[a-z]+$/u.test(form));
@@ -134,6 +140,11 @@ function applyRootGloss<T extends { meaningEn: string; meaningZh: string }>(root
   // rather than falling back to that unrelated word definition or English.
   return { ...root, meaningZh };
 }
+
+const SHORT_AFFIXES: RootLexiconEntry[] = [
+  { form: "re", meaningZh: "再；重新", meaningEn: "again", kind: "prefix", position: "prefix" },
+  { form: "un", meaningZh: "不；相反", meaningEn: "not; opposite", kind: "prefix", position: "prefix" },
+];
 
 export function normalizeDictionaryWord(value: string): string {
   return value.trim().replaceAll("’", "'").toLocaleLowerCase("en-US");
@@ -347,7 +358,60 @@ export class OfflineDictionary {
 
   async rootsFor(entry: DictionaryEntry): Promise<DictionaryRoot[]> {
     const reliable = entry.roots.filter((root) => root.meaningZh.trim());
-    if (reliable.length) return reliable;
+    const roots = await this.loadRoots();
+    const letters = entry.word.replace(/[^a-z]/gu, "");
+
+    // ENGRa decompositions often contain only the central root (for example,
+    // `hap` in unhappy). Add only position-constrained affixes here: matching
+    // arbitrary roots by substring would produce much noisier hints.
+    if (reliable.length) {
+      const reliableRanges = reliable.flatMap((root) => {
+        const ranges: Array<{ start: number; end: number }> = [];
+        let start = letters.indexOf(root.form);
+        while (start >= 0) {
+          ranges.push({ start, end: start + root.form.length });
+          start = letters.indexOf(root.form, start + 1);
+        }
+        return ranges;
+      });
+      const boundaryAffixes = [...SHORT_AFFIXES, ...roots].filter((root) => root.form.length >= 2 && root.meaningZh.trim() && (
+        (root.position === "prefix" && letters.startsWith(root.form)) ||
+        (root.position === "suffix" && letters.endsWith(root.form))
+      ) && !reliable.some((item) => item.form === root.form));
+      const affixes = boundaryAffixes.filter((root) => {
+        const start = root.position === "prefix" ? 0 : letters.length - root.form.length;
+        return reliableRanges.every((range) => start + root.form.length <= range.start || start >= range.end);
+      });
+      affixes.sort((left, right) => right.form.length - left.form.length);
+      const candidatePrefix = affixes.find((root) => root.position === "prefix");
+      const candidateSuffix = affixes.find((root) => root.position === "suffix");
+      const covered = new Set<number>();
+      reliableRanges.forEach((range) => {
+        for (let index = range.start; index < range.end; index += 1) covered.add(index);
+      });
+      [candidatePrefix, candidateSuffix].filter((root): root is RootLexiconEntry => Boolean(root)).forEach((root) => {
+        const start = root.position === "prefix" ? 0 : letters.length - root.form.length;
+        for (let index = start; index < start + root.form.length; index += 1) covered.add(index);
+      });
+      const acceptsBoundaryAffixes = covered.size / Math.max(1, letters.length) >= 0.6;
+      const prefix = acceptsBoundaryAffixes ? candidatePrefix : undefined;
+      const suffix = acceptsBoundaryAffixes ? candidateSuffix : undefined;
+      const primaryAffixes = new Set([prefix, suffix].filter(Boolean));
+      const alternatives = boundaryAffixes.filter((root) => !primaryAffixes.has(root))
+        .filter((root, index, list) => list.findIndex((item) => item.form === root.form && item.position === root.position) === index)
+        .slice(0, 6);
+      return [prefix, ...reliable, suffix, ...alternatives]
+        .filter((root): root is DictionaryRoot | RootLexiconEntry => Boolean(root))
+        .map((root) => "position" in root ? {
+          form: root.form,
+          meaningZh: root.meaningZh,
+          meaningEn: root.meaningEn,
+          kind: root.kind,
+          inferred: true,
+          source: "inferred" as const,
+          ...(alternatives.includes(root) ? { alternative: true } : {}),
+        } : root);
+    }
 
     // ECDICT records irregular forms with `0:<lemma>` in `exchange`.  They do
     // not necessarily have an ENGRa decomposition and cannot be discovered by
@@ -380,11 +444,13 @@ export class OfflineDictionary {
       }
     }
 
-    const roots = await this.loadRoots();
-    const letters = entry.word.replace(/[^a-z]/gu, "");
+    // A verified dictionary base is safer than arbitrary substring roots.
+    // Keep lower-confidence lexicon matches only as optional alternatives.
+    const productive = await this.inferProductiveDerivation(entry);
+
     const matches: Array<RootLexiconEntry & { start: number; end: number }> = [];
-    for (const root of roots) {
-      if (root.form.length < 3 || !root.meaningZh.trim()) continue;
+    for (const root of [...SHORT_AFFIXES, ...roots]) {
+      if ((root.form.length < 3 && root.position === "any") || !root.meaningZh.trim()) continue;
       let start = letters.indexOf(root.form);
       while (start >= 0) {
         const allowed = root.position === "any" || (root.position === "prefix" && start === 0) ||
@@ -402,16 +468,42 @@ export class OfflineDictionary {
       selected.push(match);
       positions.forEach((position) => covered.add(position));
     }
-    if (selected.some((root) => root.form.length >= 3) && covered.size / Math.max(1, letters.length) >= 0.6) {
-      return selected
-        .sort((left, right) => left.start - right.start)
+    if (productive.length) {
+      const primaryForms = new Set(productive.map((root) => root.form.replace(/^-|-$/gu, "")));
+      const alternatives = matches.filter((root) => !primaryForms.has(root.form))
+        .filter((root, index, list) =>
+          list.findIndex((item) => item.form === root.form && item.start === root.start) === index
+        )
+        .slice(0, 6)
         .map(({ start: _start, end: _end, position: _position, ...root }) => ({
           ...root,
           inferred: true,
           source: "inferred" as const,
+          alternative: true,
         }));
+      return [...productive, ...alternatives];
     }
-    return this.inferProductiveDerivation(entry);
+    if (selected.some((root) => root.form.length >= 3) && covered.size / Math.max(1, letters.length) >= 0.6) {
+      const selectedKeys = new Set(selected.map((root) => `${root.form}:${root.start}:${root.end}`));
+      const alternatives = matches.filter((root) =>
+        !selectedKeys.has(`${root.form}:${root.start}:${root.end}`)
+      ).filter((root, index, list) =>
+        list.findIndex((item) => item.form === root.form && item.start === root.start) === index
+      ).slice(0, 6);
+      return [...selected, ...alternatives]
+        .sort((left, right) => left.start - right.start)
+        .map((match) => {
+          const alternative = alternatives.includes(match);
+          const { start: _start, end: _end, position: _position, ...root } = match;
+          return {
+            ...root,
+            inferred: true,
+            source: "inferred" as const,
+            ...(alternative ? { alternative: true } : {}),
+          };
+        });
+    }
+    return [];
   }
 
   clearCache(): void {

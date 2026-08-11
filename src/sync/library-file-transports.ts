@@ -501,7 +501,7 @@ export async function listLibrarySyncChoices(
         }
       } else {
         const identical = candidates.find((candidate) => candidate.file.kind === "learning-progress" &&
-          JSON.stringify(candidate.file.snapshot) === JSON.stringify(file.snapshot));
+          candidate.file.progress.fingerprint === file.progress.fingerprint);
         if (identical) {
           local = identical;
           comparison = "identical";
@@ -674,13 +674,28 @@ export async function downloadLibrarySyncSelection(
   }));
   if (options.includeAssets) {
     if (!options.assetBackend) throw new Error("未提供本地音频存储，无法下载 MP3");
-    for (const { source, document } of documents) {
+    for (const { choice, document } of documents) {
       if (document.file.kind !== "library") continue;
       for (const [id, meta] of Object.entries(document.file.assets)) {
         if (await options.assetBackend.getAsset(id)) continue;
-        const remote = await source.transport.readLibraryAsset(meta.sha256);
-        if (!remote.data) throw new Error(`云端缺少词库音频：${id}`);
-        await options.assetBackend.putAsset({ meta, bytes: remote.data });
+        let bytes: Uint8Array | null = null;
+        let lastError: unknown;
+        for (const candidate of choice.sources) {
+          try {
+            const remote = await candidate.transport.readLibraryAsset(meta.sha256);
+            if (remote.data) {
+              bytes = remote.data;
+              break;
+            }
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        if (!bytes) {
+          const detail = lastError instanceof Error ? `：${lastError.message}` : "";
+          throw new Error(`所有镜像均缺少词库音频：${id}${detail}`);
+        }
+        await options.assetBackend.putAsset({ meta, bytes });
       }
     }
   }

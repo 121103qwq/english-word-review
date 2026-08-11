@@ -13,7 +13,7 @@ describe("offline dictionary", () => {
       Object.values(GENERATED_DICTIONARY.entryChunks).map((chunk) => decodeGzipJson<DictionaryEntry[]>(chunk)),
     );
     expect(chunks.reduce((total, entries) => total + entries.length, 0)).toBe(GENERATED_DICTIONARY.entryCount);
-  });
+  }, 15_000);
 
   it.each(["apple", "built", "kick", "counter"])("contains %s with Chinese meaning", async (word) => {
     const entry = await offlineDictionary.lookup(word);
@@ -52,7 +52,7 @@ describe("offline dictionary", () => {
     const unusual = await offlineDictionary.lookup("unusual");
     expect(unusual).not.toBeNull();
     const roots = await offlineDictionary.rootsFor(unusual!);
-    expect(roots.map(({ form, meaningZh }) => ({ form, meaningZh }))).toEqual([
+    expect(roots.filter((root) => !root.alternative).map(({ form, meaningZh }) => ({ form, meaningZh }))).toEqual([
       { form: "un-", meaningZh: "不；相反" },
       { form: "usual", meaningZh: "平常的；通常的" },
     ]);
@@ -85,8 +85,8 @@ describe("offline dictionary", () => {
   it("passes inferred construction hints through lookup and manual-library checking", async () => {
     const lookup = await lookupWord("unusual");
     const checked = await checkWord("unusual");
-    expect(lookup?.roots.map((root) => root.form)).toEqual(["un-", "usual"]);
-    expect(checked.entry?.roots.map((root) => root.form)).toEqual(["un-", "usual"]);
+    expect(lookup?.roots.filter((root) => !root.alternative).map((root) => root.form)).toEqual(["un-", "usual"]);
+    expect(checked.entry?.roots.filter((root) => !root.alternative).map((root) => root.form)).toEqual(["un-", "usual"]);
   });
 
   it("selects the base-word part of speech required by a productive suffix", async () => {
@@ -101,6 +101,19 @@ describe("offline dictionary", () => {
     expect(roots.map((root) => root.form)).toEqual(["wed", "-ing"]);
     expect(roots[0]?.meaningZh).toMatch(/结婚/u);
     expect(roots.some((root) => root.form === "wedd" || /人名/u.test(root.meaningZh))).toBe(false);
+  });
+
+  it.each([
+    ["nuclear", "nucleus", "-ar"],
+    ["cellular", "cell", "-ular"],
+    ["muscular", "muscle", "-ular"],
+    ["familiar", "family", "-ar"],
+  ])("restores the dictionary base across a Latin adjective boundary for %s", async (word, base, suffix) => {
+    const entry = await offlineDictionary.lookup(word);
+    expect(entry).not.toBeNull();
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.map((root) => root.form)).toEqual([base, suffix]);
+    expect(roots.every((root) => /[\u3400-\u9fff]/u.test(root.meaningZh))).toBe(true);
   });
 
   it.each([
@@ -139,5 +152,32 @@ describe("offline dictionary", () => {
       expect(roots.length).toBeGreaterThan(0);
       expect(roots.every((root) => /[\u3400-\u9fff]/u.test(root.meaningZh))).toBe(true);
     }
+  });
+
+  it.each([
+    ["unhappy", ["un-", "happy"]],
+    ["rewrite", ["re-", "write"]],
+    ["careless", ["care", "-less"]],
+    ["overcook", ["over-", "cook"]],
+  ])("keeps useful boundary affixes when parsing %s", async (word, expectedForms) => {
+    const entry = await offlineDictionary.lookup(word);
+    expect(entry).not.toBeNull();
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.map((root) => root.form)).toEqual(expect.arrayContaining(expectedForms));
+    expect(roots.every((root) => root.meaningZh.trim())).toBe(true);
+  });
+
+  it("separates a lower-confidence overlapping parse from the primary guess", async () => {
+    const entry = await offlineDictionary.lookup("rewrite");
+    const roots = await offlineDictionary.rootsFor(entry!);
+    expect(roots.filter((root) => !root.alternative).map((root) => root.form)).toEqual(["re-", "write"]);
+    expect(roots.some((root) => root.alternative)).toBe(true);
+  });
+
+  it("does not promote a coincidental short boundary match into the primary construction", async () => {
+    const entry = await offlineDictionary.lookup("relationship");
+    const roots = await offlineDictionary.rootsFor(entry!);
+
+    expect(roots.filter((root) => !root.alternative).map((root) => root.form)).not.toContain("re");
   });
 });

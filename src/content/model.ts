@@ -10,7 +10,7 @@ import type {
   WordOverride,
 } from "./types";
 
-export const CONTENT_APP_VERSION = "8.4.0" as const;
+export const CONTENT_APP_VERSION = "8.4.1" as const;
 export const DICTIONARY_VERSION = "ecdict-bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b+engra-798d54beb0deae476b856719cb8d5ad33d0baab2";
 export const MAX_MP3_BYTES = 20 * 1024 * 1024;
 
@@ -201,7 +201,7 @@ export function resolveWord(
   const dictionaryRoots = dictionaryValue?.roots;
   const mergedRoots = mergeLegacyRoots(legacyRoots, dictionaryRoots);
   if (mergedRoots) value.roots = mergedRoots;
-  copyDefined(value, globalOverride);
+  if (!entry.ignoreGlobalOverride) copyDefined(value, globalOverride);
   copyDefined(value, entry.override);
   return { word: entry.word, source: entry.source, ...value };
 }
@@ -229,7 +229,9 @@ export function applyWordOverride(
   const changedFields = overrideFields.filter((field) => patch[field] !== undefined);
   for (const library of next.libraries) {
     for (const entry of library.words) {
-      if (cleanWord(entry.word) !== normalized || !entry.override) continue;
+      if (cleanWord(entry.word) !== normalized) continue;
+      delete entry.ignoreGlobalOverride;
+      if (!entry.override) continue;
       for (const field of changedFields) delete entry.override[field];
       if (Object.keys(entry.override).length === 0) delete entry.override;
     }

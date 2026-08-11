@@ -37,7 +37,7 @@ interface NativeBridgePlugin {
   loadSecret(options: { key: string }): Promise<{ value: string | null }>;
   deleteSecret(options: { key: string }): Promise<void>;
   saveTextFile(options: { filename: string; content: string; mimeType: string }): Promise<SaveTextFileResult>;
-  speak(options: { text: string; locale: string; rate: number }): Promise<void>;
+  speak(options: { text: string; locale: string; rate: number; voice?: string }): Promise<void>;
   httpRequest(options: { request: HttpRequest }): Promise<HttpResponse>;
   openExternalUrl(options: { url: string }): Promise<void>;
 }
@@ -173,11 +173,11 @@ export async function speakEnglish(text: string, options: SpeakEnglishOptions = 
   // synthesis service. Prefer the platform bridges so a present-but-inert web
   // implementation cannot swallow the request.
   if (isCapacitorNative()) {
-    await NativeBridge.speak({ text, locale: "en-US", rate });
+    await NativeBridge.speak({ text, locale: "en-US", rate, ...(options.voice ? { voice: options.voice } : {}) });
     return;
   }
   if (isTauri()) {
-    await invoke("speak_text", { text, locale: "en-US", rate });
+    await invoke("speak_text", { text, locale: "en-US", rate, voice: options.voice ?? null });
     return;
   }
   if ("speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined") {

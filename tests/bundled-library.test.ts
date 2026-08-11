@@ -92,6 +92,6 @@ describe("v7.4.6 bundled library migration", () => {
     expect(source.match(/await this\.migrateBundledLibraryIfNeeded\(\)/g)).toHaveLength(3);
     expect(source).toContain("await commitContentMutation({");
     expect(source).toContain("transports: this.options.getTransports?.() ?? []");
-    expect(html).toContain("customRoots.find(item => item.note)?.note");
+    expect(html).toContain("primaryRoots.find(item => item.note)?.note");
   });
 });
