@@ -1,0 +1,52 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'cn.wordwatch.app'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'cn.wordwatch.app'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    signingConfigs {
+        personal {
+            if (System.getenv('WORDWATCH_KEYSTORE')) {
+                storeFile file(System.getenv('WORDWATCH_KEYSTORE'))
+                storePassword System.getenv('WORDWATCH_SIGN_PASS')
+                keyAlias 'wordwatch'
+                keyPassword System.getenv('WORDWATCH_SIGN_PASS')
+            }
+        }
+    }
+    buildTypes {
+        debug { applicationIdSuffix '.dev' }
+        release { minifyEnabled false; signingConfig signingConfigs.personal }
+    }
+    sourceSets { main { assets.srcDir layout.buildDirectory.dir('generated/seed-assets') } }
+    lint { abortOnError true }
+}
+
+// Optional private bootstrap content is injected only into build output, never source control.
+tasks.register('prepareSeed') {
+    def seed = System.getenv('WORDWATCH_SEED_FILE')
+    def target = layout.buildDirectory.file('generated/seed-assets/bootstrap.json')
+    outputs.file(target)
+    inputs.property('seedPath', seed ?: '')
+    if (seed) inputs.file(seed)
+    doLast {
+        target.get().asFile.parentFile.mkdirs()
+        target.get().asFile.text = seed ? file(seed).getText('UTF-8') : '{}'
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'prepareSeed' }
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
