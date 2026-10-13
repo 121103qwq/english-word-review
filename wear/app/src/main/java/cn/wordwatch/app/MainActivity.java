@@ -20,6 +20,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import cn.wordwatch.app.core.StudyEngine;
+import cn.wordwatch.app.core.SessionPolicy;
+import cn.wordwatch.app.core.LearningSettings;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.text.SimpleDateFormat;
@@ -43,6 +45,8 @@ public final class MainActivity extends Activity {
     private String detailId;
     private String detailBack = "home";
     private boolean savingAnswer;
+    private int wordPage;
+    private boolean customLimitEditor;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -57,6 +61,7 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (store != null) SyncCoordinator.start(this, false, (message, success) -> { if ("home".equals(screen)) render(); });
+        if ("updates".equals(screen)) render();
     }
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); setIntent(intent);
@@ -66,6 +71,7 @@ public final class MainActivity extends Activity {
         super.onSaveInstanceState(out); out.putString("screen", screen); out.putString("detailId", detailId); out.putString("detailBack", detailBack);
     }
     @Override public void onBackPressed() {
+        if (store == null) { finish(); return; }
         if ("home".equals(screen)) { super.onBackPressed(); return; }
         screen = "detail".equals(screen) ? detailBack : "home"; render();
     }
@@ -119,6 +125,7 @@ public final class MainActivity extends Activity {
                 case "words": words(); break;
                 case "modes": modes(); break;
                 case "done": done(); break;
+                case "updates": updates(); break;
                 default: screen = "home"; home(); break;
             }
         } catch (Exception e) {
@@ -135,39 +142,56 @@ public final class MainActivity extends Activity {
             small("AI 为你准备内容，下载后可离线学习。"); return;
         }
         int[] counts = StudyEngine.todayCounts(store.events(), System.currentTimeMillis());
-        int limit = store.settings().optInt("newLimit", 15);
-        title(counts[0] + " / " + limit);
+        int limit = LearningSettings.newLimit(store.settings());
+        title("今日新词 " + counts[0]);
         List<StudyEngine.Task> queue = StudyEngine.queue(pack, store.words(), store.events(), System.currentTimeMillis(), limit);
         int reviews = 0; for (StudyEngine.Task task : queue) if (task.review) reviews++;
-        small("今日新词 · " + reviews + " 个待复习");
         JSONObject session = activeSession();
         boolean unfinished = session != null && session.optInt("position") < session.getJSONArray("queue").length();
-        button(unfinished ? "继续学习" : "开始今日学习", true, this::startSession);
+        if (!unfinished && queue.isEmpty()) {
+            button(pack.optString("date").compareTo(day(System.currentTimeMillis())) > 0 ? "等待学习包日期" : "当前没有待学任务", false, () -> {}).setEnabled(false);
+        } else button(unfinished ? "继续学习" : "开始今日学习", true, this::startSession);
+        small(LearningSettings.label(store.settings(), pack));
+        if (pack.optString("date").compareTo(day(System.currentTimeMillis())) > 0) small("已备好 " + pack.optString("date") + " 的内容，到当天开放新词");
+        small("待复习 " + reviews + " 个");
         small("复习完成 " + counts[1] + " · 熟词略过 " + counts[2]);
         gap(5);
         String packageDay = pack.optString("date");
         small("学习包 " + packageDay + (packageDay.compareTo(day(System.currentTimeMillis())) < 0 ? " · 旧包仍可用" : ""));
         JSONObject state = store.snapshot(); small("上次同步 " + time(state.optLong("lastSync")));
-        long pending = state.optLong("seq") - state.optLong("lastSyncedSeq");
+        long pending = store.pendingCount();
         if (pending > 0) small("本机待上传 " + pending + " 条记录");
         if (state.optLong("lastSync") == 0 && store.events().length() > 0) small("学习记录保存在本机，配置后会上传");
         if (!state.optString("syncError").isEmpty()) text(state.optString("syncError"), 12, BAD, false);
+        if (!state.optString("packError").isEmpty()) text(state.optString("packError"), 12, BAD, false);
         button(SyncCoordinator.running() ? "同步中…" : "立即同步", false, this::sync);
         button("单词与记录", false, () -> navigate("words"));
         button("设置", false, () -> navigate("settings"));
     }
     private JSONObject activeSession() {
-        JSONObject s = store.session(); return s != null && day(System.currentTimeMillis()).equals(s.optString("date")) ? s : null;
+        try {
+            JSONObject old = store.session();
+            JSONObject s = SessionPolicy.reconcile(old, store.events(), store.words(), System.currentTimeMillis(), LearningSettings.newLimit(store.settings()));
+            if (s != null && !s.toString().equals(old.toString())) store.saveSession(s);
+            return s;
+        } catch (Exception invalid) { return null; }
     }
     private void startSession() {
         try {
             JSONObject session = activeSession();
             if (session == null || session.optInt("position") >= session.getJSONArray("queue").length()) {
                 JSONObject pack = store.pack(); if (pack == null) { navigate("settings"); return; }
-                List<StudyEngine.Task> tasks = StudyEngine.queue(pack, store.words(), store.events(), System.currentTimeMillis(), store.settings().optInt("newLimit", 15));
-                JSONArray queue = new JSONArray(); for (StudyEngine.Task task : tasks) queue.put(new JSONObject().put("wordId", task.wordId).put("review", task.review).put("attempt", task.attempt));
+                List<StudyEngine.Task> tasks = StudyEngine.queue(pack, store.words(), store.events(), System.currentTimeMillis(), LearningSettings.newLimit(store.settings()));
+                JSONArray queue = new JSONArray(); JSONObject frozen = new JSONObject(), available = store.words();
+                for (int i = 0; i < pack.getJSONArray("words").length(); i++) { JSONObject word = pack.getJSONArray("words").getJSONObject(i); frozen.put(word.getString("id"), word); }
+                for (StudyEngine.Task task : tasks) {
+                    if (queue.length() >= SessionPolicy.MAX_SESSION_TASKS) break;
+                    queue.put(new JSONObject().put("wordId", task.wordId).put("review", task.review).put("attempt", task.attempt));
+                    if (available.has(task.wordId)) frozen.put(task.wordId, available.getJSONObject(task.wordId));
+                }
                 session = new JSONObject().put("queue", queue).put("position", 0).put("date", day(System.currentTimeMillis()))
-                    .put("packageId", pack.getString("packageId")).put("words", store.words()).put("assisted", false).put("revealed", false);
+                    .put("sessionId", java.util.UUID.randomUUID().toString()).put("packageRevision", StudyEngine.revision(pack)).put("pack", pack)
+                    .put("packageId", pack.getString("packageId")).put("words", frozen).put("assisted", false).put("revealed", false);
                 store.saveSession(session);
             }
             navigate(session.getJSONArray("queue").length() == 0 ? "done" : "question");
@@ -195,7 +219,9 @@ public final class MainActivity extends Activity {
         small(("retry".equals(attempt) ? "再试一次" : review ? "到期复习" : "新词")
             + " · " + (session.optInt("position") + 1) + " / " + session.getJSONArray("queue").length());
         if (session.has("feedbackEvent")) { feedback(session, word); return; }
-        if (review) {
+        JSONObject sessionPack = session.optJSONObject("pack");
+        boolean selfReview = review && (sessionPack == null || sessionPack.optInt("schemaVersion", 1) == 1 || "self-recall".equals(sessionPack.optString("reviewMode")));
+        if (selfReview) {
             TextView heading = title(word.getString("word")); heading.setAutoSizeTextTypeUniformWithConfiguration(18, 30, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
             small(word.optString("phonetic"));
             if (!session.optBoolean("revealed")) {
@@ -206,34 +232,78 @@ public final class MainActivity extends Activity {
             } else {
                 text(word.getString("meaning"), 17, INK, true); example(word);
                 small("按翻面前的回忆情况选择");
-                button("记得", true, () -> answer("recall", "remember"));
-                button("模糊", false, () -> answer("recall", "hard"));
-                button("忘了", false, () -> answer("recall", "forgot"));
+                button("记得", true, () -> answer(word.optString("id"), "recall", "remember"));
+                button("模糊", false, () -> answer(word.optString("id"), "recall", "hard"));
+                button("忘了", false, () -> answer(word.optString("id"), "recall", "forgot"));
             }
         } else {
             JSONObject question = selectedQuestion(session, word);
             text(question.getString("prompt"), 17, INK, true);
-            JSONArray options = question.getJSONArray("options");
-            for (int i = 0; i < options.length(); i++) {
-                final int index = i;
-                button(options.getString(i), false, () -> answer(question.optString("mode"), index == question.optInt("correctIndex") ? "correct" : "wrong"));
+            String type = question.optString("type", "choice");
+            if (type.equals("input") && !session.optBoolean("inputEnabled")) {
+                if (!session.optBoolean("revealed")) button("翻面看答案", true, () -> {
+                    try { JSONObject s = store.session(); s.put("revealed", true); store.saveSession(s); render(); } catch (Exception e) { error("未能保存，请重试"); }
+                });
+                else {
+                    text(question.getJSONArray("acceptedAnswers").getString(0), 17, INK, true); small("按翻面前的回忆情况自评");
+                    button("记得", true, () -> answer(word.optString("id"), question.optString("mode"), "remember"));
+                    button("模糊", false, () -> answer(word.optString("id"), question.optString("mode"), "hard"));
+                    button("忘了", false, () -> answer(word.optString("id"), question.optString("mode"), "forgot"));
+                }
+                if (!session.optBoolean("revealed")) small("先在心里回忆，或说出答案");
+                button("改为输入作答", false, () -> {
+                    try { JSONObject s = store.session(); s.put("inputEnabled", true);
+                        if (s.optBoolean("revealed")) s.put("assisted", true);
+                        store.saveSession(s); render();
+                    } catch (Exception e) { error("未能保存，请重试"); }
+                });
+            } else if (type.equals("input")) {
+                EditText response = field("你的答案", "", false);
+                response.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+                button("提交答案", true, () -> {
+                    String value = response.getText().toString();
+                    if (value.trim().isEmpty()) { error("请先填写答案"); return; }
+                    answer(word.optString("id"), question.optString("mode"), StudyEngine.matchesAnswer(question, value) ? "correct" : "wrong");
+                });
+                button("不用输入，改为回忆", false, () -> {
+                    try { JSONObject s = store.session(); s.put("inputEnabled", false); store.saveSession(s); render(); } catch (Exception e) { error("未能保存，请重试"); }
+                });
+            } else if (type.equals("recall")) {
+                if (!session.optBoolean("revealed")) button("翻面看答案", true, () -> {
+                    try { JSONObject s = store.session(); s.put("revealed", true); store.saveSession(s); render(); } catch (Exception e) { error("未能保存，请重试"); }
+                });
+                else {
+                    text(question.getString("answer"), 17, INK, true); small("按翻面前的回忆情况选择");
+                    button("记得", true, () -> answer(word.optString("id"), question.optString("mode"), "remember"));
+                    button("模糊", false, () -> answer(word.optString("id"), question.optString("mode"), "hard"));
+                    button("忘了", false, () -> answer(word.optString("id"), question.optString("mode"), "forgot"));
+                }
+            } else {
+                JSONArray options = question.getJSONArray("options");
+                for (int i = 0; i < options.length(); i++) {
+                    final int index = i;
+                    button(options.getString(i), false, () -> answer(word.optString("id"), question.optString("mode"), index == question.optInt("correctIndex") ? "correct" : "wrong"));
+                }
             }
-            button("先看讲解", false, () -> {
+            if (!type.equals("recall") && (!type.equals("input") || session.optBoolean("inputEnabled"))) button("先看讲解", false, () -> {
                 try { JSONObject s = store.session(); s.put("assisted", true); store.saveSession(s); detailId = word.optString("id"); detailBack = "question"; navigate("detail"); }
                 catch (Exception e) { error("未能保存，请重试"); }
             });
-            if (!"retry".equals(attempt)) button("这个词已熟悉，略过", false, () -> answer("skip", "known"));
+            if (!"retry".equals(attempt)) button("这个词已熟悉，略过", false, () -> answer(word.optString("id"), "skip", "known"));
         }
         gap(5); button("稍后继续", false, () -> navigate("home"));
     }
-    private void answer(String mode, String result) {
+    private void answer(String expectedId, String mode, String result) {
         if (savingAnswer) return; savingAnswer = true;
         try {
-            JSONObject session = activeSession(); if (session == null || session.has("feedbackEvent")) return;
+            JSONObject session = activeSession();
+            if (session == null) { error("学习日期或内容已变化，请从首页继续"); navigate("home"); return; }
+            if (session.has("feedbackEvent")) return;
             JSONObject task = task(session);
+            if (!expectedId.equals(task.getString("wordId"))) { error("学习进度已更新，请回答当前题"); render(); return; }
             store.answer(task.getString("wordId"), session.getString("packageId"), mode, result, task.optString("attempt", "primary"), session.optBoolean("assisted"), task.optBoolean("review"));
             render();
-        } catch (Exception e) { error("答案未保存，请重试；当前题保留"); }
+        } catch (Exception e) { error("当前题或进度已变化，请重新作答"); render(); }
         finally { savingAnswer = false; }
     }
     private void feedback(JSONObject session, JSONObject word) throws Exception {
@@ -243,8 +313,12 @@ public final class MainActivity extends Activity {
             : result.equals("remember") ? "已记录：记得" : result.equals("hard") ? "已记录：模糊" : "已记录：忘了";
         text(label, 20, good ? ACCENT : BAD, true); title(word.getString("word"));
         text(word.getString("meaning"), 16, INK, false);
-        if (!event.optString("mode").equals("recall") && !result.equals("known")) {
+        boolean selfReport = event.optString("evidence").equals("self-report")
+            || (!event.has("evidence") && event.optString("mode").equals("recall"))
+            || result.equals("remember") || result.equals("hard") || result.equals("forgot");
+        if (!selfReport && !result.equals("known")) {
             JSONObject q = selectedQuestion(session, word); small(q.optString("explanation"));
+            if (q.optString("type").equals("input")) text("参考答案：" + q.getJSONArray("acceptedAnswers").getString(0), 15, ACCENT, false);
             if (event.optBoolean("assisted")) small("本题看过讲解，已单独标记");
         } else if (result.equals("known")) small("跳过不算答题正确，也不增加新词计数");
         else small("这是回忆自评，单独记录");
@@ -254,27 +328,15 @@ public final class MainActivity extends Activity {
     }
     private void advance() {
         try {
-            JSONObject s = store.session(); JSONObject event = s.getJSONObject("feedbackEvent");
-            JSONArray queue = s.getJSONArray("queue"); int pos = s.getInt("position"); String result = event.optString("result");
-            // Insert one retry only when at least five intervening questions exist.
-            if ((result.equals("wrong") || result.equals("forgot") || result.equals("hard")) && !event.optString("attempt").equals("retry") && queue.length() - pos - 1 >= 5) {
-                JSONObject retry = new JSONObject(queue.getJSONObject(pos).toString()).put("attempt", "retry");
-                JSONArray updated = new JSONArray();
-                for (int i = 0; i < queue.length(); i++) { if (i == pos + 6) updated.put(retry); updated.put(queue.get(i)); }
-                if (pos + 6 == queue.length()) updated.put(retry);
-                queue = updated; s.put("queue", queue);
-            }
-            s.put("position", pos + 1); s.remove("feedbackEvent"); s.remove("questionIndex"); s.put("revealed", false).put("assisted", false);
-            // A known-word skip frees a new-word place. Extend from the prepared reserve, without inventing content.
-            if (result.equals("known")) {
-                List<StudyEngine.Task> fresh = StudyEngine.queue(store.pack(), store.words(), store.events(), System.currentTimeMillis(), store.settings().optInt("newLimit", 15));
-                for (StudyEngine.Task candidate : fresh) {
-                    boolean exists = false; for (int i = pos + 1; i < queue.length(); i++) if (candidate.wordId.equals(queue.getJSONObject(i).optString("wordId"))) exists = true;
-                    if (!exists) { queue.put(new JSONObject().put("wordId", candidate.wordId).put("review", candidate.review).put("attempt", "primary"));
-                        JSONObject definition = store.words().optJSONObject(candidate.wordId); if (definition != null) s.getJSONObject("words").put(candidate.wordId, definition); break; }
-                }
-            }
-            store.saveSession(s); navigate(pos + 1 < queue.length() ? "question" : "done");
+            JSONObject s = store.session(); if (s == null || !s.has("feedbackEvent")) return;
+            int position = s.getInt("position") + 1;
+            s.put("position", position); s.remove("feedbackEvent"); s.remove("questionIndex");
+            s.put("revealed", false).put("assisted", false).put("inputEnabled", false);
+            // Wrong answers return on a later day; re-reading the same answer is not independent retrieval.
+            if (position >= s.getJSONArray("queue").length()) s.put("completedAt", System.currentTimeMillis());
+            store.saveSession(s);
+            JSONObject next = activeSession();
+            navigate(next != null && next.optInt("position") < next.getJSONArray("queue").length() ? "question" : "done");
         } catch (Exception e) { error("进度未保存，请重试"); }
     }
     private void example(JSONObject word) throws Exception {
@@ -287,15 +349,34 @@ public final class MainActivity extends Activity {
         if (word == null) word = store.words().optJSONObject(detailId);
         if (word == null) { small("这个词尚未下载"); button("返回", true, () -> navigate(detailBack)); return; }
         small("AI 学习卡"); title(word.getString("word")); small(word.optString("phonetic"));
-        text(word.getString("meaning"), 17, INK, true); gap(4); example(word);
+        text(word.getString("meaning"), 17, INK, true); gap(4);
+        JSONArray examples = word.optJSONArray("examples");
+        if (examples != null) for (int i = 0; i < examples.length(); i++) {
+            JSONObject ex = examples.getJSONObject(i); text(ex.getString("en"), 15, ACCENT, false); small(ex.getString("zh")); gap(5);
+        }
         JSONArray collocations = word.optJSONArray("collocations");
         if (collocations != null && collocations.length() > 0) {
             gap(5); small("常用搭配");
             for (int i = 0; i < collocations.length(); i++) text(collocations.getString(i), 14, INK, false);
         }
-        if (!word.optString("roots").isEmpty()) { gap(5); small("构词与记忆"); text(word.getString("roots"), 14, INK, false); }
+        Object roots = word.opt("roots");
+        if (roots instanceof JSONArray) { gap(5); small("构词与记忆"); for (int i = 0; i < ((JSONArray) roots).length(); i++) text(((JSONArray) roots).getString(i), 14, INK, false); }
+        else if (roots instanceof String && !((String) roots).isEmpty()) { gap(5); small("构词与记忆"); text((String) roots, 14, INK, false); }
+        JSONObject notes = word.optJSONObject("notes");
+        String[][] sections = {{"partOfSpeech", "词性"}, {"forms", "词形变化"}, {"chunks", "词块与固定搭配"}, {"frames", "句法框架"}, {"pitfalls", "易错点"}, {"retrievalTips", "主动回忆"}};
+        if (notes != null) for (String[] section : sections) {
+            JSONArray values = notes.optJSONArray(section[0]);
+            if (values != null && values.length() > 0) { gap(5); small(section[1]); for (int i = 0; i < values.length(); i++) text(values.getString(i), 14, INK, false); }
+        }
         JSONArray senses = word.optJSONArray("senses");
         if (senses != null && senses.length() > 0) { gap(5); small("搭配与其他用法"); for (int i = 0; i < senses.length(); i++) text(senses.getString(i), 14, INK, false); }
+        JSONArray sectionsExtra = notes == null ? null : notes.optJSONArray("sections");
+        if (sectionsExtra != null) for (int i = 0; i < sectionsExtra.length(); i++) {
+            JSONObject section = sectionsExtra.getJSONObject(i); gap(5); small(section.getString("title"));
+            if (section.has("body")) text(section.getString("body"), 14, INK, false);
+            JSONArray items = section.optJSONArray("items");
+            if (items != null) for (int j = 0; j < items.length(); j++) text(items.getString(j), 14, INK, false);
+        }
         small("底库排名 " + word.optInt("rank") + " · AI 生成内容");
         button("返回", true, () -> navigate(detailBack));
     }
@@ -304,7 +385,9 @@ public final class MainActivity extends Activity {
         int[] counts = StudyEngine.todayCounts(store.events(), System.currentTimeMillis());
         text("新词 " + counts[0] + "  ·  复习 " + counts[1], 17, ACCENT, true); small("熟词略过 " + counts[2]);
         small("完成的是实际作答与回忆记录，不自动等同于完全掌握。");
-        if (counts[0] < store.settings().optInt("newLimit", 15)) small("本包可用候选已完成；晚间对话时可让 AI 按记录接着准备。");
+        JSONObject pack = store.pack();
+        if (pack != null && pack.optString("date").compareTo(day(System.currentTimeMillis())) > 0) small("新词内容会在 " + pack.optString("date") + " 开放。");
+        else small("可用候选与剩余额度由词包和个人设置共同决定。");
         button("回到首页", true, () -> navigate("home")); button("同步今天的记录", false, this::sync);
         SyncCoordinator.start(this, false, (message, success) -> {});
     }
@@ -313,17 +396,27 @@ public final class MainActivity extends Activity {
         List<JSONObject> entries = new ArrayList<>(); Iterator<String> ids = all.keys(); while (ids.hasNext()) entries.add(all.getJSONObject(ids.next()));
         entries.sort((a, b) -> Integer.compare(a.optInt("rank", Integer.MAX_VALUE), b.optInt("rank", Integer.MAX_VALUE)));
         small("已下载 " + entries.size() + " 个词");
-        for (JSONObject word : entries) {
+        int pages = Math.max(1, (entries.size() + 19) / 20);
+        wordPage = Math.max(0, Math.min(wordPage, pages - 1)); small("第 " + (wordPage + 1) + " / " + pages + " 页");
+        for (JSONObject word : entries.subList(wordPage * 20, Math.min(entries.size(), (wordPage + 1) * 20))) {
             StudyEngine.Card card = cards.get(word.getString("id"));
             String status = card == null ? "未学" : card.known ? "熟悉 · 已略过" : card.dueAt <= System.currentTimeMillis() ? "待复习" : "复习 " + day(card.dueAt);
             button(word.getString("word") + "\n" + status, false, () -> { detailId = word.optString("id"); detailBack = "words"; navigate("detail"); });
         }
+        if (wordPage > 0) button("上一页", false, () -> { wordPage--; render(); });
+        if (wordPage + 1 < pages) button("下一页", true, () -> { wordPage++; render(); });
         button("返回首页", false, () -> navigate("home"));
     }
-    private String modeLabel(String mode) { switch (mode) { case "forward": return "英→中"; case "reverse": return "中→英"; case "rare": return "熟词生义"; default: return "混合题型"; } }
+    private String modeLabel(String mode) { switch (mode) { case "forward": return "英→中"; case "reverse": return "中→英"; case "rare": return "熟词生义"; case "mixed": return "混合题型"; default: return mode; } }
     private void modes() {
         title("点选题型");
-        for (String mode : new String[]{"mixed", "forward", "reverse", "rare"}) button(modeLabel(mode), false, () -> {
+        java.util.LinkedHashSet<String> availableModes = new java.util.LinkedHashSet<>(java.util.Arrays.asList("mixed", "forward", "reverse", "rare"));
+        JSONObject pack = store.pack(); JSONArray words = pack == null ? null : pack.optJSONArray("words");
+        if (words != null) for (int i = 0; i < words.length(); i++) {
+            JSONArray questions = words.optJSONObject(i).optJSONArray("questions");
+            if (questions != null) for (int j = 0; j < questions.length(); j++) availableModes.add(questions.optJSONObject(j).optString("mode"));
+        }
+        for (String mode : availableModes) button(mode.equals("mixed") || mode.equals("forward") || mode.equals("reverse") || mode.equals("rare") ? modeLabel(mode) : mode, false, () -> {
             try { JSONObject settings = store.settings(); settings.put("practiceMode", mode); store.saveSettings(settings); navigate("settings"); }
             catch (Exception e) { error("设置未保存"); }
         });
@@ -341,10 +434,28 @@ public final class MainActivity extends Activity {
     }
     private void settings() throws Exception {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
-        title("学习与同步"); JSONObject config = store.settings(); int limit = config.optInt("newLimit", 15);
-        text("每日新词 " + limit, 17, ACCENT, true);
-        small("调整后在下一轮学习生效");
-        button("少 5 个", false, () -> changeLimit(-5)); button("多 5 个", false, () -> changeLimit(5));
+        title("学习与同步"); JSONObject config = store.settings(); int limit = config.optInt("newLimit", StudyEngine.DEFAULT_NEW_WORD_LIMIT);
+        text("学习量", 17, ACCENT, true);
+        small(LearningSettings.label(config, store.pack()));
+        button("跟随词包", config.optString("limitMode", "package").equals("package"), () -> changeLimitMode("package"));
+        button("个人每日上限", config.optString("limitMode").equals("custom"), () -> changeLimitMode("custom"));
+        button("只复习", config.optString("limitMode").equals("review"), () -> changeLimitMode("review"));
+        if ("custom".equals(config.optString("limitMode"))) {
+            button("少 5 个", false, () -> adjustPersonalLimit(-5));
+            button("多 5 个", false, () -> adjustPersonalLimit(5));
+            button(customLimitEditor ? "收起输入" : "填写其他数量", false, () -> { customLimitEditor = !customLimitEditor; render(); });
+            if (customLimitEditor) {
+            EditText target = field("每日新词上限", String.valueOf(config.optInt("newLimit", 30)), false);
+            target.setInputType(InputType.TYPE_CLASS_NUMBER);
+            button("保存学习量", true, () -> {
+                try { int value = Integer.parseInt(target.getText().toString().trim());
+                    if (value < 0 || value > 10000) { error("请填写 0 到 10000"); return; }
+                    JSONObject next = store.settings(); next.put("newLimit", value); store.saveSettings(next); render();
+                } catch (Exception invalid) { error("请填写有效数字"); }
+            });
+            }
+        }
+        small("按上海日期累计。跟随词包时，AI 可直接调整每日学习量。");
         button(modeLabel(config.optString("practiceMode", "mixed")), false, () -> navigate("modes"));
         gap(12); small("GitHub 私有仓库");
         EditText owner = field("账号", config.optString("owner"), false), repo = field("仓库", config.optString("repo"), false), branch = field("分支", config.optString("branch"), false);
@@ -355,16 +466,25 @@ public final class MainActivity extends Activity {
             try {
                 String o = owner.getText().toString().trim(), r = repo.getText().toString().trim(), b = branch.getText().toString().trim();
                 if (!o.matches("[A-Za-z0-9-]{1,39}") || !r.matches("[A-Za-z0-9_.-]{1,100}") || b.isEmpty() || b.contains("..") || b.length() > 150) { error("请检查账号、仓库和分支"); return; }
+                if (SyncCoordinator.running()) { error("同步中，请稍后保存配置"); return; }
                 String secret = token.getText().toString().trim();
-                if (!secret.isEmpty()) vault.save(secret); else if (!vault.exists()) { error("请填写 Token"); return; }
-                JSONObject next = store.settings(); next.put("owner", o).put("repo", r).put("branch", b); store.saveSettings(next);
+                if (secret.isEmpty() && !vault.exists()) { error("请填写 Token"); return; }
+                SyncCoordinator.withSettingsWriteLock(() -> {
+                    if (!secret.isEmpty()) vault.save(secret);
+                    JSONObject next = store.settings(); next.put("owner", o).put("repo", r).put("branch", b); store.saveSettings(next); return null;
+                });
                 token.setText(""); SyncJob.schedule(this); navigate("home"); sync();
             } catch (Exception e) { error("配置未能安全保存，请重试"); }
         });
-        button("返回首页", false, () -> navigate("home")); small("词序 1.0.0 · 学习数据格式 v1");
+        button("检查应用更新", false, () -> navigate("updates"));
+        button("返回首页", false, () -> navigate("home")); small("词序 1.1.0 · 支持学习包 v1 / v2");
     }
-    private void changeLimit(int amount) {
-        try { JSONObject settings = store.settings(); settings.put("newLimit", Math.max(0, Math.min(50, settings.optInt("newLimit", 15) + amount))); store.saveSettings(settings); render(); }
+    private void changeLimitMode(String mode) {
+        try { JSONObject settings = store.settings(); settings.put("limitMode", mode); store.saveSettings(settings); render(); }
+        catch (Exception e) { error("设置未保存"); }
+    }
+    private void adjustPersonalLimit(int amount) {
+        try { JSONObject settings = store.settings(); settings.put("newLimit", Math.max(0, Math.min(10000, settings.optInt("newLimit", 30) + amount))); store.saveSettings(settings); render(); }
         catch (Exception e) { error("设置未保存"); }
     }
     private void sync() {
@@ -373,5 +493,16 @@ public final class MainActivity extends Activity {
         if (started) { if ("home".equals(screen)) render(); }
         else error("已有同步正在进行");
     }
-    private void fatal(String title, String message) { layout(); title(title); small(message); }
+    private void fatal(String title, String message) { layout(); title(title); small(message); button("检查修复更新", true, () -> { screen = "updates"; layout(); updates(); }); }
+    private void updates() {
+        title("应用更新");
+        try { small("当前版本 " + getPackageManager().getPackageInfo(getPackageName(), 0).versionName); }
+        catch (Exception unavailable) { small("当前已安装版本"); }
+        small(UpdateCoordinator.message(this));
+        if (UpdateCoordinator.hasConfirmation(this)) button("继续安装或查看进度", true, () -> UpdateCoordinator.confirm(this));
+        button(UpdateCoordinator.running() ? "正在检查或下载…" : "检查 GitHub 更新", true, () -> UpdateCoordinator.check(this, () -> { if ("updates".equals(screen)) render(); }));
+        if (UpdateCoordinator.available(this)) button("下载并安装更新", true, () -> UpdateCoordinator.install(this, () -> { if ("updates".equals(screen)) render(); }));
+        small("校验签名后交给系统确认安装。更新会保留本机学习记录。");
+        button("返回", false, () -> { if (store != null) navigate("settings"); else finish(); });
+    }
 }

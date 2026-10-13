@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import hashlib
 import json
@@ -12,20 +13,28 @@ import re
 import shutil
 import subprocess
 import sys
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 COLUMNS = ("rank", "word", "phonetic", "meaning", "zipf")
-LIMIT = 15
-MAX_NEW_CANDIDATES = 45
+LIMIT = 30
+MAX_WORDS = 500
+MAX_NEW_CANDIDATES = MAX_WORDS
+MAX_WITHDRAWN_IDS = 5000
+SUPPORTED_CAPABILITIES = frozenset({
+    "plain-text", "choice-v1", "word-notes-v1", "package-delta-v1", "word-withdrawal-v1",
+    "input-v1", "recall-v1", "review-policy-v1",
+})
 SHANGHAI = timezone(timedelta(hours=8), "Asia/Shanghai")
 INTERVALS = (1, 3, 7, 14, 30, 60)
 HERE = Path(__file__).resolve()
 PRIVATE = HERE.parents[3] / "data" / "watch-words"
 BAD_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-CSV_ID = re.compile(r"^csv:(\d{4,})$")
-DYN_ID = re.compile(r"^dyn:[A-Za-z0-9._:-]{1,120}$")
+CSV_ID = re.compile(r"^csv:(\d{4,12})$")
+DYN_ID = re.compile(r"^dyn:[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class ContentError(ValueError):
@@ -175,17 +184,186 @@ def import_csv(source: Path, output: Path, expected_rows: int = 4237) -> dict[st
             "globalExceptions": len(global_issues)}
 
 
-def check_text(value: Any, label: str, maximum: int = 500) -> str:
-    if not isinstance(value, str) or not value.strip():
+def check_text(value: Any, label: str, maximum: int = 500, *, allow_empty: bool = False) -> str:
+    if not isinstance(value, str) or (not allow_empty and not value.strip()):
         raise ContentError(f"{label} 必须是非空字符串")
     if len(value) > maximum or BAD_CONTROL.search(value):
         raise ContentError(f"{label} 过长或含控制字符")
     return value
 
 
-def validate_package(pack: Any, catalog: dict[str, Any] | None = None) -> dict[str, int]:
-    if not isinstance(pack, dict) or pack.get("schemaVersion") != 1:
-        raise ContentError("日报包必须是 schemaVersion 1 对象")
+def _capabilities(value: Any) -> set[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ContentError("requiredCapabilities 必须是字符串数组")
+    for item in value:
+        check_text(item, "requiredCapabilities", 80)
+    if len(value) != len(set(value)):
+        raise ContentError("requiredCapabilities 有重复项")
+    unsupported = set(value) - SUPPORTED_CAPABILITIES
+    if unsupported:
+        raise ContentError("unsupported required capability: " + sorted(unsupported)[0])
+    return set(value)
+
+
+def _string_array(value: Any, label: str, minimum: int, maximum: int, item_max: int) -> None:
+    if not isinstance(value, list) or not minimum <= len(value) <= maximum:
+        raise ContentError(f"{label} 项数无效")
+    for item in value:
+        check_text(item, label, item_max)
+
+
+def _validate_word(word: Any, index: int, schema: int, capabilities: set[str]) -> str:
+    where = f"words[{index}]"
+    if not isinstance(word, dict):
+        raise ContentError(f"{where} 必须是对象")
+    wid = check_text(word.get("id"), where + ".id", 160)
+    match = CSV_ID.fullmatch(wid)
+    if not (match or DYN_ID.fullmatch(wid)):
+        raise ContentError(f"{where}.id 格式无效")
+    check_text(word.get("word"), where + ".word", 100)
+    check_text(word.get("phonetic"), where + ".phonetic", 120, allow_empty=True)
+    check_text(word.get("meaning"), where + ".meaning", 1200)
+    rank = word.get("rank")
+    if type(rank) is not int or rank < 1:
+        raise ContentError(f"{where}.rank 必须是正整数")
+    if match and int(match.group(1)) != rank:
+        raise ContentError(f"{where}.id 与 rank 不匹配")
+    if word.get("generatedBy") != "AI":
+        raise ContentError(f"{where}.generatedBy 必须是 AI")
+    _string_array(word.get("senses"), where + ".senses", 1, 16, 500)
+    if "collocations" in word:
+        _string_array(word["collocations"], where + ".collocations", 1, 16, 500)
+    examples = word.get("examples")
+    if not isinstance(examples, list) or not 1 <= len(examples) <= 8:
+        raise ContentError(f"{where}.examples 必须有 1-8 条")
+    for example in examples:
+        if not isinstance(example, dict):
+            raise ContentError(f"{where}.example 必须是对象")
+        check_text(example.get("en"), where + ".example.en", 500)
+        check_text(example.get("zh"), where + ".example.zh", 700)
+    if "roots" in word:
+        roots = word["roots"]
+        if isinstance(roots, str):
+            check_text(roots, where + ".roots", 1200, allow_empty=True)
+        else:
+            _string_array(roots, where + ".roots", 0, 16, 500)
+    if "notes" in word:
+        notes = word["notes"]
+        if not isinstance(notes, dict):
+            raise ContentError(f"{where}.notes 必须是对象")
+        for field in ("partOfSpeech", "forms", "chunks", "frames", "pitfalls", "retrievalTips"):
+            if field in notes:
+                _string_array(notes[field], where + ".notes." + field, 0, 24, 500)
+        if schema == 2 and "word-notes-v1" not in capabilities:
+            raise ContentError("notes 必须声明 word-notes-v1")
+        if "sections" in notes:
+            sections = notes["sections"]
+            if not isinstance(sections, list) or len(sections) > 24:
+                raise ContentError(f"{where}.notes.sections 项数无效")
+            for section in sections:
+                if not isinstance(section, dict):
+                    raise ContentError(f"{where}.notes.sections 项必须是对象")
+                check_text(section.get("title"), where + ".notes.sections.title", 100)
+                if "body" not in section and "items" not in section:
+                    raise ContentError("notes section needs body or items")
+                if "body" in section:
+                    check_text(section["body"], where + ".notes.sections.body", 2000)
+                if "items" in section:
+                    _string_array(section["items"], where + ".notes.sections.items", 0, 32, 1000)
+    questions = word.get("questions")
+    if not isinstance(questions, list) or not (2 <= len(questions) <= 16 if schema == 1
+                                                 else 1 <= len(questions) <= 32):
+        raise ContentError(f"{where}.questions 项数无效")
+    question_ids: set[str] = set()
+    modes: set[str] = set()
+    for q in questions:
+        if not isinstance(q, dict):
+            raise ContentError(f"{where}.question 必须是对象")
+        qid = check_text(q.get("id"), where + ".question.id", 160)
+        if qid in question_ids:
+            raise ContentError(f"{where} 有重复 question id")
+        question_ids.add(qid)
+        qtype = q.get("type", "choice" if schema == 1 else None)
+        if qtype not in ("choice", "input", "recall"):
+            raise ContentError(f"unsupported question type: {qtype}")
+        capability = {"choice": "choice-v1", "input": "input-v1", "recall": "recall-v1"}[qtype]
+        if qtype != "choice" and schema != 2:
+            raise ContentError(f"{qtype} questions require schemaVersion 2")
+        if schema == 2 and capability not in capabilities:
+            raise ContentError(f"{qtype} questions must require {capability}")
+        mode = q.get("mode")
+        if not isinstance(mode, str) or not (re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}", mode)
+                                             if schema == 2 else mode in ("forward", "reverse", "rare")):
+            raise ContentError(f"{where} question mode 无效")
+        modes.add(mode)
+        check_text(q.get("prompt"), where + ".prompt", 500)
+        if qtype == "choice":
+            options = q.get("options")
+            if not isinstance(options, list) or not 2 <= len(options) <= 4:
+                raise ContentError(f"{where}.options 必须有 2-4 项")
+            clean = [check_text(item, where + ".option", 500) for item in options]
+            if len({item.strip().lower() for item in clean}) != len(clean):
+                raise ContentError(f"{where}.options 有重复项")
+            ci = q.get("correctIndex")
+            if type(ci) is not int or not 0 <= ci < len(options):
+                raise ContentError(f"{where}.correctIndex 越界或非整数")
+        elif qtype == "input":
+            _string_array(q.get("acceptedAnswers"), where + ".acceptedAnswers", 1, 32, 2000)
+            _validate_match_options(q, where)
+        else:
+            check_text(q.get("answer"), where + ".answer", 2000)
+            if "acceptedAnswers" in q:
+                _string_array(q["acceptedAnswers"], where + ".acceptedAnswers", 1, 32, 2000)
+            _validate_match_options(q, where)
+        check_text(q.get("explanation"), where + ".explanation", 1200)
+    if schema == 1 and not {"forward", "reverse"}.issubset(modes):
+        raise ContentError(f"{where} 必须有 forward 和 reverse 题")
+    return wid
+
+
+def _validate_match_options(question: dict[str, Any], label: str) -> None:
+    for field in ("caseSensitive", "ignorePunctuation"):
+        if field in question and type(question[field]) is not bool:
+            raise ContentError(f"{label}.{field} 必须是布尔值")
+
+
+def _validate_review_policy(policy: Any) -> None:
+    if not isinstance(policy, dict):
+        raise ContentError("reviewPolicy 必须是对象")
+    intervals = policy.get("intervalDays")
+    if not isinstance(intervals, list) or not 1 <= len(intervals) <= 32:
+        raise ContentError("reviewPolicy.intervalDays 项数无效")
+    previous = 0
+    for value in intervals:
+        if type(value) is not int or value <= previous or value > 3650:
+            raise ContentError("review intervals must increase within 3650 days")
+        previous = value
+    for field in ("wrongAfterDays", "hardAfterDays"):
+        value = policy.get(field)
+        if type(value) is not int or not 1 <= value <= 3650:
+            raise ContentError(f"reviewPolicy.{field} 无效")
+
+
+def _id_list(value: Any, label: str, maximum: int) -> list[str]:
+    if not isinstance(value, list) or len(value) > maximum or any(not isinstance(x, str) for x in value):
+        raise ContentError(f"{label} 必须是字符串 ID 数组")
+    if len(value) != len(set(value)):
+        raise ContentError(f"{label} 有重复 ID")
+    for item in value:
+        if not (CSV_ID.fullmatch(item) or DYN_ID.fullmatch(item)):
+            raise ContentError(f"{label} ID 格式无效")
+    return value
+
+
+def validate_package(pack: Any, catalog: dict[str, Any] | None = None,
+                     ai_input: dict[str, Any] | None = None,
+                     *, require_generated_limit: bool = False,
+                     require_dynamic_evidence: bool = True) -> dict[str, int]:
+    if not isinstance(pack, dict) or type(pack.get("schemaVersion")) is not int:
+        raise ContentError("日报包 schemaVersion 必须是整数")
+    schema = pack["schemaVersion"]
+    if schema not in (1, 2):
+        raise ContentError("unsupported package schemaVersion")
     for key in ("packageId", "date", "timezone", "contentMode", "catalogSha256"):
         check_text(pack.get(key), key, 160)
     try:
@@ -196,94 +374,86 @@ def validate_package(pack: Any, catalog: dict[str, Any] | None = None) -> dict[s
         raise ContentError("date 必须为 YYYY-MM-DD") from exc
     if pack["timezone"] != "Asia/Shanghai" or pack["contentMode"] != "ai-authored":
         raise ContentError("timezone/contentMode 不符合契约")
-    if not re.fullmatch(r"[0-9a-f]{64}", pack["catalogSha256"]):
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", pack["catalogSha256"]):
         raise ContentError("catalogSha256 必须是 SHA-256")
-    if pack.get("newWordLimit") != LIMIT:
-        raise ContentError(f"newWordLimit 必须为 {LIMIT}")
+    limit = pack.get("newWordLimit")
+    min_limit = -1 if schema == 2 else 0
+    if type(limit) is not int or not min_limit <= limit <= 10000:
+        raise ContentError("newWordLimit 超出支持范围")
+    if require_generated_limit and limit != LIMIT:
+        raise ContentError(f"新生成包 newWordLimit 必须为 {LIMIT}")
+
+    if schema == 2:
+        capabilities = _capabilities(pack.get("requiredCapabilities"))
+        if "plain-text" not in capabilities:
+            raise ContentError("v2 包必须声明 plain-text")
+        revision = pack.get("revision")
+        if type(revision) is not int or revision < 1:
+            raise ContentError("revision 必须是正整数")
+        kind = pack.get("kind")
+        if kind not in ("full", "delta"):
+            raise ContentError("kind 必须是 full 或 delta")
+        if kind == "delta":
+            base_revision = pack.get("baseRevision")
+            if type(base_revision) is not int or not 1 <= base_revision < revision:
+                raise ContentError("baseRevision 必须为小于 revision 的正整数")
+            if "package-delta-v1" not in capabilities:
+                raise ContentError("delta 包必须声明 package-delta-v1")
+        elif "baseRevision" in pack:
+            raise ContentError("full 包不能包含 baseRevision")
+        if "reviewPolicy" in pack:
+            if "review-policy-v1" not in capabilities:
+                raise ContentError("reviewPolicy 必须声明 review-policy-v1")
+            _validate_review_policy(pack["reviewPolicy"])
+        if "reviewMode" in pack:
+            if "review-policy-v1" not in capabilities:
+                raise ContentError("reviewMode 必须声明 review-policy-v1")
+            if pack["reviewMode"] not in ("question", "self-recall"):
+                raise ContentError("reviewMode 必须为 question 或 self-recall")
+    else:
+        capabilities = _capabilities(pack["requiredCapabilities"]) if "requiredCapabilities" in pack else set()
+        kind = "full"
+        if "reviewPolicy" in pack or "reviewMode" in pack:
+            raise ContentError("review settings require schemaVersion 2")
+
     words = pack.get("words")
-    if not isinstance(words, list):
-        raise ContentError("words 必须是数组")
+    if not isinstance(words, list) or len(words) > MAX_WORDS:
+        raise ContentError(f"words 必须是最多 {MAX_WORDS} 项的数组")
     by_id: dict[str, dict[str, Any]] = {}
-    question_ids: set[str] = set()
-    for i, word in enumerate(words):
-        where = f"words[{i}]"
-        if not isinstance(word, dict):
-            raise ContentError(f"{where} 必须是对象")
-        wid = check_text(word.get("id"), where + ".id", 140)
-        match = CSV_ID.fullmatch(wid)
-        if not (match or DYN_ID.fullmatch(wid)):
-            raise ContentError(f"{where}.id 格式无效")
+    for index, word in enumerate(words):
+        wid = _validate_word(word, index, schema, capabilities)
         if wid in by_id:
             raise ContentError(f"重复 word id：{wid}")
         by_id[wid] = word
-        check_text(word.get("word"), where + ".word", 100)
-        check_text(word.get("phonetic"), where + ".phonetic", 160)
-        check_text(word.get("meaning"), where + ".meaning", 240)
-        if type(word.get("rank")) is not int or word["rank"] < 1:
-            raise ContentError(f"{where}.rank 必须是正整数")
-        if match and int(match.group(1)) != word["rank"]:
-            raise ContentError(f"{where}.id 与 rank 不匹配")
-        if word.get("generatedBy") != "AI":
-            raise ContentError(f"{where}.generatedBy 必须是 AI")
-        for field in ("senses", "collocations"):
-            values = word.get(field)
-            if not isinstance(values, list) or not values:
-                raise ContentError(f"{where}.{field} 至少一项")
-            for item in values:
-                check_text(item, where + "." + field, 240)
-        examples = word.get("examples")
-        if not isinstance(examples, list) or not examples:
-            raise ContentError(f"{where}.examples 至少一条")
-        for example in examples:
-            if not isinstance(example, dict):
-                raise ContentError(f"{where}.example 必须是对象")
-            check_text(example.get("en"), where + ".example.en", 300)
-            check_text(example.get("zh"), where + ".example.zh", 300)
-        if "roots" in word:
-            if not isinstance(word["roots"], list):
-                raise ContentError(f"{where}.roots 必须是数组")
-            for root in word["roots"]:
-                check_text(root, where + ".root", 240)
-        questions = word.get("questions")
-        if not isinstance(questions, list):
-            raise ContentError(f"{where}.questions 必须是数组")
-        modes: set[str] = set()
-        for q in questions:
-            if not isinstance(q, dict):
-                raise ContentError(f"{where}.question 必须是对象")
-            qid = check_text(q.get("id"), where + ".question.id", 160)
-            if qid in question_ids:
-                raise ContentError(f"重复 question id：{qid}")
-            question_ids.add(qid)
-            mode = q.get("mode")
-            if mode not in ("forward", "reverse", "rare") or mode in modes:
-                raise ContentError(f"{where} question mode 无效或重复")
-            modes.add(mode)
-            check_text(q.get("prompt"), where + ".prompt", 300)
-            options = q.get("options")
-            if not isinstance(options, list) or not 2 <= len(options) <= 4:
-                raise ContentError(f"{where}.options 必须有 2-4 项")
-            clean = [check_text(item, where + ".option", 160) for item in options]
-            if len({item.strip().casefold() for item in clean}) != len(clean):
-                raise ContentError(f"{where}.options 有重复项")
-            ci = q.get("correctIndex")
-            if type(ci) is not int or not 0 <= ci < len(options):
-                raise ContentError(f"{where}.correctIndex 越界或非整数")
-            check_text(q.get("explanation"), where + ".explanation", 300)
-        if not {"forward", "reverse"}.issubset(modes):
-            raise ContentError(f"{where} 必须有 forward 和 reverse 题")
-    new_ids, review_ids = pack.get("newWordIds"), pack.get("reviewWordIds")
-    for label, ids in (("newWordIds", new_ids), ("reviewWordIds", review_ids)):
-        if not isinstance(ids, list) or any(not isinstance(x, str) for x in ids):
-            raise ContentError(f"{label} 必须是字符串 ID 数组")
-        if len(ids) != len(set(ids)):
-            raise ContentError(f"{label} 有重复 ID")
-        if any(x not in by_id for x in ids):
-            raise ContentError(f"{label} 引用了无内容的 ID")
+
+    new_ids = _id_list(pack.get("newWordIds"), "newWordIds", MAX_NEW_CANDIDATES)
+    review_ids = _id_list(pack.get("reviewWordIds"), "reviewWordIds", MAX_WORDS)
     if set(new_ids) & set(review_ids):
         raise ContentError("新词与复习词 ID 重叠")
+    if schema == 2:
+        withdrawn = _id_list(pack.get("withdrawnWordIds"), "withdrawnWordIds", MAX_WITHDRAWN_IDS)
+        if withdrawn and "word-withdrawal-v1" not in capabilities:
+            raise ContentError("withdrawnWordIds 必须声明 word-withdrawal-v1")
+        if set(withdrawn) & set(by_id):
+            raise ContentError("active word is also withdrawn")
+        if set(withdrawn) & (set(new_ids) | set(review_ids)):
+            raise ContentError("new/review list references a withdrawn word")
+    else:
+        withdrawn = []
+
+    if kind == "delta":
+        upsert_ids = set(by_id)
+        if upsert_ids & set(withdrawn):
+            raise ContentError("delta cannot upsert a withdrawn word")
+    else:
+        if any(wid not in by_id for wid in new_ids + review_ids):
+            raise ContentError("new/review list references a missing word")
+        assigned = set(new_ids) | set(review_ids)
+        if assigned != set(by_id):
+            raise ContentError("every full-package word must be new or review")
+
     if catalog is not None:
-        if pack["catalogSha256"] != catalog.get("catalogSha256"):
+        if pack["catalogSha256"].lower() != str(catalog.get("catalogSha256", "")).lower():
             raise ContentError("日报包 catalogSha256 与当前私有底库不一致")
         lookup = {r["id"]: r for r in catalog.get("rows", [])
                   if r.get("status") == "ok" and isinstance(r.get("id"), str)}
@@ -292,17 +462,338 @@ def validate_package(pack: Any, catalog: dict[str, Any] | None = None) -> dict[s
                 source = lookup.get(wid)
                 if source is None or source.get("word") != word["word"] or source.get("rank") != word["rank"]:
                     raise ContentError(f"{wid} 与 CSV 唯一底库不匹配或待核对")
+
+    dynamic_references = set(by_id) | set(new_ids) | set(review_ids)
+    if require_dynamic_evidence and any(wid.startswith("dyn:") for wid in dynamic_references):
+        if ai_input is None:
+            raise ContentError("dyn: 词包必须提供 --ai-input 以核验真实 evidence")
+        validate_dynamic_words(pack, by_id, ai_input)
+
     return {"words": len(words), "newCandidates": len(new_ids), "reviews": len(review_ids)}
+
+
+def validate_dynamic_words(pack: dict[str, Any], words: dict[str, dict[str, Any]],
+                           ai_input: dict[str, Any]) -> None:
+    if ai_input.get("packageId") != pack.get("packageId"):
+        raise ContentError("AI input packageId 与日报包不一致")
+    if ai_input.get("date") != pack.get("date"):
+        raise ContentError("AI input date 与日报包不一致")
+    if str(ai_input.get("catalogSha256", "")).lower() != str(pack.get("catalogSha256", "")).lower():
+        raise ContentError("AI input catalogSha256 与日报包不一致")
+    manifest = ai_input.get("dynamicEvidenceManifest")
+    if not isinstance(manifest, list):
+        raise ContentError("AI input 缺少 dynamicEvidenceManifest")
+    by_id: dict[str, dict[str, Any]] = {}
+    for item in manifest:
+        if not isinstance(item, dict):
+            raise ContentError("dynamicEvidenceManifest 项必须是对象")
+        wid = item.get("id")
+        if not isinstance(wid, str) or not DYN_ID.fullmatch(wid) or wid in by_id:
+            raise ContentError("dynamicEvidenceManifest ID 无效或重复")
+        word = check_text(item.get("word"), "dynamicEvidenceManifest.word", 100)
+        evidence = item.get("evidence")
+        if not isinstance(evidence, (str, dict)) or not evidence:
+            raise ContentError(f"{wid} 缺少真实 evidence")
+        if isinstance(evidence, str):
+            check_text(evidence, "dynamicEvidenceManifest.evidence", 2000)
+        by_id[wid] = {"word": word, "evidence": evidence}
+
+    def input_rows(field: str) -> dict[str, dict[str, Any]]:
+        rows = ai_input.get(field)
+        if not isinstance(rows, list):
+            raise ContentError(f"AI input 缺少 {field}")
+        result: dict[str, dict[str, Any]] = {}
+        seen_ids: set[str] = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ContentError(f"AI input {field} 项必须是对象")
+            wid = row.get("id")
+            if (not isinstance(wid, str) or not (DYN_ID.fullmatch(wid) or CSV_ID.fullmatch(wid))
+                    or wid in seen_ids):
+                raise ContentError(f"AI input {field} 中的词 ID 无效或重复")
+            seen_ids.add(wid)
+            word = check_text(row.get("word"), f"{field}.word", 100)
+            if DYN_ID.fullmatch(wid):
+                result[wid] = {"word": word, "evidence": row.get("evidence")}
+        return result
+
+    candidates = input_rows("dynamicCandidates")
+    due_reviews = input_rows("reviewsDue")
+    new_ids = set(pack.get("newWordIds", []))
+    review_ids = set(pack.get("reviewWordIds", []))
+
+    for wid, word in words.items():
+        if wid.startswith("dyn:"):
+            source = by_id.get(wid)
+            if source is None or source["word"] != word.get("word"):
+                raise ContentError(f"{wid} 与 AI input/evidence manifest 的 ID 或词形不一致")
+
+    referenced_dynamic_ids = {wid for wid in new_ids | review_ids if wid.startswith("dyn:")}
+    for wid in referenced_dynamic_ids:
+        source = by_id.get(wid)
+        if source is None:
+            raise ContentError(f"{wid} 不在 AI input/evidence manifest 中")
+        if wid in new_ids:
+            candidate = candidates.get(wid)
+            if (candidate is None or candidate["word"] != source["word"]
+                    or candidate.get("evidence") != source["evidence"]):
+                raise ContentError(f"{wid} 不是 AI input 中有匹配 evidence 的动态新词候选")
+        if wid in review_ids:
+            due = due_reviews.get(wid)
+            if due is None or due["word"] != source["word"]:
+                raise ContentError(f"{wid} 不是 AI input 中词形匹配的到期动态复习词")
+
+
+def revision(pack: dict[str, Any]) -> int:
+    if pack.get("schemaVersion") == 1:
+        return 0
+    if pack.get("schemaVersion") != 2 or type(pack.get("revision")) is not int or pack["revision"] < 1:
+        raise ContentError("unsupported package revision")
+    return pack["revision"]
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def apply_package(existing: dict[str, Any] | None, incoming: dict[str, Any],
+                  catalog: dict[str, Any] | None = None,
+                  ai_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    validate_package(incoming, catalog, ai_input)
+    incoming_schema = incoming["schemaVersion"]
+    incoming_kind = incoming.get("kind", "full")
+    if incoming_kind == "delta" and existing is None:
+        raise ContentError("delta package requires a base package")
+    if existing is None:
+        return copy.deepcopy(incoming)
+
+    validate_package(existing, catalog, require_dynamic_evidence=False)
+    existing_schema = existing["schemaVersion"]
+    incoming_date, existing_date = incoming["date"], existing["date"]
+    if incoming_schema == 1:
+        if existing_schema == 2:
+            if incoming_date < existing_date:
+                return copy.deepcopy(existing)
+            if incoming_date > existing_date and incoming["packageId"] != existing["packageId"]:
+                return copy.deepcopy(incoming)
+            raise ContentError("cannot replace a v2 package for the same date or packageId")
+        if incoming_date < existing_date:
+            return copy.deepcopy(existing)
+        if incoming_date == existing_date and _canonical(existing) == _canonical(incoming):
+            return copy.deepcopy(existing)
+        return copy.deepcopy(incoming)
+
+    if incoming["packageId"] != existing["packageId"]:
+        if incoming_kind != "full":
+            raise ContentError("delta packageId must match its base")
+        if incoming_date < existing_date:
+            return copy.deepcopy(existing)
+        if incoming_date == existing_date:
+            raise ContentError("different packageId for the same date")
+        return copy.deepcopy(incoming)
+
+    if incoming_date != existing_date:
+        raise ContentError("package date cannot change across revisions")
+    if existing.get("catalogSha256") != incoming.get("catalogSha256"):
+        raise ContentError("catalogSha256 cannot change across package revisions")
+    current_revision, next_revision = revision(existing), revision(incoming)
+    if next_revision < current_revision:
+        raise ContentError("stale package revision")
+    if next_revision == current_revision:
+        if incoming_kind == "full" and _canonical(existing) == _canonical(incoming):
+            return copy.deepcopy(existing)
+        if incoming_kind == "delta" and _same_applied_delta(existing, incoming):
+            return copy.deepcopy(existing)
+        raise ContentError("package revision has conflicting contents")
+
+    if incoming_kind == "full":
+        _require_full_revision_identity(existing, incoming)
+        return copy.deepcopy(incoming)
+
+    if existing_schema != 2 or existing.get("kind") != "full":
+        raise ContentError("delta base must be a v2 full package")
+    if incoming.get("baseRevision") != current_revision:
+        raise ContentError("delta baseRevision does not match the current package")
+    if incoming["catalogSha256"] != existing["catalogSha256"]:
+        raise ContentError("delta catalogSha256 does not match the base package")
+
+    old_withdrawn = set(existing["withdrawnWordIds"])
+    active = {word["id"]: copy.deepcopy(word) for word in existing["words"]}
+    delta_withdrawn = set(incoming["withdrawnWordIds"])
+    if not delta_withdrawn.issubset(set(active) | old_withdrawn):
+        raise ContentError("delta may withdraw only words in its base or prior tombstones")
+    for word in incoming["words"]:
+        wid = word["id"]
+        if wid in old_withdrawn:
+            raise ContentError("withdrawn word id cannot be restored")
+        if wid in active and active[wid]["word"] != word["word"]:
+            raise ContentError("word identity cannot change across revisions")
+        active[wid] = copy.deepcopy(word)
+    withdrawn = old_withdrawn | set(incoming["withdrawnWordIds"])
+    result = copy.deepcopy(existing)
+    delta_only = {"words", "withdrawnWordIds", "newWordIds", "reviewWordIds", "kind", "baseRevision"}
+    for key, value in incoming.items():
+        if key not in delta_only and key != "requiredCapabilities":
+            result[key] = copy.deepcopy(value)
+    result.update({
+        "schemaVersion": 2,
+        "packageId": incoming["packageId"],
+        "date": incoming["date"],
+        "catalogSha256": incoming["catalogSha256"],
+        "revision": next_revision,
+        "kind": "full",
+        "newWordLimit": incoming["newWordLimit"],
+        "words": [word for wid, word in active.items() if wid not in withdrawn],
+        "withdrawnWordIds": sorted(withdrawn),
+        "newWordIds": copy.deepcopy(incoming["newWordIds"]),
+        "reviewWordIds": copy.deepcopy(incoming["reviewWordIds"]),
+    })
+    capabilities = set(existing["requiredCapabilities"]) | set(incoming["requiredCapabilities"])
+    capabilities.discard("package-delta-v1")
+    if withdrawn:
+        capabilities.add("word-withdrawal-v1")
+    result["requiredCapabilities"] = sorted(capabilities)
+    validate_package(result, catalog, require_dynamic_evidence=False)
+    return result
+
+
+def _require_full_revision_identity(existing: dict[str, Any], incoming: dict[str, Any]) -> None:
+    old_tombstones = set(existing.get("withdrawnWordIds", [])) if existing.get("schemaVersion") == 2 else set()
+    new_tombstones = set(incoming["withdrawnWordIds"])
+    if not old_tombstones.issubset(new_tombstones):
+        raise ContentError("full package must retain prior tombstones")
+    new_forms = {word["id"]: word["word"] for word in incoming["words"]}
+    for word in existing["words"]:
+        wid = word["id"]
+        if wid in new_forms and new_forms[wid] != word["word"]:
+            raise ContentError("word identity cannot change across revisions")
+        if wid not in new_forms and wid not in new_tombstones:
+            raise ContentError("removed words must be withdrawn explicitly")
+
+
+def _same_applied_delta(existing: dict[str, Any], delta: dict[str, Any]) -> bool:
+    if (existing.get("schemaVersion") != 2 or existing.get("packageId") != delta.get("packageId")
+            or existing.get("date") != delta.get("date")
+            or existing.get("catalogSha256") != delta.get("catalogSha256")
+            or revision(existing) != revision(delta)
+            or delta.get("baseRevision", revision(existing)) >= revision(existing)
+            or existing.get("newWordLimit") != delta.get("newWordLimit")
+            or existing.get("newWordIds") != delta.get("newWordIds")
+            or existing.get("reviewWordIds") != delta.get("reviewWordIds")):
+        return False
+    active = {word["id"]: word for word in existing.get("words", [])}
+    if any(wid not in active or _canonical(active[wid]) != _canonical(word)
+           for wid, word in ((word["id"], word) for word in delta.get("words", []))):
+        return False
+    if not set(delta.get("withdrawnWordIds", [])).issubset(set(existing.get("withdrawnWordIds", []))):
+        return False
+    skip = {"words", "withdrawnWordIds", "newWordIds", "reviewWordIds", "kind", "baseRevision",
+            "requiredCapabilities"}
+    return all(key in existing and _canonical(existing[key]) == _canonical(value)
+               for key, value in delta.items() if key not in skip)
 
 
 def event_day(event: dict[str, Any]) -> date:
     at = event.get("at")
-    if type(at) not in (int, float) or not math.isfinite(at):
+    if type(at) is not int or at < 0:
         raise ContentError(f"事件 {event.get('id', '?')} 的 at 不是 epoch 毫秒")
     try:
         return datetime.fromtimestamp(at / 1000, SHANGHAI).date()
     except (OverflowError, OSError, ValueError) as exc:
         raise ContentError(f"事件 {event.get('id', '?')} 的 at 无效") from exc
+
+
+def validate_event(event: dict[str, Any]) -> None:
+    eid = event.get("id")
+    if not isinstance(eid, str):
+        raise ContentError("事件缺少 id")
+    try:
+        if str(uuid.UUID(eid)) != eid.lower():
+            raise ValueError
+    except (ValueError, AttributeError) as exc:
+        raise ContentError("事件 id 必须是标准 UUID") from exc
+    device = event.get("deviceId")
+    if not isinstance(device, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", device):
+        raise ContentError("事件 deviceId 无效")
+    seq = event.get("seq")
+    if type(seq) is not int or seq < 0:
+        raise ContentError("事件 seq 必须是非负整数")
+    event_day(event)
+    kind = event.get("type")
+    if event.get("requiredCapabilities") is not None:
+        _capabilities(event["requiredCapabilities"])
+    for field, maximum in (("questionId", 160), ("sessionId", 128), ("packageId", 128)):
+        if field in event:
+            check_text(event[field], "event." + field, maximum)
+    if "packageRevision" in event:
+        value = event["packageRevision"]
+        if type(value) is not int or value < 0:
+            raise ContentError("packageRevision must be a non-negative integer")
+    if "scheduleDays" in event:
+        value = event["scheduleDays"]
+        if type(value) is not int or not 1 <= value <= 3650:
+            raise ContentError("scheduleDays must be between 1 and 3650")
+    if "evidence" in event:
+        evidence = event["evidence"]
+        if isinstance(evidence, str):
+            check_text(evidence, "event.evidence", 2000, allow_empty=True)
+        elif not isinstance(evidence, dict):
+            raise ContentError("event.evidence must be a string or object")
+    if kind == "undo":
+        target = event.get("targetEventId")
+        try:
+            if not isinstance(target, str) or str(uuid.UUID(target)) != target.lower() or target == eid:
+                raise ValueError
+        except (ValueError, AttributeError) as exc:
+            raise ContentError("undo target must be another standard UUID") from exc
+        if "wordId" in event and not (CSV_ID.fullmatch(event["wordId"]) or DYN_ID.fullmatch(event["wordId"])):
+            raise ContentError("undo wordId is invalid")
+        return
+    if kind != "answer":
+        raise ContentError("event type must be answer or undo")
+    wid = event.get("wordId")
+    if not isinstance(wid, str) or not (CSV_ID.fullmatch(wid) or DYN_ID.fullmatch(wid)):
+        raise ContentError("answer wordId is invalid")
+    mode = event.get("mode")
+    if not isinstance(mode, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}", mode):
+        raise ContentError("event mode is invalid")
+    result = event.get("result")
+    if not isinstance(result, str) or result not in {"correct", "wrong", "remember", "hard", "forgot", "known"}:
+        raise ContentError("event result is invalid")
+    attempt = event.get("attempt")
+    if not isinstance(attempt, str) or attempt not in {"primary", "retry"}:
+        raise ContentError("event attempt is invalid")
+    if type(event.get("assisted")) is not bool:
+        raise ContentError("event assisted must be boolean")
+    if "isReview" in event and type(event["isReview"]) is not bool:
+        raise ContentError("event isReview must be boolean")
+    if result == "known" and (mode != "skip" or attempt != "primary"):
+        raise ContentError("known events must be primary skip answers")
+    legacy_recall = "evidence" not in event and mode == "recall"
+    self_report = event.get("evidence") == "self-report" or legacy_recall
+    if result in {"remember", "hard", "forgot"} and not self_report:
+        raise ContentError("self-assessed results require recall mode or self-report evidence")
+    if result in {"correct", "wrong"} and legacy_recall:
+        raise ContentError("legacy recall mode must use self-assessed results")
+
+
+def merge_events(*sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    event_by_sequence: dict[tuple[str, int], str] = {}
+    for source in sources:
+        for event in source:
+            validate_event(event)
+            eid = event["id"]
+            prior = by_id.get(eid)
+            if prior is not None and prior != event:
+                raise ContentError("事件 ID 内容冲突")
+            sequence_key = (event["deviceId"], event["seq"])
+            prior_id = event_by_sequence.get(sequence_key)
+            if prior_id is not None and prior_id != eid:
+                raise ContentError("同设备 seq 对应多个事件 ID")
+            by_id[eid] = event
+            event_by_sequence[sequence_key] = eid
+    return sorted(by_id.values(), key=lambda e: (e["at"], e["deviceId"], e["seq"], e["id"]))
 
 
 def load_progress_value(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
@@ -379,33 +870,14 @@ def load_progress(path: Path | None) -> tuple[list[dict[str, Any]], list[dict[st
             available = True
     if not available:
         return [], [], {}, False
-    unique: dict[str, dict[str, Any]] = {}
-    for item in events:
-        eid = item.get("id")
-        if not isinstance(eid, str) or not eid:
-            raise ContentError("事件缺少 id")
-        if eid in unique and unique[eid] != item:
-            raise ContentError(f"事件 ID 内容冲突：{eid}")
-        unique[eid] = item
-    return list(unique.values()), dynamic, cards, True
+    return merge_events(events), dynamic, cards, True
 
 
 def project_events(events: list[dict[str, Any]], as_of_ms: int | None = None) -> dict[str, dict[str, Any]]:
     if as_of_ms is None:
         as_of_ms = int(datetime.now(SHANGHAI).timestamp() * 1000)
-    by_id: dict[str, dict[str, Any]] = {}
-    for event in events:
-        eid = event.get("id")
-        if not isinstance(eid, str) or not eid:
-            raise ContentError("事件缺少 id")
-        if eid in by_id and by_id[eid] != event:
-            raise ContentError(f"事件 ID 内容冲突：{eid}")
-        by_id[eid] = event
-    for event in by_id.values():
-        event_day(event)
-    ordered = sorted(by_id.values(), key=lambda e: (e.get("at", 0), str(e.get("deviceId", "")),
-                                                    int(e.get("seq", 0)) if str(e.get("seq", 0)).lstrip("-").isdigit() else 0,
-                                                    str(e["id"])))
+    ordered = merge_events(events)
+    by_id = {event["id"]: event for event in ordered}
     active_ids = set(by_id)
     for event in reversed(ordered):
         if event.get("type") != "undo" or event.get("at", 0) > as_of_ms or event["id"] not in active_ids:
@@ -426,17 +898,20 @@ def project_events(events: list[dict[str, Any]], as_of_ms: int | None = None) ->
         state["lastAt"] = event["at"]
         result, mode, attempt = event.get("result"), event.get("mode"), event.get("attempt", "primary")
         assisted = event.get("assisted") is True
+        self_report = (event.get("evidence") == "self-report"
+                       or ("evidence" not in event and mode == "recall"))
+        scheduled_days = event.get("scheduleDays")
         if attempt == "primary" and result != "known":
             state["known"] = False
         if result == "correct":
-            if mode == "recall":
+            if self_report:
                 state["selfRemember"] += 1
             elif assisted:
                 state["assistedRight"] += 1
             else:
                 state["objectiveRight"] += 1
         elif result == "wrong":
-            if mode == "recall":
+            if self_report:
                 state["selfForgot"] += 1
             else:
                 state["objectiveWrong"] += 1
@@ -451,18 +926,23 @@ def project_events(events: list[dict[str, Any]], as_of_ms: int | None = None) ->
             continue
         day = event_day(event)
         due = date.fromisoformat(state["dueAt"]) if state["dueAt"] else None
-        if result == "correct" and assisted:
+        if result in ("correct", "remember") and assisted:
             if state["dueAt"] is None:
-                state["stage"], state["dueAt"] = 0, (day + timedelta(days=1)).isoformat()
+                days = scheduled_days or INTERVALS[0]
+                state["stage"], state["dueAt"] = 0, (day + timedelta(days=days)).isoformat()
             continue
         if result in ("wrong", "forgot", "hard"):
-            state["stage"], state["dueAt"] = 0, (day + timedelta(days=1)).isoformat()
+            days = scheduled_days or INTERVALS[0]
+            state["stage"], state["dueAt"] = 0, (day + timedelta(days=days)).isoformat()
         elif result in ("correct", "remember"):
             if state["dueAt"] is None:
-                state["stage"], state["dueAt"] = 0, (day + timedelta(days=1)).isoformat()
+                days = scheduled_days or INTERVALS[0]
+                state["stage"], state["dueAt"] = 0, (day + timedelta(days=days)).isoformat()
             elif due is not None and day >= due:
-                state["stage"] = min(state["stage"] + 1, len(INTERVALS) - 1)
-                state["dueAt"] = (day + timedelta(days=INTERVALS[state["stage"]])).isoformat()
+                max_stage = 31 if scheduled_days is not None else len(INTERVALS) - 1
+                state["stage"] = min(state["stage"] + 1, max_stage)
+                days = scheduled_days or INTERVALS[state["stage"]]
+                state["dueAt"] = (day + timedelta(days=days)).isoformat()
             # 提前答对不推进间隔。
     return states
 
@@ -484,7 +964,7 @@ def build_ai_input(catalog: dict[str, Any], events: list[dict[str, Any]], dynami
             state = states.setdefault(wid, {"wordId": wid, "stage": None, "dueAt": None, "known": False,
                                             "lastAt": None})
             stage, due = raw.get("stage", state["stage"]), raw.get("dueAt", state["dueAt"])
-            if stage is not None and (type(stage) is not int or not 0 <= stage < len(INTERVALS)):
+            if stage is not None and (type(stage) is not int or not 0 <= stage < 32):
                 raise ContentError(f"{wid}.stage 无效")
             if due is not None:
                 try:
@@ -526,8 +1006,13 @@ def build_ai_input(catalog: dict[str, Any], events: list[dict[str, Any]], dynami
                                        "zipf": row["zipf"], "sourcePhonetic": row["phonetic"],
                                        "sourceMeaning": row["meaning"]})
     new_ids = [x["id"] for x in dynamic_candidates] + [x["id"] for x in csv_candidates]
+    evidence_manifest = [
+        {"id": item["id"], "word": item["word"], "evidence": item["evidence"]}
+        for item in dynamics
+    ]
     return {
         "schemaVersion": 1, "packageId": f"wordwatch-{target.isoformat()}",
+        "packageSchemaVersion": 2,
         "date": target.isoformat(), "timezone": "Asia/Shanghai", "contentMode": "ai-authored",
         "catalogSha256": catalog.get("catalogSha256"), "newWordLimit": LIMIT,
         "progressAvailable": progress_available,
@@ -535,13 +1020,15 @@ def build_ai_input(catalog: dict[str, Any], events: list[dict[str, Any]], dynami
         "candidateLimit": MAX_NEW_CANDIDATES,
         "knownSkippedIds": sorted(known), "reviewsDue": due_rows,
         "dynamicCandidates": dynamic_candidates, "csvCandidates": csv_candidates,
-        "newWordIds": new_ids,
+        "newWordIds": new_ids, "dynamicEvidenceManifest": evidence_manifest,
         "instructions": [
+            "输出日报包 schemaVersion=2、revision=1、kind=full、requiredCapabilities 至少包含 plain-text；choice/input/recall、notes、reviewPolicy/reviewMode 按实际内容分别声明对应能力。",
             "复习词按 reviewsDue 次序原样引用 ID，不得推测、改写学习状态。",
-            "新词先 dynamicCandidates，再按 rank 升序使用 csvCandidates；两类候选合计最多 45 个，每日最多计入 15 个新词。",
+            f"新词先 dynamicCandidates，再按 rank 升序使用 csvCandidates；两类候选合计最多 {MAX_WORDS} 个，newWordLimit 默认 {LIMIT}，可按内容把包额度设为其他非负整数或 -1 表示全部候选。",
             "progressAvailable=false 表示状态未知，不表示候选词都不认识；候选仅供选择，已认识可跳过。",
-            "动态词只能使用输入里有用户 evidence 的 dyn: ID 与 word；无材料时不得生成动态词。",
-            "每词写简洁中文义、可靠音标、至少一个常用搭配和一条英中例句、forward/reverse 各一题；有价值时加 rare 题。",
+            "动态词只能使用 dynamicEvidenceManifest 中完全一致的 dyn: ID、word 和 evidence；无证据不得生成动态词。",
+            "每词写简洁中文义、音标、例句和主动提取题；默认用 choice 与 recall，不要求手表打字；仅在合适时可选 input 并提供 acceptedAnswers，recall 用 answer，短同义答案可放入 acceptedAnswers。",
+            "可选 notes 用 word-notes-v1；可选 reviewPolicy/reviewMode 用 review-policy-v1；reviewMode 仅 question 或 self-recall。",
             "干扰项合理且互不重复，correctIndex 对应真实答案；不编造词根或词源。",
         ],
     }
@@ -556,30 +1043,139 @@ def load_catalog(path: Path) -> dict[str, Any]:
     return value
 
 
+def _validate_publish_snapshots(watch_words: Path) -> None:
+    """Require bootstrap-safe full snapshots before the private repository can be pushed."""
+    catalog_path = watch_words / "catalog.json"
+    if catalog_path.is_symlink() or not catalog_path.is_file():
+        raise ContentError("发布前必须有普通文件 catalog.json")
+    catalog = load_catalog(catalog_path)
+    ai_dir = watch_words / "ai-input"
+    if ai_dir.is_symlink() or (ai_dir.exists() and not ai_dir.is_dir()):
+        raise ContentError("ai-input 必须是仓库内普通目录")
+    daily = watch_words / "daily"
+    if daily.is_symlink():
+        raise ContentError("daily 目录不能是符号链接")
+    candidates = [(watch_words / "current.json", None)]
+    if daily.is_dir():
+        for path in sorted(daily.glob("*.json")):
+            if path.is_symlink() or not path.is_file():
+                raise ContentError("daily 包只能是普通文件")
+            name = path.stem
+            try:
+                package_day = date.fromisoformat(name)
+            except ValueError as exc:
+                raise ContentError(f"daily 包文件名日期无效：{path.name}") from exc
+            if package_day.isoformat() != name:
+                raise ContentError(f"daily 包文件名日期无效：{path.name}")
+            candidates.append((path, name))
+
+    for path, expected_date in candidates:
+        if path.is_symlink() or not path.is_file():
+            raise ContentError(f"发布快照不存在或不是普通文件：{path.name}")
+        package = read_json(path)
+        if not isinstance(package, dict):
+            raise ContentError(f"发布快照必须是对象：{path.name}")
+        if expected_date is not None and package.get("date") != expected_date:
+            raise ContentError(f"daily 包日期与文件名不一致：{path.name}")
+        if package.get("schemaVersion") == 2 and package.get("kind") != "full":
+            raise ContentError(f"发布快照必须是完整包；先用基线物化 delta：{path.name}")
+        # Validate the date before using it to construct an evidence-manifest path.
+        validate_package(package, catalog, require_dynamic_evidence=False)
+        ai_path = ai_dir / f"{package['date']}.json"
+        if ai_path.is_symlink():
+            raise ContentError(f"AI input 不能是符号链接：{ai_path.name}")
+        ai_input = read_json(ai_path) if ai_path.is_file() else None
+        validate_package(package, catalog, ai_input)
+
+
 def git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", check=False, shell=False)
 
 
+def build_package_index(watch_words: Path) -> dict[str, Any]:
+    """Build an index for the latest 14 synthetic-or-published daily package files."""
+    root = watch_words.resolve()
+    daily = root / "daily"
+    if daily.is_symlink():
+        raise ContentError("daily 目录不能是符号链接")
+    entries: list[tuple[date, dict[str, str]]] = []
+    if daily.is_dir():
+        for path in daily.glob("????-??-??.json"):
+            if path.is_symlink() or not path.is_file():
+                raise ContentError("daily 包只能是普通文件")
+            name = path.name[:-5]
+            try:
+                package_day = date.fromisoformat(name)
+            except ValueError as exc:
+                raise ContentError(f"daily 包文件名日期无效：{path.name}") from exc
+            if package_day.isoformat() != name:
+                raise ContentError(f"daily 包文件名日期无效：{path.name}")
+            try:
+                payload = json.loads(path.read_bytes())
+            except (OSError, json.JSONDecodeError) as exc:
+                raise ContentError(f"daily 包无法解析：{path.name}") from exc
+            if not isinstance(payload, dict) or payload.get("date") != name:
+                raise ContentError(f"daily 包日期与文件名不一致：{path.name}")
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            entries.append((package_day, {"path": f"daily/{path.name}", "sha256": digest}))
+    latest = sorted(entries, key=lambda item: item[0], reverse=True)[:14]
+    return {"schemaVersion": 1,
+            "packages": [entry for _, entry in sorted(latest, key=lambda item: item[0])]}
+
+
+def _validated_origin_push_url(root: Path) -> str:
+    result = git(["remote", "get-url", "--push", "--all", "origin"], root)
+    urls = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode or len(urls) != 1:
+        raise ContentError("origin 必须配置唯一 push URL")
+    value = urls[0]
+    if BAD_CONTROL.search(value) or any(ch.isspace() for ch in value):
+        raise ContentError("origin push URL 格式无效")
+    if value.startswith("https://") or value.startswith("ssh://"):
+        try:
+            parsed = urlsplit(value)
+            hostname = parsed.hostname
+            # SSH's conventional `git@host` user is not a credential; passwords are forbidden.
+            valid_user = parsed.username is None if parsed.scheme == "https" else parsed.password is None
+            valid_scheme = parsed.scheme == "https" or parsed.scheme == "ssh"
+            if (not valid_scheme or not hostname or not parsed.path or parsed.query or parsed.fragment
+                    or parsed.password is not None or not valid_user):
+                raise ValueError
+            _ = parsed.port
+        except ValueError as exc:
+            raise ContentError("origin push URL 格式无效或含凭据") from exc
+    elif not re.fullmatch(r"(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+", value):
+        raise ContentError("origin push URL 必须是 HTTPS 或 SSH URL")
+    return value
+
+
 def publish(data_root: Path, message: str | None) -> None:
     root = data_root.resolve()
-    if not (root / "watch-words").is_dir():
+    watch_words = root / "watch-words"
+    if not watch_words.is_dir():
         raise ContentError("私有 watch-words 目录不存在")
+    _validate_publish_snapshots(watch_words)
     top = git(["rev-parse", "--show-toplevel"], root)
     if top.returncode or Path(top.stdout.strip()).resolve() != root:
         raise ContentError("data-root 必须是私有数据仓库根目录")
+    branch = git(["symbolic-ref", "--quiet", "--short", "HEAD"], root)
+    branch_name = branch.stdout.strip()
+    if branch.returncode or not branch_name:
+        raise ContentError("当前 HEAD 不是可发布的分支")
+    if git(["check-ref-format", "--branch", branch_name], root).returncode:
+        raise ContentError("当前分支名无效")
     upstream = git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], root)
-    if upstream.returncode or not upstream.stdout.strip():
-        raise ContentError("当前分支没有 upstream")
-    ahead = git(["rev-list", "--count", f"{upstream.stdout.strip()}..HEAD"], root)
+    if upstream.returncode or upstream.stdout.strip() != f"origin/{branch_name}":
+        raise ContentError("当前分支 upstream 必须是 origin 的同名分支")
+    ahead = git(["rev-list", "--count", f"origin/{branch_name}..HEAD"], root)
     if ahead.returncode or ahead.stdout.strip() != "0":
         raise ContentError("本地有未发布提交或无法确认远端基线；拒绝扩大推送范围")
-    remote = git(["remote", "get-url", "--push", "origin"], root)
-    if remote.returncode or re.search(r"://[^/@\s]+:[^/@\s]+@", remote.stdout.strip()):
-        raise ContentError("origin push 配置无效或含内嵌凭据；请使用已登录 GCM")
+    push_url = _validated_origin_push_url(root)
     staged = git(["diff", "--cached", "--name-only", "-z"], root)
     if staged.returncode or staged.stdout:
         raise ContentError("暂存区已有变更；为保护其他工作，本命令不继续")
+    write_json(watch_words / "index.json", build_package_index(watch_words))
     if git(["add", "--", "watch-words"], root).returncode:
         raise ContentError("git add 失败；原始错误已省略以保护凭据")
     staged = git(["diff", "--cached", "--name-only", "-z"], root)
@@ -598,7 +1194,7 @@ def publish(data_root: Path, message: str | None) -> None:
     committed_paths = [p.replace("\\", "/") for p in names.stdout.split("\0") if p]
     if names.returncode or any(p != "watch-words" and not p.startswith("watch-words/") for p in committed_paths):
         raise ContentError("最近提交范围核验失败；未执行推送")
-    if git(["push"], root).returncode:
+    if git(["push", "--", push_url, f"HEAD:refs/heads/{branch_name}"], root).returncode:
         raise ContentError("本地提交已完成，但 push 失败；检查 GCM 登录和网络，不要复制令牌到命令行")
     print(f"已发布 watch-words 范围，共 {len(committed_paths)} 个文件；未读取、保存或打印令牌。")
 
@@ -613,6 +1209,12 @@ def parser() -> argparse.ArgumentParser:
     check = sub.add_parser("validate-package", help="验证日报包和 CSV 对应关系")
     check.add_argument("package", type=Path)
     check.add_argument("--catalog", type=Path, default=PRIVATE / "catalog.json")
+    check.add_argument("--ai-input", type=Path, help="核验 dyn: ID、词形和 evidence manifest")
+    check.add_argument("--base", type=Path, help="校验 delta/full revision 与现有包的衔接")
+    check.add_argument("--materialized-output", type=Path,
+                       help="把已校验的完整结果写为 full 快照；delta 必须同时传 --base")
+    check.add_argument("--require-generated-limit", action="store_true",
+                       help=f"仅用于新生成包的验收，要求 newWordLimit={LIMIT}")
     prep = sub.add_parser("prepare-ai-input", help="依据真实进度生成私有 AI 输入")
     prep.add_argument("--catalog", type=Path, default=PRIVATE / "catalog.json")
     prep.add_argument("--progress", type=Path, default=PRIVATE)
@@ -646,7 +1248,28 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "validate-package":
             pack = read_json(args.package)
             catalog = load_catalog(args.catalog) if args.catalog.exists() else None
-            print(json.dumps({"valid": True, **validate_package(pack, catalog)}, ensure_ascii=False))
+            ai_input = read_json(args.ai_input) if args.ai_input else None
+            result = validate_package(pack, catalog, ai_input,
+                                      require_generated_limit=args.require_generated_limit)
+            applied = None
+            if pack.get("schemaVersion") == 2 and pack.get("kind") == "delta":
+                if args.base is None:
+                    raise ContentError("delta package validation requires --base")
+                applied = apply_package(read_json(args.base), pack, catalog, ai_input)
+                result["appliedRevision"] = revision(applied)
+            elif args.base is not None:
+                applied = apply_package(read_json(args.base), pack, catalog, ai_input)
+                result["appliedRevision"] = revision(applied)
+            if args.materialized_output is not None:
+                output_path = args.materialized_output.resolve()
+                protected_paths = {args.package.resolve()}
+                if args.base is not None:
+                    protected_paths.add(args.base.resolve())
+                if output_path in protected_paths:
+                    raise ContentError("materialized-output 必须独立于输入包和基线")
+                write_json(output_path, applied if applied is not None else pack)
+                result["materializedOutput"] = str(output_path)
+            print(json.dumps({"valid": True, **result}, ensure_ascii=False))
             return 0
         if args.command == "prepare-ai-input":
             catalog = load_catalog(args.catalog)

@@ -1,0 +1,179 @@
+{
+  "full": {
+    "schemaVersion": 2,
+    "packageId": "synthetic-2030-04-05",
+    "date": "2030-04-05",
+    "timezone": "Asia/Shanghai",
+    "contentMode": "ai-authored",
+    "catalogSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "newWordLimit": -1,
+    "revision": 1,
+    "kind": "full",
+    "requiredCapabilities": [
+      "plain-text",
+      "choice-v1",
+      "input-v1",
+      "recall-v1",
+      "word-notes-v1",
+      "review-policy-v1"
+    ],
+    "reviewMode": "self-recall",
+    "reviewPolicy": {
+      "intervalDays": [1, 3, 7],
+      "wrongAfterDays": 1,
+      "hardAfterDays": 2
+    },
+    "words": [
+      {
+        "id": "csv:0001",
+        "word": "alpha",
+        "rank": 1,
+        "phonetic": "/ˈælfə/",
+        "meaning": "示例义甲",
+        "generatedBy": "AI",
+        "senses": ["示例义甲"],
+        "roots": ["synthetic-root"],
+        "notes": {
+          "partOfSpeech": ["noun"],
+          "forms": ["alphas"],
+          "chunks": ["alpha sample"],
+          "frames": ["This is alpha."],
+          "pitfalls": ["synthetic contrast"],
+          "retrievalTips": ["recall the sample"],
+          "sections": [
+            {"title": "Extra note", "body": "Synthetic body."},
+            {"title": "Examples", "items": ["Synthetic item."]}
+          ]
+        },
+        "examples": [{"en": "Alpha is first.", "zh": "Alpha 是示例项一。"}],
+        "questions": [
+          {
+            "id": "q-alpha-choice",
+            "type": "choice",
+            "mode": "recognize",
+            "prompt": "Choose the synthetic meaning.",
+            "options": ["乙", "丙", "示例义甲"],
+            "correctIndex": 2,
+            "explanation": "这是合成测试答案。"
+          },
+          {
+            "id": "q-alpha-input",
+            "type": "input",
+            "mode": "spell-check",
+            "prompt": "Type the synthetic word.",
+            "acceptedAnswers": ["alpha", "ALPHA"],
+            "caseSensitive": false,
+            "ignorePunctuation": false,
+            "explanation": "输入匹配合成答案。"
+          },
+          {
+            "id": "q-alpha-recall",
+            "type": "recall",
+            "mode": "active-recall",
+            "prompt": "Recall the synthetic word.",
+            "answer": "alpha",
+            "acceptedAnswers": ["alpha", "ALPHA"],
+            "caseSensitive": false,
+            "explanation": "自评题的合成答案。"
+          }
+        ],
+        "x-word-optional": {"retained": true}
+      },
+      {
+        "id": "csv:0002",
+        "word": "beta",
+        "rank": 2,
+        "phonetic": "/ˈbeɪtə/",
+        "meaning": "示例义乙",
+        "generatedBy": "AI",
+        "senses": ["示例义乙"],
+        "examples": [{"en": "Beta is second.", "zh": "Beta 是示例项二。"}],
+        "questions": [
+          {
+            "id": "q-beta-choice",
+            "type": "choice",
+            "mode": "synthetic-mode",
+            "prompt": "Choose the second synthetic meaning.",
+            "options": ["示例义乙", "甲"],
+            "correctIndex": 0,
+            "explanation": "这是合成测试答案。"
+          }
+        ]
+      }
+    ],
+    "newWordIds": ["csv:0001", "csv:0002"],
+    "reviewWordIds": [],
+    "withdrawnWordIds": [],
+    "x-package-optional": {"retained": true}
+  },
+  "delta": {
+    "schemaVersion": 2,
+    "packageId": "synthetic-2030-04-05",
+    "date": "2030-04-05",
+    "timezone": "Asia/Shanghai",
+    "contentMode": "ai-authored",
+    "catalogSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "newWordLimit": -1,
+    "revision": 2,
+    "kind": "delta",
+    "baseRevision": 1,
+    "requiredCapabilities": [
+      "plain-text",
+      "choice-v1",
+      "input-v1",
+      "recall-v1",
+      "word-notes-v1",
+      "package-delta-v1",
+      "word-withdrawal-v1"
+    ],
+    "words": [
+      {
+        "id": "csv:0001",
+        "word": "alpha",
+        "rank": 1,
+        "phonetic": "/ˈælfə/",
+        "meaning": "更新后的示例义甲",
+        "generatedBy": "AI",
+        "senses": ["更新后的示例义甲"],
+        "roots": "synthetic-root",
+        "notes": {
+          "partOfSpeech": ["noun"],
+          "sections": [{"title": "Revision note", "body": "Synthetic revision."}]
+        },
+        "examples": [{"en": "Alpha is updated.", "zh": "Alpha 是更新的示例项。"}],
+        "questions": [
+          {
+            "id": "q-alpha-choice",
+            "type": "choice",
+            "mode": "recognize",
+            "prompt": "Choose the updated synthetic meaning.",
+            "options": ["乙", "更新后的示例义甲"],
+            "correctIndex": 1,
+            "explanation": "这是合成修订答案。"
+          },
+          {
+            "id": "q-alpha-input",
+            "type": "input",
+            "mode": "spell-check",
+            "prompt": "Type the synthetic word.",
+            "acceptedAnswers": ["alpha"],
+            "explanation": "输入匹配合成答案。"
+          },
+          {
+            "id": "q-alpha-recall",
+            "type": "recall",
+            "mode": "active-recall",
+            "prompt": "Recall the synthetic word.",
+            "answer": "alpha",
+            "explanation": "自评题的合成答案。"
+          }
+        ],
+        "x-word-optional": {"retained": true}
+      }
+    ],
+    "newWordIds": ["csv:0001"],
+    "reviewWordIds": [],
+    "withdrawnWordIds": ["csv:0002"],
+    "x-delta-optional": {"retained": true}
+  }
+}

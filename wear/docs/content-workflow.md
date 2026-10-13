@@ -18,7 +18,7 @@ AI 作者在本地对话中撰写内容；CLI 不调用外部 AI API。所有输
 
 1. 先确认手表同步成功，再从私有数据仓库拉取远端最新 events：`git -C D:\Codex\wear-words\data pull --ff-only`。确保当前分支有 upstream；使用已登录的 GCM。CLI 随后直接读取私有 `watch-words/events/*.json`（每份格式为 `{schemaVersion:1,deviceId,events:[...]}`），不依赖 AI 手工抄录或补造进度。每晚记录已确认同步与拉取完成的截止时间；生成输入时通过 `--cutoff-at` 传入带时区的 ISO-8601 时间，输入文件会保存到 `progressCutoffAt`。省略该参数时会记录生成时间，因此只有刚完成同步和拉取后立即运行才可省略。
 
-2. 按计划学习日期生成 AI 输入；若今晚制作次日学习包，`--date` 填次日日期。到期复习排最前；新动态词只能来自真实用户添加记录及其 evidence，优先于 CSV；CSV 按原 rank 顺序。动态词与 CSV 候选合计最多 45 个，每日新词上限固定为 15。已认识的词可跳过并继续取后续候选。缺少进度只表示状态未知，不表示用户不认识所有候选。
+2. 按计划学习日期生成 AI 输入；若今晚制作次日学习包，`--date` 填次日日期。到期复习排最前；新动态词只能来自真实用户添加记录及其 evidence，优先于 CSV；CSV 按原 rank 顺序。动态词与 CSV 候选合计最多 45 个，新生成词包的每日新词上限固定为 30（APK 兼容 15–30 的历史词包）。已认识的词可跳过并继续取后续候选。缺少进度只表示状态未知，不表示用户不认识所有候选。
 
 ~~~powershell
 python D:\Codex\wear-words\source\wear\tools\content_pipeline.py prepare-ai-input --date 2026-10-13 --cutoff-at "2026-10-12T22:45:00+08:00"

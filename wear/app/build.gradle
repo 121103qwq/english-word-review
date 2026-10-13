@@ -7,11 +7,29 @@ android {
         applicationId 'cn.wordwatch.app'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '1.0.0'
+        versionCode 3
+        versionName '1.1.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            all {
+                jvmArgs += [
+                    '--add-opens=java.base/java.lang=ALL-UNNAMED',
+                    '--add-opens=java.base/java.util=ALL-UNNAMED',
+                    '--add-opens=java.base/java.io=ALL-UNNAMED',
+                    '--add-opens=java.base/java.net=ALL-UNNAMED',
+                    '--add-opens=java.base/java.security=ALL-UNNAMED',
+                    '--add-opens=java.base/java.text=ALL-UNNAMED',
+                    '--add-opens=java.base/jdk.internal.access=ALL-UNNAMED',
+                    '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED',
+                    '--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED'
+                ]
+            }
+        }
+    }
     signingConfigs {
         personal {
             if (System.getenv('WORDWATCH_KEYSTORE')) {
@@ -47,6 +65,20 @@ tasks.named('preBuild').configure { dependsOn 'prepareSeed' }
 dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
+    testImplementation 'org.robolectric:robolectric:4.17'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
+
+tasks.withType(Test).configureEach {
+    systemProperty 'wordwatch.renderDir', layout.buildDirectory.dir('reports/wordwatch-render').get().asFile.absolutePath
+    systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+    def robolectricRuntimeDir = layout.buildDirectory.dir('robolectric-runtime').get().asFile
+    def sdk35RuntimeJar = new File(robolectricRuntimeDir, 'android-all-instrumented-15-robolectric-13954326-i7.jar')
+    if (sdk35RuntimeJar.isFile()) {
+        systemProperty 'robolectric.dependency.dir', robolectricRuntimeDir.absolutePath
+    }
+    def testRuntimeTmp = layout.buildDirectory.dir('tmp/test-runtime').get().asFile
+    systemProperty 'java.io.tmpdir', testRuntimeTmp.absolutePath
+    doFirst { testRuntimeTmp.mkdirs() }
 }

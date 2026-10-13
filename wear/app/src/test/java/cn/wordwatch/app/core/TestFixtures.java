@@ -4,6 +4,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -26,19 +28,30 @@ final class TestFixtures {
         JSONArray words = new JSONArray();
         JSONArray newWords = new JSONArray();
         JSONArray reviews = new JSONArray();
-        int rank = 1;
+        int generatedRank = 10000;
         for (String id : newIds) {
-            words.put(word(id, rank++));
+            words.put(word(id, rankFor(id, generatedRank++)));
             newWords.put(id);
         }
         for (String id : reviewIds) {
-            words.put(word(id, rank++));
+            words.put(word(id, rankFor(id, generatedRank++)));
             reviews.put(id);
         }
         pack.put("words", words);
         pack.put("newWordIds", newWords);
         pack.put("reviewWordIds", reviews);
         return pack;
+    }
+
+    private static int rankFor(String id, int fallback) {
+        return id.startsWith("csv:") ? Integer.parseInt(id.substring(4)) : fallback;
+    }
+
+    static JSONObject contractVectors() throws Exception {
+        try (InputStream input = TestFixtures.class.getResourceAsStream("/package-contract-vectors.json")) {
+            if (input == null) throw new IllegalStateException("package contract vectors not found");
+            return new JSONObject(new String(input.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     static JSONObject word(String id, int rank) throws JSONException {

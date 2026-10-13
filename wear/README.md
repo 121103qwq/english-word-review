@@ -1,49 +1,54 @@
-# 词序 · 圆屏手表版 v1
+# 词序 · 圆屏手表版 1.1
 
-独立的原生 Android / Wear OS 应用（Android 8.0 / API 26 起），在圆屏上背词、点选题和翻面复习。与同仓库旧 HTML 应用并存；v1 不改旧应用的数据格式。
+独立原生 Android / Wear OS 应用，最低 Android 8.0 / API 26。学习内容由用户指定 CSV 和 AI 准备的私有词包提供；不接入额外词典，不把个人内容或 Token 放进公开源码和公开 APK。
 
-## 内容与进度
+## 以后怎样调整
 
-- 用户指定 CSV 是唯一底库，保存原 rank、原始字段和校验值。不会引入额外词典。异常导出标识保留并排除出题，等明确校对后再使用。
-- AI 离线准备释义、例句、搭配及题目；手表不调用 AI API。每天默认 15 个新词，到期复习优先，熟词略过后从预备候选递补。动态新增词须有用户输入或学习材料的明确依据。
-- 客观答题、看过讲解后的作答、回忆自评和熟词略过分别记录。做过或略过不等于已经掌握。
-- 复习按上海自然日和 1/3/7/14/30/60 天间隔安排。错词可以在隔开至少五题后再试一次，重试不重复推进间隔。
-- 事件与答题页状态一起写入本机原子文件；关闭后可继续。同步以不可变事件 ID 合并、去重，并在 GitHub 文件冲突时重读重试。
-- 自动同步限 Wi-Fi/以太网，在进入应用、结束一轮及系统允许的约 6 小时后台任务中尝试。后台时机由系统决定；立即同步可使用移动网络。
+默认“跟随词包”，每日学习量由词包的 `newWordLimit` 决定。v2 中 `-1` 表示学习本包全部未学候选，0 表示只复习；也可在设置里选“个人每日上限”或“只复习”。30 仅是生成模板的默认值，不是 APK 的固定上限。个人设置与词包限制共同生效；按上海自然日从有效作答记录计算剩余额度。离线多台设备各自作答可能暂时超额，同步后按有效事件确定性合并，不承诺无联网情况下的全局锁定。
 
-## 安装及 GitHub Token
+AI 可直接调整以下词包内容，无需修改 APK：
 
-安装个人签名 APK 后即可使用内置首批学习包。开发版包名为 `cn.wordwatch.app.dev`，正式版为 `cn.wordwatch.app`。更新请保留原签名、直接覆盖安装。
+- 新词、复习词、学习量、作者安排的题目；v1 历史包继续可用。
+- 选择题、输入答案题（词形、拼写、词块、填空）、回忆自评题；题型模式可命名，输入答案可设置同义答案、大小写和标点规则。
+- 全部例句、词性、词形、词块、句法框架、易错点、提取提示，以及自定义标题/正文/列表讲解栏目。所有内容以纯文本展示。
+- 复习间隔、错误与模糊的再次复习日期；辅助作答、自评和独立作答分别记录，查看讲解或撤销后重答不作为独立掌握证据。
+- 多日预下载、同日修订、精确基线增量包、词项撤回，以及可以忽略的可选扩展。
 
-在 GitHub 设置创建 **fine-grained personal access token**：只选择自己的私有学习数据仓库，Repository permissions → **Contents: Read and write**。有效期按自己的使用习惯设置，到期后换新。Token 不进入源码、APK 或学习数据。
+见 [完整词包协议](docs/package-protocol.md) 和 [AI 内容工作流](docs/content-workflow.md)。未实现的必需能力会明确提示升级，保留原词包并继续上传学习记录，避免静默丢掉新规则。新的系统能力或程序缺陷仍可能需要 APK 更新；现有数据接口不执行词包中的任意代码。
 
-应用设置填写账号、仓库、分支与 Token，点“保存配置”。Token 使用 Android Keystore 加密保存，设置页禁止屏幕截图；留空保存会保留已有 Token。长 Token 推荐从电脑输入：
+## 学习与记录
 
-```powershell
-python .\configure-watch.py --adb 'D:\Android\platform-tools\adb.exe' --serial '手表的ADB地址或序列号'
-```
+日常学习无需打字：选择题点选；回忆题和输入题默认先回忆、翻面，再点“记得 / 模糊 / 忘了”。只有主动点“改为输入作答”才显示键盘。个人学习量用按钮增减，也保留手动填写入口。独立输入与自评按各自的证据类型记录。
 
-先在手表开发者选项开启 ADB，并完成设备授权/无线配对；工具只操作指定的已连接设备。Token 在终端中隐藏输入，随后通过 ADB 标准输入传给已聚焦的设置字段，不写入参数或日志。工具会保存配置并触发同步。电脑应当是可信设备。
+到期复习优先；会话冻结词包及题目身份，后台换包不会把新包题目混入旧会话。每题重新核对已同步进度、撤回词和剩余额度；跨日重建队列，已保存答案保留。错题在后续日期重新提取，不立即重复刚看过答案的原题。熟词略过可从同一包的候选中补位。
 
-数据目录固定为私有仓库中的 `watch-words/current.json` 与 `watch-words/events/<device>-YYYY-MM.json`。首次只有 APK 和 Token 还不够：数据仓库必须先有经过验证的 current.json。晚间 AI 工作流见 [交接文档](docs/content-workflow.md)。手表尚未上传的记录不会出现在 AI 端。
+答案、撤销及当前反馈用本机原子文件保存；合并使用事件 ID 和设备序号去重/检测冲突。多个设备的有效记录决定复习状态。记录上传与词包下载分别报告；词包损坏、版本不兼容或外来坏批次不会直接阻断其他有效记录上传。跨月部分上传仅确认成功的事件，失败部分留在本机重试。
 
-## 编译
+自动同步使用固定的 Wi-Fi/以太网连接，网络丢失或后台任务被系统停止后取消后续请求。手动同步可使用移动网络。系统约六小时后台任务的实际运行时间由手表系统决定。词列表按页显示，避免几千个词一次建立全部界面。
 
-需要 JDK 17、Android SDK Platform 35、Build Tools 35 和 Gradle 8.9。Gradle/SDK 缓存可以放 D 盘。项目不需要原网页的 Node/Tauri/Capacitor 工具链。
+## 安装与私有同步
+
+正式包名 `cn.wordwatch.app`，开发测试包名 `cn.wordwatch.app.dev`。用相同签名覆盖安装，不卸载、不清除数据。公开发布的 APK 不含个人首包；已经安装的用户保留现有内容，新设备配置后从私有仓库下载。
+
+GitHub fine-grained Token 只授权自己的学习数据仓库 **Contents: Read and write**。在“学习与同步”填写账号、仓库、分支和 Token，留空保存保留已有 Token。Token 只进入 Android Keystore 加密空间；设置页禁止截图。数据路径为 `watch-words/current.json`、可选 `watch-words/index.json`、`watch-words/daily/YYYY-MM-DD.json` 和 `watch-words/events/`。生成/发布工具验证原始 CSV 校验值及动态词的明确证据，默认不引入其他词库。
+
+## 应用升级通道
+
+“学习与同步 → 检查应用更新”读取固定公开仓库的 GitHub 最新正式 Release 和 `wordwatch-update.json`。它不使用学习仓库的私有 Token。下载限制 HTTPS 域名、大小和跳转；APK 需通过 SHA-256、包名、版本号、最低系统版本以及与当前安装一致的签名检查，才交给系统确认安装。取消、断网或校验失败保留现有应用与学习记录。某些手表没有侧载授权/安装界面，此时界面提示用 USB 覆盖安装。
+
+发布新版本须保持签名私钥、单调递增 versionCode，并上传 APK 及对应版本清单；[发布工具](tools/release.py) 会检查公开包不包含私人首包。签名轮换不默默接受，需有明确迁移版本。
+
+## 编译与验证
+
+需要 JDK 17、Android SDK Platform 35、Build Tools 35 和 Gradle 8.9。Gradle/SDK 缓存可放 D 盘；此独立 Android 模块不需要网页的 Node/Tauri/Capacitor 工具链。
 
 ```powershell
 $env:JAVA_HOME='JDK17目录'
 $env:ANDROID_HOME='Android SDK目录'
 $env:GRADLE_USER_HOME='D:\CodexCache\gradle'
-# 可选：构建时注入私有首包；默认不包含个人学习内容
-$env:WORDWATCH_SEED_FILE='D:\private-data\watch-words\current.json'
-.\gradlew.bat --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+# 公开发布不设置 WORDWATCH_SEED_FILE；私人离线首包仅可本地注入。
+.\gradlew.bat --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease
+python -m unittest discover -s tools -p "test_*.py"
 ```
 
-正式签名另设 `WORDWATCH_KEYSTORE` 与 `WORDWATCH_SIGN_PASS`，密钥别名为 `wordwatch`，执行 `:app:assembleRelease`。签名文件和密码由个人独立保管，不提交 Git。未设置私钥时不生成可安装的已签名正式包。
-
-`app/src/androidTest` 是仅限模拟器的原生端到端测试，测试 APK 不包含在正式包中。它覆盖圆屏配置、点选/撤销/提示后答对/熟词递补/到期回忆、Keystore，以及可选隔离目录中的真实 GitHub 上传与去重。运行需至少 21 个新词候选的 AI 首包和干净的模拟器学习状态。单元测试使用合成样例，不包含个人 CSV。
-
-## 边界
-
-v1 没有语音、拼写键盘、手机伴随 App、额外词库或自动定时生成任务。晚间 AI 对话是次日内容准备入口。跨设备实时推送、Google Play 上架和旧 HTML 进度迁移不属于此版；真实手表显示与无线网络还需要安装后的验收。
+正式签名设置 `WORDWATCH_KEYSTORE`、`WORDWATCH_SIGN_PASS`，密钥别名 `wordwatch`。凭据与私钥不提交 Git。协议/同步/会话单测使用合成数据，Robolectric NATIVE 图形测试实际测量/布局/绘制圆形 192dp、227dp 及大字体页面，输出到 `app/build/reports/wordwatch-render`，无需启动模拟器。软件 Canvas 结果不等同实机 GPU、键盘、Keystore 或系统安装器验收。
