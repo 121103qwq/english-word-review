@@ -158,7 +158,7 @@ public final class MainActivityRenderTest {
         capture(activity, "round-192-modes", false);
         click(activity, "熟词生义");
         click(activity, "检查应用更新");
-        assertTextExists(activity, "当前版本 1.1.0");
+        assertTextExists(activity, "当前版本 1.1.1");
         capture(activity, "round-192-updates", false);
         click(activity, "返回");
         click(activity, "个人每日上限");
@@ -507,9 +507,7 @@ public final class MainActivityRenderTest {
     }
 
     private static JSONObject readSavedState() throws Exception {
-        File stateFile = new File(RuntimeEnvironment.getApplication().getFilesDir(), "learning-state.json");
-        byte[] bytes = java.nio.file.Files.readAllBytes(stateFile.toPath());
-        return new JSONObject(new String(bytes, StandardCharsets.UTF_8));
+        return new cn.wordwatch.app.LearningStorage(RuntimeEnvironment.getApplication().getFilesDir()).read();
     }
 
     private static String sessionSummary(JSONObject state) {
@@ -597,7 +595,8 @@ public final class MainActivityRenderTest {
 
     private MainActivity launch() {
         Intent intent = new Intent(RuntimeEnvironment.getApplication(), MainActivity.class);
-        return Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        awaitPrepared(activity); return activity;
     }
 
     private static void assertRound(Activity activity, int expectedDp) {
@@ -821,6 +820,7 @@ public final class MainActivityRenderTest {
     }
 
     private static int[] measureActivity(Activity activity) {
+        awaitPrepared(activity);
         float density = activity.getResources().getDisplayMetrics().density;
         int width = activity.getResources().getDisplayMetrics().widthPixels;
         int height = activity.getResources().getDisplayMetrics().heightPixels;
@@ -831,6 +831,19 @@ public final class MainActivityRenderTest {
                 View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
         decor.layout(0, 0, width, height);
         return new int[]{width, height};
+    }
+
+    public static void awaitPrepared(Activity activity) {
+        try {
+            Field field = MainActivity.class.getDeclaredField("busy"); field.setAccessible(true);
+            long deadline = System.nanoTime() + 30_000_000_000L;
+            do {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle();
+                if (!field.getBoolean(activity)) return;
+                Thread.sleep(1);
+            } while (System.nanoTime() < deadline);
+            throw new AssertionError("Screen preparation timed out");
+        } catch (ReflectiveOperationException | InterruptedException e) { throw new AssertionError(e); }
     }
 
     private static String repeat(String value, int count) {

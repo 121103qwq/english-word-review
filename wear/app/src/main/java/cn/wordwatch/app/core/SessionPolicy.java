@@ -19,6 +19,16 @@ public final class SessionPolicy {
         JSONObject s = new JSONObject(source.toString());
         JSONObject frozen = s.getJSONObject("words");
         List<StudyEngine.Task> eligible = StudyEngine.queue(pack, frozen, events, now, limit);
+        return reconcilePrepared(s, availableWords, now, eligible);
+    }
+
+    /** Reuses an already checked eligible queue. Frozen pack/word definitions are read-only;
+     * only the small session envelope and queue are replaced. */
+    public static JSONObject reconcilePrepared(JSONObject source, JSONObject availableWords, long now, List<StudyEngine.Task> eligible) throws Exception {
+        if (source == null || !Instant.ofEpochMilli(now).atZone(StudyEngine.STUDY_ZONE).toLocalDate().toString().equals(source.optString("date"))) return null;
+        JSONObject s = new JSONObject();
+        for (java.util.Iterator<String> keys = source.keys(); keys.hasNext();) { String key = keys.next(); s.put(key, source.get(key)); }
+        JSONObject frozen = s.getJSONObject("words");
         Set<String> allowed = new HashSet<>();
         for (StudyEngine.Task t : eligible) if (availableWords.has(t.wordId)) allowed.add(t.wordId);
         JSONArray original = s.getJSONArray("queue"), queue = new JSONArray();
