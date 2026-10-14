@@ -18,9 +18,17 @@ public final class SyncJob extends JobService {
     }
     @Override public boolean onStartJob(JobParameters params) {
         stopped.set(false);
-        return SyncCoordinator.start(this, false, (message, success) -> {
-            if (!stopped.get()) jobFinished(params, !success);
+        StudyWork.execute(() -> {
+            if (stopped.get()) return;
+            boolean started = SyncCoordinator.start(this, false, (message, success) -> {
+                if (!stopped.get()) jobFinished(params, !success);
+            });
+            if (stopped.get()) SyncCoordinator.cancelAutomaticSync();
+            else if (!started) new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (!stopped.get()) jobFinished(params, false);
+            });
         });
+        return true;
     }
     @Override public boolean onStopJob(JobParameters params) {
         stopped.set(true);

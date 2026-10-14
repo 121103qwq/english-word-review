@@ -103,7 +103,7 @@ def publish(args):
     asset = upload('WordWatch-' + identity['versionName'] + '.apk', apk.read_bytes(), 'application/vnd.android.package-archive')
     manifest = dict(schemaVersion=1, channel='stable', **identity, apkAssetId=asset['id'], apkSize=apk.stat().st_size,
                     apkSha256=sha256(apk), sourceCommit=args.target_sha, supportedPackageSchemas=[1, 2],
-                    notes='学习量跟随词包；支持可配置题型、讲解和复习策略、多日预下载、增量修订与独立记录同步。')
+                    notes=Path(args.notes).read_text(encoding='utf-8').strip().split('\n\n', 1)[0][:1000])
     manifest_bytes = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
     upload('wordwatch-update.json', manifest_bytes, 'application/json')
     if args.source:

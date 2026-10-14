@@ -33,6 +33,20 @@ public final class WatchFlowTest {
         activity = (MainActivity) getInstrumentation().startActivitySync(new android.content.Intent(getInstrumentation().getTargetContext(), MainActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
         store = AppStore.get(activity);
         getInstrumentation().waitForIdleSync();
+        waitForStudyIdle();
+    }
+    private void waitForStudyIdle() throws Exception {
+        java.lang.reflect.Field field = MainActivity.class.getDeclaredField("busy"); field.setAccessible(true);
+        long deadline = System.nanoTime() + 30_000_000_000L;
+        do {
+            java.util.concurrent.atomic.AtomicBoolean busy = new java.util.concurrent.atomic.AtomicBoolean(true);
+            getInstrumentation().runOnMainSync(() -> {
+                try { busy.set(field.getBoolean(activity)); } catch (IllegalAccessException e) { throw new AssertionError(e); }
+            });
+            if (!busy.get()) { getInstrumentation().waitForIdleSync(); return; }
+            Thread.sleep(5);
+        } while (System.nanoTime() < deadline);
+        fail("Study worker did not finish");
     }
     private Button find(View view, String text) {
         if (view instanceof Button && text.contentEquals(((Button) view).getText())) return (Button) view;
@@ -42,14 +56,15 @@ public final class WatchFlowTest {
         }
         return null;
     }
-    private void click(String text) {
+    private void click(String text) throws Exception {
         getInstrumentation().runOnMainSync(() -> {
             Button button = find(activity.getWindow().getDecorView(), text);
             assertNotNull("Button missing: " + text, button); button.performClick();
         });
         getInstrumentation().waitForIdleSync();
+        waitForStudyIdle();
     }
-    private void back() { getInstrumentation().runOnMainSync(() -> activity.onBackPressed()); getInstrumentation().waitForIdleSync(); }
+    private void back() throws Exception { getInstrumentation().runOnMainSync(() -> activity.onBackPressed()); getInstrumentation().waitForIdleSync(); waitForStudyIdle(); }
     private JSONObject read(File file) throws Exception {
         try (FileInputStream input = new FileInputStream(file)) {
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(); byte[] b = new byte[8192]; int n;
@@ -70,7 +85,7 @@ public final class WatchFlowTest {
         click(q.getJSONArray("options").getString((q.getInt("correctIndex") + 1) % q.getJSONArray("options").length()));
         assertEquals(initial + 1, store.events().length());
         assertEquals("wrong", store.session().getJSONObject("feedbackEvent").getString("result"));
-        JSONObject disk = read(new File(activity.getFilesDir(), "learning-state.json"));
+        JSONObject disk = new LearningStorage(activity.getFilesDir()).read();
         assertEquals("Feedback and event must commit together", store.session().getJSONObject("feedbackEvent").getString("id"), disk.getJSONObject("session").getJSONObject("feedbackEvent").getString("id"));
         click("撤销这次作答"); assertFalse(store.session().has("feedbackEvent"));
         click("先看讲解"); click("返回");
@@ -103,6 +118,7 @@ public final class WatchFlowTest {
         }
         assertNotNull("Recreated activity must resume", resumed.get()); activity = resumed.get();
         getInstrumentation().waitForIdleSync();
+        waitForStudyIdle();
         click("开始今日学习");
         assertTrue(store.session().getJSONArray("queue").getJSONObject(0).getBoolean("review"));
         click("翻面看答案"); click("记得");

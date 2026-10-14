@@ -1,0 +1,66 @@
+{
+  "baselineCommit": "f78ea2b007d3fa2ee5203c0777c9c2d8f6017a94",
+  "baselineVersion": "1.1.0",
+  "candidateVersion": "1.1.1",
+  "baseline": {
+    "environment": "Robolectric SDK35 on desktop; not watch latency",
+    "cachedPackages": 15,
+    "wordsPerPackage": 120,
+    "historicalEvents": 300,
+    "rounds": 15,
+    "flipMs": {
+      "p50": 1022.5798,
+      "p95": 1274.5022,
+      "max": 1274.5022
+    },
+    "rememberMs": {
+      "p50": 1805.8636,
+      "p95": 2177.6742,
+      "max": 2177.6742
+    },
+    "nextMs": {
+      "p50": 1796.5896,
+      "p95": 2015.7395,
+      "max": 2015.7395
+    },
+    "clickCallbackMs": {
+      "p50": 1685.5803,
+      "p95": 1997.7863,
+      "max": 2164.5458
+    },
+    "mainThreadWrites": 60,
+    "bytesWrittenDuringClicks": 224996751
+  },
+  "candidate": {
+    "environment": "Robolectric SDK35 on desktop; not watch latency",
+    "cachedPackages": 15,
+    "wordsPerPackage": 120,
+    "historicalEvents": 300,
+    "rounds": 15,
+    "flipMs": {
+      "p50": 61.5423,
+      "p95": 127.406501,
+      "max": 127.406501
+    },
+    "rememberMs": {
+      "p50": 95.849,
+      "p95": 155.228799,
+      "max": 155.228799
+    },
+    "nextMs": {
+      "p50": 48.5827,
+      "p95": 64.2402,
+      "max": 64.2402
+    },
+    "clickCallbackMs": {
+      "p50": 4.4913,
+      "p95": 12.634,
+      "max": 15.028399
+    },
+    "mainThreadWrites": 0,
+    "bytesWrittenDuringClicks": 5212851
+  },
+  "method": "Same desktop and synthetic fixture; actual click handlers, persistence and next layout readiness. Does not measure hardware frame presentation or watch latency.",
+  "deviceTested": false,
+  "emulatorStarted": false
+}
