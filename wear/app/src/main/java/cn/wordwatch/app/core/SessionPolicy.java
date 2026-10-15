@@ -15,8 +15,8 @@ public final class SessionPolicy {
     public static JSONObject reconcile(JSONObject source, JSONArray events, JSONObject availableWords, long now, int limit) throws Exception {
         if (source == null || !Instant.ofEpochMilli(now).atZone(StudyEngine.STUDY_ZONE).toLocalDate().toString().equals(source.optString("date"))) return null;
         JSONObject pack = source.optJSONObject("pack");
-        if (pack == null) return source.has("feedbackEvent") ? new JSONObject(source.toString()) : null;
-        JSONObject s = new JSONObject(source.toString());
+        if (pack == null) return source.has("feedbackEvent") ? JsonCopies.object(source) : null;
+        JSONObject s = JsonCopies.object(source);
         JSONObject frozen = s.getJSONObject("words");
         List<StudyEngine.Task> eligible = StudyEngine.queue(pack, frozen, events, now, limit);
         Set<String> allowed = new HashSet<>();

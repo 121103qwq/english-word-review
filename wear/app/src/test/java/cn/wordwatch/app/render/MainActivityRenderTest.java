@@ -7,6 +7,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -24,6 +25,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
 
@@ -158,7 +160,7 @@ public final class MainActivityRenderTest {
         capture(activity, "round-192-modes", false);
         click(activity, "熟词生义");
         click(activity, "检查应用更新");
-        assertTextExists(activity, "当前版本 1.1.0");
+        assertTextExists(activity, "当前版本 " + activity.getPackageManager().getPackageInfo(activity.getPackageName(), 0).versionName);
         capture(activity, "round-192-updates", false);
         click(activity, "返回");
         click(activity, "个人每日上限");
@@ -597,7 +599,9 @@ public final class MainActivityRenderTest {
 
     private MainActivity launch() {
         Intent intent = new Intent(RuntimeEnvironment.getApplication(), MainActivity.class);
-        return Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        awaitActivityIdle(activity);
+        return activity;
     }
 
     private static void assertRound(Activity activity, int expectedDp) {
@@ -651,7 +655,27 @@ public final class MainActivityRenderTest {
         assertTrue("Action must be reachable by scrolling: " + label, button.getGlobalVisibleRect(visible));
         assertTrue("Action must have a visible touch area: " + label, visible.height() > 0 && visible.width() > 0);
         button.performClick();
+        awaitActivityIdle(activity);
         measureActivity(activity);
+    }
+
+    private static void awaitActivityIdle(Activity activity) {
+        long deadline = System.currentTimeMillis() + 5000;
+        try {
+            Field busy = MainActivity.class.getDeclaredField("busy"); busy.setAccessible(true);
+            Field prepared = MainActivity.class.getDeclaredField("prepared"); prepared.setAccessible(true);
+            while (System.currentTimeMillis() < deadline) {
+                Shadows.shadowOf(Looper.getMainLooper()).idle();
+                if (!busy.getBoolean(activity) && prepared.get(activity) != null) return;
+                Thread.sleep(10);
+            }
+            throw new AssertionError("MainActivity background preparation did not finish");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Could not wait for MainActivity", e);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("Could not inspect MainActivity state", e);
+        }
     }
 
     private static Button findButton(Activity activity, String label) {

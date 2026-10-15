@@ -71,71 +71,85 @@ public final class SyncCoordinator {
 
     public static boolean start(Context context, boolean manual, Callback callback) {
         Context app = context.getApplicationContext();
-        AppStore store = AppStore.get(app);
         if (!new CredentialVault(app).exists()) return false;
         Network pinnedNetwork = manual ? null : eligibleWifiNetwork(app);
         if (!manual && pinnedNetwork == null) return false;
-
-        int pending = store.pendingCount();
-        JSONObject state = store.snapshot();
-        long minimumDelay = pending > 0 && state.optString("syncError").isEmpty()
-                ? 30_000L : 15 * 60_000L;
-        if (!manual && System.currentTimeMillis() - state.optLong("lastAttempt") < minimumDelay) return false;
         if (!RUNNING.compareAndSet(false, true)) return false;
 
         AtomicBoolean cancelled = manual ? null : new AtomicBoolean(false);
         if (cancelled != null) AUTOMATIC_CANCEL.set(cancelled);
-        IO.execute(() -> {
-            String message = "同步失败，离线记录已保留";
-            boolean success = false;
-            boolean readLockHeld = false;
-            try {
-                SETTINGS_LOCK.readLock().lock();
-                readLockHeld = true;
-                store.syncAttempt(null);
-                JSONObject settings = store.settings();
-                GitHubClient.ConnectionFactory connectionFactory = manual ? null
-                        : url -> (HttpURLConnection) pinnedNetwork.openConnection(url);
-                GitHubClient.HttpTransport transport = manual
-                        ? new GitHubClient.HttpTransport()
-                        : new GitHubClient.HttpTransport(connectionFactory);
-                GitHubClient.RequestGuard requestGuard = manual ? () -> true
-                        : () -> !cancelled.get() && isStillOn(pinnedNetwork, app);
-                GitHubClient client = new GitHubClient(
-                        GitHubClient.CONTENT_PREFIX, transport, Thread::sleep, requestGuard);
-                GitHubClient.SyncResult result = client.sync(
-                        settings.getString("owner"), settings.getString("repo"), settings.getString("branch"),
-                        new CredentialVault(app).read(), store.deviceId(), store.events());
+        try {
+            IO.execute(() -> {
+                AppStore store = null;
+                String message = "同步失败，离线记录已保留";
+                boolean success = false;
+                boolean readLockHeld = false;
+                try {
+                    store = AppStore.get(app);
+                    if (!manual) {
+                        int pending = store.pendingCount();
+                        JSONObject state = store.snapshot();
+                        long minimumDelay = pending > 0 && state.optString("syncError").isEmpty()
+                                ? 30_000L : 15 * 60_000L;
+                        if (System.currentTimeMillis() - state.optLong("lastAttempt") < minimumDelay) {
+                            message = "自动同步暂未到重试时间";
+                            success = true;
+                            return;
+                        }
+                    }
+                    SETTINGS_LOCK.readLock().lock();
+                    readLockHeld = true;
+                    store.syncAttempt(null);
+                    JSONObject settings = store.settings();
+                    GitHubClient.ConnectionFactory connectionFactory = manual ? null
+                            : url -> (HttpURLConnection) pinnedNetwork.openConnection(url);
+                    GitHubClient.HttpTransport transport = manual
+                            ? new GitHubClient.HttpTransport()
+                            : new GitHubClient.HttpTransport(connectionFactory);
+                    GitHubClient.RequestGuard requestGuard = manual ? () -> true
+                            : () -> !cancelled.get() && isStillOn(pinnedNetwork, app);
+                    GitHubClient client = new GitHubClient(
+                            GitHubClient.CONTENT_PREFIX, transport, Thread::sleep, requestGuard);
+                    GitHubClient.SyncResult result = client.sync(
+                            settings.getString("owner"), settings.getString("repo"), settings.getString("branch"),
+                            new CredentialVault(app).read(), store.deviceId(), store.events());
 
-                String packWarning = result.warning;
-                store.acceptSyncPackages(result.packages, result.events, result.acknowledgedEventIds, packWarning);
-                String eventError = result.eventsComplete ? "" : failureMessage(result.eventFailure, result.eventWarning);
-                if (!result.eventsComplete) store.syncAttempt(eventError);
+                    String packWarning = result.warning;
+                    store.acceptSyncPackages(result.packages, result.events, result.acknowledgedEventIds, packWarning);
+                    String eventError = result.eventsComplete ? "" : failureMessage(result.eventFailure, result.eventWarning);
+                    if (!result.eventsComplete) store.syncAttempt(eventError);
 
-                JSONObject stored = store.snapshot();
-                StringBuilder display = new StringBuilder(result.eventsComplete
-                        ? "记录已同步到 GitHub" : "部分记录未确认，仍保留在本机");
-                if (!result.eventWarning.isEmpty()) display.append("；").append(result.eventWarning);
-                String visiblePackWarning = stored.optString("packError", "");
-                if (!visiblePackWarning.isEmpty()) display.append("；").append(visiblePackWarning);
-                message = display.toString();
-                success = result.eventsComplete && result.packFailure == null && visiblePackWarning.isEmpty();
-            } catch (Exception e) {
-                message = failureMessage(e instanceof GitHubClient.SyncException
-                        ? (GitHubClient.SyncException) e : null, "离线记录仍保留在本机");
-                try { store.syncAttempt(message); }
-                catch (Exception ignored) { message = "本机保存失败，请勿卸载应用"; }
-            } finally {
-                if (readLockHeld) SETTINGS_LOCK.readLock().unlock();
-                if (cancelled != null) AUTOMATIC_CANCEL.compareAndSet(cancelled, null);
-                RUNNING.set(false);
-                String resultMessage = message;
-                boolean resultSuccess = success;
-                if (callback != null) {
-                    new Handler(Looper.getMainLooper()).post(() -> callback.done(resultMessage, resultSuccess));
+                    JSONObject stored = store.snapshot();
+                    StringBuilder display = new StringBuilder(result.eventsComplete
+                            ? "记录已同步到 GitHub" : "部分记录未确认，仍保留在本机");
+                    if (!result.eventWarning.isEmpty()) display.append("；").append(result.eventWarning);
+                    String visiblePackWarning = stored.optString("packError", "");
+                    if (!visiblePackWarning.isEmpty()) display.append("；").append(visiblePackWarning);
+                    message = display.toString();
+                    success = result.eventsComplete && result.packFailure == null && visiblePackWarning.isEmpty();
+                } catch (Exception e) {
+                    message = failureMessage(e instanceof GitHubClient.SyncException
+                            ? (GitHubClient.SyncException) e : null, "离线记录仍保留在本机");
+                    if (store != null) {
+                        try { store.syncAttempt(message); }
+                        catch (Exception ignored) { message = "本机保存失败，请勿卸载应用"; }
+                    }
+                } finally {
+                    if (readLockHeld) SETTINGS_LOCK.readLock().unlock();
+                    if (cancelled != null) AUTOMATIC_CANCEL.compareAndSet(cancelled, null);
+                    RUNNING.set(false);
+                    String resultMessage = message;
+                    boolean resultSuccess = success;
+                    if (callback != null) {
+                        new Handler(Looper.getMainLooper()).post(() -> callback.done(resultMessage, resultSuccess));
+                    }
                 }
-            }
-        });
+            });
+        } catch (RuntimeException rejected) {
+            if (cancelled != null) AUTOMATIC_CANCEL.compareAndSet(cancelled, null);
+            RUNNING.set(false);
+            return false;
+        }
         return true;
     }
 

@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /** Pure-Java validation, event projection, and daily queue rules for WordWatch. */
 public final class StudyEngine {
@@ -39,6 +40,10 @@ public final class StudyEngine {
     private static final int[] INTERVAL_DAYS = {1, 3, 7, 14, 30, 60};
     private static final int MAX_WORDS = 500;
     private static final int MAX_NEW_CANDIDATES = MAX_WORDS;
+    private static final Pattern SHA256_PATTERN = Pattern.compile("[0-9a-fA-F]{64}");
+    private static final Pattern MODE_PATTERN = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}");
+    private static final Pattern WORD_ID_PATTERN = Pattern.compile("(?:csv:[0-9]{4,12}|dyn:[A-Za-z0-9][A-Za-z0-9._:-]{0,127})");
+    private static final Pattern DEVICE_ID_PATTERN = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,127}");
 
     private StudyEngine() {}
 
@@ -65,7 +70,7 @@ public final class StudyEngine {
             throw invalid("unsupported contentMode");
         }
         String digest = requiredText(pack, "catalogSha256", 64);
-        if (!digest.matches("[0-9a-fA-F]{64}")) {
+        if (!SHA256_PATTERN.matcher(digest).matches()) {
             throw invalid("catalogSha256 must be a SHA-256 hex digest");
         }
         int newWordLimit = requiredInt(pack, "newWordLimit");
@@ -266,7 +271,7 @@ public final class StudyEngine {
                 if ("forward".equals(mode)) forward = true;
                 else if ("reverse".equals(mode)) reverse = true;
                 else if (!"rare".equals(mode)) throw invalid("question mode must be forward, reverse, or rare");
-            } else if (!mode.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")) {
+            } else if (!MODE_PATTERN.matcher(mode).matches()) {
                 throw invalid("invalid question mode");
             }
             requiredText(question, "prompt", 500);
@@ -369,7 +374,7 @@ public final class StudyEngine {
     }
 
     private static void validateWordId(String id) {
-        if (!id.matches("(?:csv:[0-9]{4,12}|dyn:[A-Za-z0-9][A-Za-z0-9._:-]{0,127})")) {
+        if (!WORD_ID_PATTERN.matcher(id).matches()) {
             throw invalid("invalid word id");
         }
     }
@@ -701,7 +706,8 @@ public final class StudyEngine {
             }
             if (prior == null) {
                 canonicalById.put(id, canonical);
-                byId.put(id, copyObject(event));
+                // The result is detached below; no intermediate copy is mutated here.
+                byId.put(id, event);
             }
         }
     }
@@ -744,7 +750,7 @@ public final class StudyEngine {
         validateWordId(wordId);
         requiredText(event, "packageId", 128);
         String mode = requiredText(event, "mode", 64);
-        if (!mode.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")) {
+        if (!MODE_PATTERN.matcher(mode).matches()) {
             throw invalid("invalid answer mode");
         }
         String result = requiredText(event, "result", 16);
@@ -797,7 +803,7 @@ public final class StudyEngine {
     }
 
     private static void validateDeviceId(String deviceId) {
-        if (!deviceId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,127}")) {
+        if (!DEVICE_ID_PATTERN.matcher(deviceId).matches()) {
             throw invalid("invalid deviceId");
         }
     }
@@ -837,7 +843,10 @@ public final class StudyEngine {
         if (events == null || now < 0) {
             throw invalid("events and a non-negative now are required");
         }
-        List<JSONObject> active = activeEvents(events, now);
+        return projectActive(activeEvents(events, now), now);
+    }
+
+    private static Map<String, Card> projectActive(List<JSONObject> active, long now) {
         Map<String, Card> cards = new HashMap<>();
         for (JSONObject event : active) {
             if (!"answer".equals(stringUnchecked(event, "type"))) {
@@ -973,12 +982,13 @@ public final class StudyEngine {
             cachedWordsById = new JSONObject();
         }
 
-        Map<String, Card> cards = project(events, now);
+        List<JSONObject> active = activeEvents(events, now);
+        Map<String, Card> cards = projectActive(active, now);
         LocalDate today = Instant.ofEpochMilli(now).atZone(STUDY_ZONE).toLocalDate();
         LocalDate packageDate = LocalDate.parse(stringUnchecked(pack, "date"), PACKAGE_DATE);
         if (packageDate.isAfter(today)) return Collections.emptyList();
         Set<String> primaryToday = new HashSet<>();
-        for (JSONObject event : activeEvents(events, now)) {
+        for (JSONObject event : active) {
             if (!"answer".equals(stringUnchecked(event, "type"))
                     || !"primary".equals(stringUnchecked(event, "attempt"))) {
                 continue;
@@ -1033,7 +1043,7 @@ public final class StudyEngine {
         int packageLimit = requiredInt(pack, "newWordLimit");
         int effectiveLimit = packageLimit < 0 ? newLimit : newLimit < 0
                 ? packageLimit : Math.min(packageLimit, newLimit);
-        int alreadyNewToday = todayCounts(events, now)[0];
+        int alreadyNewToday = todayCountsActive(active, now)[0];
         int permittedNew = effectiveLimit < 0 ? MAX_WORDS
                 : Math.max(0, effectiveLimit - alreadyNewToday);
         JSONArray newIds = requiredArray(pack, "newWordIds");
@@ -1063,12 +1073,16 @@ public final class StudyEngine {
         if (events == null || now < 0) {
             throw invalid("events and a non-negative now are required");
         }
+        return todayCountsActive(activeEvents(events, now), now);
+    }
+
+    private static int[] todayCountsActive(List<JSONObject> active, long now) {
         LocalDate today = Instant.ofEpochMilli(now).atZone(STUDY_ZONE).toLocalDate();
         Map<String, Boolean> primaryKindByWord = new LinkedHashMap<>();
         Set<String> skippedWords = new HashSet<>();
         Set<String> assistedRightWords = new HashSet<>();
 
-        for (JSONObject event : activeEvents(events, now)) {
+        for (JSONObject event : active) {
             if (!"answer".equals(stringUnchecked(event, "type"))) {
                 continue;
             }
@@ -1262,19 +1276,11 @@ public final class StudyEngine {
     }
 
     private static JSONObject copyObject(JSONObject object) {
-        try {
-            return new JSONObject(object.toString());
-        } catch (JSONException e) {
-            throw invalid("could not copy JSON object");
-        }
+        return JsonCopies.object(object);
     }
 
     private static JSONArray copyArray(JSONArray array) {
-        try {
-            return new JSONArray(array.toString());
-        } catch (JSONException e) {
-            throw invalid("could not copy JSON array");
-        }
+        return JsonCopies.array(array);
     }
 
     private static Object copyJsonValue(Object value) {
