@@ -1012,6 +1012,9 @@ public final class StudyEngine {
         List<Task> tasks = new ArrayList<>();
         Set<String> queued = new HashSet<>();
 
+        int[] completedToday = todayCountsActive(active, now);
+        int reviewRemaining = Math.max(0, Math.min(40 - completedToday[1], 100 - completedToday[0] - completedToday[1]));
+        int addedReviews = 0;
         List<Card> overdue = new ArrayList<>();
         for (Card card : cards.values()) {
             if (!card.known && card.dueAt > 0L && card.dueAt <= now
@@ -1023,12 +1026,14 @@ public final class StudyEngine {
         }
         overdue.sort(Comparator.comparingLong((Card card) -> card.dueAt).thenComparing(card -> card.wordId));
         for (Card card : overdue) {
+            if (addedReviews >= reviewRemaining) break;
             tasks.add(new Task(card.wordId, true, "primary"));
             queued.add(card.wordId);
+            addedReviews++;
         }
 
         JSONArray reviewIds = requiredArray(pack, "reviewWordIds");
-        for (int i = 0; i < reviewIds.length(); i++) {
+        for (int i = 0; i < reviewIds.length() && addedReviews < reviewRemaining; i++) {
             String id = stringAt(reviewIds, i, "reviewWordIds");
             Card card = cards.get(id);
             boolean eligible = card == null || (!card.known && card.dueAt > 0L && card.dueAt <= now);
@@ -1037,6 +1042,7 @@ public final class StudyEngine {
                     && hasDefinition(id, packageWords, cachedWordsById)) {
                 tasks.add(new Task(id, true, "primary"));
                 queued.add(id);
+                addedReviews++;
             }
         }
 
@@ -1046,6 +1052,8 @@ public final class StudyEngine {
         int alreadyNewToday = todayCountsActive(active, now)[0];
         int permittedNew = effectiveLimit < 0 ? MAX_WORDS
                 : Math.max(0, effectiveLimit - alreadyNewToday);
+        permittedNew = Math.min(permittedNew, Math.max(0, Math.min(60 - alreadyNewToday,
+                100 - completedToday[0] - completedToday[1] - addedReviews)));
         JSONArray newIds = requiredArray(pack, "newWordIds");
         int addedNew = 0;
         for (int i = 0; i < newIds.length() && addedNew < permittedNew; i++) {
